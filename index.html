@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <!-- maximum-scale=1 : bloque le ZOOM AUTOMATIQUE d'iOS au focus d'un champ
+       (déclenchable même à 16px par l'overlay de remplissage de mot de passe).
+       En PWA, ce zoom ne se relâche jamais et fait défiler les éléments
+       position:fixed avec le contenu (barre de nav qui « bouge »). iOS ignore
+       maximum-scale pour le pinch UTILISATEUR depuis iOS 10 : le zoom manuel
+       reste possible, seul le zoom auto est neutralisé. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+  <title>Patrimoine</title>
+
+  <!-- Pas de Content-Security-Policy ici : Babel standalone compile les
+       fichiers JSX en injectant des scripts inline, ce qui rend un CSP
+       strict incompatible (il faudrait 'unsafe-inline', annulant la
+       protection). Les autres mesures de sécurité restent en place :
+       SRI sur les CDN, règles Firestore, validation des imports JSON. -->
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f172a'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12V7H5a2 2 0 0 1 0-4h14v4'/%3E%3Cpath d='M3 5v14a2 2 0 0 0 2 2h16v-5'/%3E%3Cpath d='M18 12a2 2 0 0 0 0 4h4v-4z'/%3E%3C/g%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=443" />
+  <meta name="description" content="Suivi de patrimoine personnel : compte courant, épargne, investissements et actifs physiques." />
+  <meta name="application-name" content="Patrimoine" />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Patrimoine" />
+  <!-- Manifest PWA : permet l'installation Android/Chrome (nom, icônes, mode
+       standalone, couleur de thème, écran de démarrage).
+       Sélection DYNAMIQUE : sous /patrimoine-dev/ (dépôt GitHub Pages de
+       test) ou en localhost, on charge manifest-dev.json ("Patrimoine DEV")
+       pour distinguer les deux PWA installées sur l'écran d'accueil.
+       Même critère pathname que le switch Firebase de config.js. -->
+  <script>
+    (function () {
+      // Version de build — la chaîne '?v=NNN' est mise à jour par le même
+      // sed que le cache-busting. Affichée en pied du menu « ⋯ » et loguée
+      // en console : permet de vérifier d'un coup d'œil quelle version
+      // tourne réellement sur l'appareil (cache Safari, déploiement Pages…).
+      window.APP_BUILD = '?v=443'.replace('?v=', 'v');
+      var isDev = location.pathname.indexOf('/patrimoine-dev') === 0
+               || location.hostname === 'localhost'
+               || location.hostname === '127.0.0.1';
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = (isDev ? 'manifest-dev.json' : 'manifest.json') + '?v=443';
+      document.head.appendChild(link);
+      if (isDev) {
+        // Titre iOS (Ajouter à l'écran d'accueil) + titre d'onglet distincts
+        var m = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        if (m) m.setAttribute('content', 'Patri. DEV');
+        document.title = 'Patrimoine DEV';
+      }
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Cache-busting : incrémenter cette version à chaque modif visible
+       pour forcer le navigateur (notamment iOS Safari) à recharger les
+       fichiers JS/CSS depuis le serveur. -->
+  <link rel="stylesheet" href="styles.css?v=443" />
+
+  <!-- React + Recharts + Babel + Firebase
+       Tous les scripts CDN sont protégés par un hash SRI (Subresource
+       Integrity). Si la CDN sert un fichier altéré, le navigateur refuse
+       de l'exécuter. Les versions sont strictement pinées : ne change pas
+       une version sans regénérer le hash sha384 correspondant. -->
+  <script crossorigin="anonymous"
+          integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"
+          src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin="anonymous"
+          integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"
+          src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script crossorigin="anonymous"
+          integrity="sha384-/AfDwVDXNopzPvhxMPQ11y1OCpR6mVkWx47qzSwIiquvxkcMkZddEzDNtIOtfCpk"
+          src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <script crossorigin="anonymous"
+          integrity="sha384-d1XH4LhwLW8j0l6VXMP8yJabdGY9ZqtZk7k7PaPk5NoUCcZ/hDkL5aaKioKQbcZg"
+          src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script crossorigin="anonymous"
+          integrity="sha384-ezQ6HS3FLspd9te19o2McUV6FAK091+GG7KO54f/R8DKgCDi7fULhapNrd5LY+vG"
+          src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+  <script crossorigin="anonymous"
+          integrity="sha384-ZaR6mWzmJtrRibZ1Vm7SoHFr8OXjyAuGAXalGDKqbxFT18oi/z+oZLIRFkpeNor1"
+          src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script crossorigin="anonymous"
+          integrity="sha384-I1LYojsZ5RM1cOda44Z2h42Qa6YfsQ1XkXxREnhp4ueYBR/4d1pG1K+NZM537Vsj"
+          src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script crossorigin="anonymous"
+          integrity="sha384-Ke0FJhH7LyRqDxZ0wt+/OXV38yfQVu7g9VPEEGjYmB4RVOY/ta04uecRhsMwT7V3"
+          src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div id="root">
+    <div class="loading"><div class="spinner"></div><div>Chargement</div></div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!--  Modules JS — chargés dans l'ordre des dépendances             -->
+  <!-- ============================================================ -->
+  <script src="js/config.js?v=443"></script>
+
+  <!-- Les modules React utilisent Babel (JSX) -->
+  <script type="text/babel" data-presets="env,react" src="js/utils.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/adapter.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/compute.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/ui.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/dnd.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/auth.js?v=443"></script>
+  <!-- settings.js doit être chargé avant checking.js et investments.js : il définit RecurringList et EtfsList -->
+  <script type="text/babel" data-presets="env,react" src="js/settings.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/checking.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/savings.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/physical.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/investments.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/consolidated.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/search.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/charges.js?v=443"></script>
+  <script type="text/babel" data-presets="env,react" src="js/app.js?v=443"></script>
+</body>
+</html>

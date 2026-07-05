@@ -1,0 +1,47 @@
+{
+  "name": "Patrimoine DEV",
+  "short_name": "Patri. DEV",
+  "description": "Environnement de TEST de l'application Patrimoine — données de dev isolées.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fef3c7",
+  "theme_color": "#fef3c7",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Compte courant",
+      "short_name": "Compte",
+      "description": "Ouvrir directement le compte courant",
+      "url": "./#compte-courant",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Épargne",
+      "short_name": "Épargne",
+      "description": "Ouvrir directement l'épargne",
+      "url": "./#epargne",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Investissements",
+      "short_name": "Invest.",
+      "description": "Ouvrir directement les investissements",
+      "url": "./#investissements",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Actifs physiques",
+      "short_name": "Actifs",
+      "description": "Ouvrir directement les actifs physiques",
+      "url": "./#actifs-physiques",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
