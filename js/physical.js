@@ -104,7 +104,7 @@ function PhysicalRow({ item, onEdit, onDelete }) {
   const gain = current - invested;
   const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
   return (
-    <div className="asset-row">
+    <div className="asset-row" data-locate={`phys-${item.id}`}>
       <span className="tx-icon pat">€</span>
       <div>
         <div className="asset-name">{item.name}</div>

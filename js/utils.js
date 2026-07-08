@@ -135,6 +135,54 @@ function scrollAppTo(top, smooth) {
   }
 }
 
+// ============================================================
+//  LOCALISATION d'un résultat de recherche.
+//  Attend que l'élément portant data-locate=<key> apparaisse dans le DOM
+//  (la vue cible peut mettre quelques rendus à se monter après la
+//  navigation), puis le centre à l'écran (scrollIntoView remonte tous les
+//  ancêtres scrollables : page sur desktop, .main-container sur mobile)
+//  et le met en évidence via la classe .row-flash (auto-retirée).
+// ============================================================
+function requestLocate(key) {
+  if (!key) return;
+  const deadline = Date.now() + 3000;
+  const attempt = () => {
+    const el = document.querySelector('[data-locate="' + key + '"]');
+    if (el) {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      catch (e) { el.scrollIntoView(); }
+      el.classList.add('row-flash');
+      setTimeout(() => el.classList.remove('row-flash'), 2600);
+      return;
+    }
+    if (Date.now() < deadline) setTimeout(attempt, 120);
+  };
+  // Petit délai initial : laisse la navigation (module/compte/mois)
+  // déclencher ses rendus avant la première tentative.
+  setTimeout(attempt, 180);
+}
+
+// ============================================================
+//  INTENTION D'OUVERTURE (recherche, phases 2/3) : ouvrir une sous-page
+//  (livret, portefeuille) ou une modale (récurrents) depuis un résultat.
+//  Problème : au moment du clic, la vue cible n'est pas forcément montée
+//  → un simple événement serait perdu. On pose donc une intention en
+//  attente (consommée au montage de la vue) ET on émet un événement
+//  (consommé si la vue est déjà montée). L'intention expire après 3 s.
+// ============================================================
+function requestOpen(type, payload) {
+  window.__pendingOpen = { type, payload, until: Date.now() + 3000 };
+  window.dispatchEvent(new CustomEvent('patrimoine:open', { detail: { type } }));
+}
+function consumeOpen(type) {
+  const p = window.__pendingOpen;
+  if (p && p.type === type && Date.now() < p.until) {
+    window.__pendingOpen = null;
+    return p.payload;
+  }
+  return null;
+}
+
 // Libellé du module Compte courant : pluriel si toggle multi-comptes activé.
 function checkingModuleLabel(profile) {
   return profile?.modulesEnabled?.multiCheckingAccounts ? 'Comptes courants' : 'Compte courant';

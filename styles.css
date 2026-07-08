@@ -315,6 +315,14 @@ input[type="month"] {
 .seg-solo.on { background: var(--text); color: white; }
 .seg-solo.on:hover { color: white; }
 
+/* Mise en évidence d'un résultat de recherche localisé (requestLocate) :
+   flash violet + liseré accent qui s'estompent, puis retour à la normale. */
+@keyframes rowFlash {
+  0%, 55% { background-color: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
+  100% { background-color: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+.row-flash { animation: rowFlash 2.4s ease forwards; }
+
 /* Liste des charges : lignes dans le style des opérations du compte courant */
 .charge-list { display: flex; flex-direction: column; }
 .charge-row {

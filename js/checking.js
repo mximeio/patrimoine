@@ -333,6 +333,32 @@ function CheckingView({ ctx, onBack }) {
   // Le slot existe toujours dans le DOM (masqué sur desktop par le CSS).
   const titleSlot = document.getElementById('mobileTitleSlot');
 
+  // Recherche : changement de mois « à chaud ». La navigation par
+  // localStorage ne joue qu'au MONTAGE de la vue — si CheckingView est
+  // déjà montée (on est déjà sur l'onglet), ce signal bascule le mois
+  // pour que la localisation (scroll + flash) trouve sa ligne.
+  useEffect(() => {
+    const onGoto = (e) => {
+      const d = e.detail || {};
+      if (d.accountId !== checking.id) return;
+      if (checking.months && checking.months[d.monthKey]) setCurrentMonth(d.monthKey);
+    };
+    window.addEventListener('patrimoine:goto-month', onGoto);
+    return () => window.removeEventListener('patrimoine:goto-month', onGoto);
+  }, [checking]); // eslint-disable-line
+
+  // Recherche (phase 3) : ouverture de la modale des opérations récurrentes
+  // depuis un résultat (intention requestOpen, consommée au montage ou via
+  // événement si la vue est déjà montée). Le flash de la ligne dans la
+  // modale est géré par requestLocate, qui attend son apparition dans le DOM.
+  useEffect(() => {
+    const apply = (p) => { if (p && p.accountId === checking.id) setShowRecurring(true); };
+    apply(consumeOpen('recurring'));
+    const onOpen = (e) => { if (e.detail && e.detail.type === 'recurring') apply(consumeOpen('recurring')); };
+    window.addEventListener('patrimoine:open', onOpen);
+    return () => window.removeEventListener('patrimoine:open', onOpen);
+  }, [checking.id]); // eslint-disable-line
+
   const createMonth = (k) => {
     if (checking.months[k]) { setCurrentMonth(k); return; }
     if (!confirm(`Créer la feuille ${monthLabel(k)} ?\n\nLes entrées et sorties récurrentes seront pré-remplies.`)) return;
@@ -1605,7 +1631,7 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
   const handleRef = datesMode ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
-    <div ref={rowRef} className={`tx-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'} ${item.isTRRefund ? 'auto' : ''}`}>
+    <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'} ${item.isTRRefund ? 'auto' : ''}`}>
       <span ref={handleRef} className={`tx-icon ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}>
         {variant === 'income' ? <Icon name="arrowDown" size={12} />
           : variant === 'expense' ? <Icon name="arrowUp" size={12} />
@@ -1719,7 +1745,7 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
   const labelText = (item.label || '').trim();
   return (
     <div className={`tx-composite-wrap ${expanded ? 'expanded' : ''} ${item.pointed ? '' : 'unpointed'}`}>
-      <div ref={rowRef} className={`tx-row composite-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'}`}>
+      <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row composite-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'}`}>
         <span ref={handleRef} className={`tx-icon ${variant || 'expense'} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}>
           {variant === 'income' ? <Icon name="arrowDown" size={12} />
             : variant === 'tr' ? <Icon name="utensils" size={12} />
@@ -1939,7 +1965,7 @@ function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMo
   const handleRef = datesMode ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
-    <div ref={rowRef} className={`tx-row ${onEdit ? 'with-edit' : ''}`}>
+    <div ref={rowRef} data-locate={`tr-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''}`}>
       <span ref={handleRef} className={`tx-icon tr ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}><Icon name="utensils" size={12} /></span>
       {/* Pas de tx-check sur les TR (pas de pointage), mais on garde une
           cellule vide de même largeur pour préserver le grid de .tx-row. */}

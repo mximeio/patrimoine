@@ -515,9 +515,23 @@ function App() {
                 }
               }
             }
-            // Note : pour les portefeuilles et les livrets, on navigue vers le
-            // bon onglet ; l'ouverture d'un portefeuille/livret précis nécessite
-            // que la vue accepte un id initial (feature pour plus tard si demandé).
+            // Changement de mois « à chaud » : si CheckingView est déjà montée,
+            // le localStorage ci-dessus ne suffit pas (lu au montage seulement).
+            if (target.checkingAccountId && target.monthKey) {
+              window.dispatchEvent(new CustomEvent('patrimoine:goto-month', {
+                detail: { accountId: target.checkingAccountId, monthKey: target.monthKey },
+              }));
+            }
+            // Phase 2 : ouverture des sous-pages (opération d'un livret,
+            // support d'un portefeuille). Phase 3 : modale des récurrents.
+            // requestOpen pose une intention consommée au montage de la vue
+            // (ou immédiatement si elle est déjà montée).
+            if (target.openDetail && target.savingId) requestOpen('saving', { id: target.savingId });
+            if (target.openDetail && target.portfolioId) requestOpen('portfolio', { id: target.portfolioId });
+            if (target.openRecurring && target.checkingAccountId) requestOpen('recurring', { accountId: target.checkingAccountId });
+            // Localisation fine : scroll + flash sur la ligne cible
+            // (data-locate posé par les vues, clé fournie par la recherche).
+            requestLocate(target.locate);
             setShowSearch(false);
           }}
         />

@@ -24,6 +24,16 @@ function InvestmentsView({ ctx }) {
   // Remonte en haut quand on change de vue (liste ↔ sous-page)
   useEffect(() => { scrollAppTo(0); }, [activeId]);
 
+  // Recherche (phase 2) : ouverture directe d'un portefeuille depuis un
+  // résultat (intention requestOpen, consommée au montage ou via événement).
+  useEffect(() => {
+    const apply = (p) => { if (p && portfolios.find(x => x.id === p.id)) setActiveId(p.id); };
+    apply(consumeOpen('portfolio'));
+    const onOpen = (e) => { if (e.detail && e.detail.type === 'portfolio') apply(consumeOpen('portfolio')); };
+    window.addEventListener('patrimoine:open', onOpen);
+    return () => window.removeEventListener('patrimoine:open', onOpen);
+  }, [portfolios]);
+
   const handleCreate = async (name) => {
     try {
       await Adapter.createPortfolio(user.uid, name);
@@ -209,7 +219,7 @@ function PortfolioListRow({ portfolio, colorIndex, total, onClick }) {
   const lastDate = portfolio.data?.currentValuesDate;
 
   return (
-    <button className="portfolio-list-row" onClick={onClick} aria-label={`Ouvrir ${portfolio.name}`}>
+    <button className="portfolio-list-row" data-locate={`pf-${portfolio.id}`} onClick={onClick} aria-label={`Ouvrir ${portfolio.name}`}>
       <div className="portfolio-list-icon" style={{ background: color + '22', color }}>
         <Icon name="chart" size={12} />
       </div>
@@ -589,7 +599,7 @@ function SupportRow({ position, lastDate }) {
   const isUp = position.gain >= 0;
   const isDist = position.kind === 'distributing';
   return (
-    <div className="support-row">
+    <div className="support-row" data-locate={`etf-${position.id}`}>
       <span className="support-icon" style={{ background: (position.color || COLORS.muted) + '26', color: position.color || COLORS.muted }}>
         {supportName(position).charAt(0)}
       </span>

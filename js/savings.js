@@ -19,6 +19,17 @@ function SavingsView({ ctx }) {
   }, [savings, activeId]);
   useEffect(() => { scrollAppTo(0); }, [activeId]);
 
+  // Recherche (phase 2) : ouverture directe d'un livret depuis un résultat
+  // (intention posée par requestOpen, consommée au montage OU via événement
+  // si la vue est déjà montée).
+  useEffect(() => {
+    const apply = (p) => { if (p && savings.find(s => s.id === p.id)) setActiveId(p.id); };
+    apply(consumeOpen('saving'));
+    const onOpen = (e) => { if (e.detail && e.detail.type === 'saving') apply(consumeOpen('saving')); };
+    window.addEventListener('patrimoine:open', onOpen);
+    return () => window.removeEventListener('patrimoine:open', onOpen);
+  }, [savings]);
+
   const handleCreate = async (name, balance) => {
     try {
       await Adapter.createSavings(user.uid, {
@@ -159,7 +170,7 @@ function SavingsListRow({ saving, colorIndex, onClick }) {
     .filter(o => !!o.date)
     .reduce((latest, o) => (!latest || o.date > latest.date) ? o : latest, null);
   return (
-    <button className="portfolio-list-row" onClick={onClick} aria-label={`Ouvrir ${saving.name}`}>
+    <button className="portfolio-list-row" data-locate={`saving-${saving.id}`} onClick={onClick} aria-label={`Ouvrir ${saving.name}`}>
       <div className="portfolio-list-icon" style={{ background: color + '22', color }}>
         <Icon name="piggy" size={12} />
       </div>
@@ -334,7 +345,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
           {sortedOps.slice(0, 8).map(op => {
             const d = getSavingsOpDisplay(op);
             return (
-              <div key={op.id} className="op-row" style={{ gridTemplateColumns: '24px 1fr auto 24px' }}>
+              <div key={op.id} data-locate={`sop-${op.id}`} className="op-row" style={{ gridTemplateColumns: '24px 1fr auto 24px' }}>
                 <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
                 <div className="op-main">
                   <span className="op-label">{d.label}</span>

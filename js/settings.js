@@ -712,7 +712,7 @@ function SimpleRecurringRow({ item, scope, list, index, onUpdate, onRemove, onEd
   const handleRef = datesMode ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
-    <div ref={rowRef} className={`recurring-row ${onEdit ? 'with-edit' : ''}`} style={{ paddingLeft: 14 }}>
+    <div ref={rowRef} data-locate={`rec-${item.id}`} className={`recurring-row ${onEdit ? 'with-edit' : ''}`} style={{ paddingLeft: 14 }}>
       <span ref={handleRef} className={`tx-icon ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser'}>
         {variant === 'income' ? <Icon name="arrowDown" size={12} />
           : variant === 'expense' ? <Icon name="arrowUp" size={12} />
@@ -910,7 +910,7 @@ function CompositeRecurringRow({ item, scope, list, index, expanded, onToggle, o
   const labelText = (item.label || '').trim();
   return (
     <div className={`tx-composite-wrap ${expanded ? 'expanded' : ''}`}>
-      <div ref={rowRef} className={`recurring-row composite-row ${onEdit ? 'with-edit' : ''}`} style={{ paddingLeft: 14 }}>
+      <div ref={rowRef} data-locate={`rec-${item.id}`} className={`recurring-row composite-row ${onEdit ? 'with-edit' : ''}`} style={{ paddingLeft: 14 }}>
         <span ref={handleRef} className={`tx-icon ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser'}>
           {variant === 'income' ? <Icon name="arrowDown" size={12} />
             : variant === 'expense' ? <Icon name="arrowUp" size={12} />

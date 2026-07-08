@@ -60,7 +60,8 @@ function collectSearchItems(ctx) {
         title: rec.label,
         sub: isMultiMode ? `${acc.name} · ${kindLabel}` : kindLabel,
         amount: rec.amount, amountSign: sign, amountColor: color,
-        target: { module: 'checking', checkingAccountId: acc.id },
+        // Phase 3 : ouvre la modale des récurrents et flashe la ligne.
+        target: { module: 'checking', checkingAccountId: acc.id, locate: `rec-${rec.id}`, openRecurring: true },
         keywords: rec.label,
       });
       for (const c of (rec.components || [])) {
@@ -72,7 +73,8 @@ function collectSearchItems(ctx) {
             ? `${acc.name} · Composante de "${rec.label || 'composite'}"`
             : `Composante de "${rec.label || 'composite'}"`,
           amount: c.amount, amountSign: sign, amountColor: color,
-          target: { module: 'checking', checkingAccountId: acc.id },
+          // Une composante se localise sur son récurrent parent (modale ouverte)
+          target: { module: 'checking', checkingAccountId: acc.id, locate: `rec-${rec.id}`, openRecurring: true },
           keywords: c.label,
         });
       }
@@ -100,7 +102,7 @@ function collectSearchItems(ctx) {
           title: op.label,
           sub: `${accPrefix} · ${kindLabel}${op.pointed ? ' pointée' : ''}`,
           amount: op.amount, amountSign: sign, amountColor: color,
-          target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey },
+          target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `op-${op.id}` },
           keywords: op.label,
           monthKey: mKey,
         });
@@ -111,7 +113,8 @@ function collectSearchItems(ctx) {
             title: c.label,
             sub: `${accPrefix} · Composante de "${op.label || 'composite'}"`,
             amount: c.amount, amountSign: sign, amountColor: color,
-            target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey },
+            // Une composante se localise sur la ligne de son opération parente
+            target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `op-${op.id}` },
             keywords: c.label,
             monthKey: mKey,
           });
@@ -124,7 +127,7 @@ function collectSearchItems(ctx) {
           title: tr.label,
           sub: `${accPrefix} · Paiement TR`,
           amount: tr.amount, amountSign: '−', amountColor: 'neg',
-          target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey },
+          target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `tr-${tr.id}` },
           keywords: tr.label,
           monthKey: mKey,
         });
@@ -142,7 +145,7 @@ function collectSearchItems(ctx) {
       title: s.name,
       sub: `Compte d'épargne · solde ${fmt(bal)} €${opsCount ? ` · ${opsCount} opération${opsCount > 1 ? 's' : ''}` : ''}`,
       amount: bal,
-      target: { module: 'savings', savingId: s.id },
+      target: { module: 'savings', savingId: s.id, locate: `saving-${s.id}` },
       keywords: s.name,
     });
     // Chaque opération du livret est indexée individuellement, avec date
@@ -158,7 +161,8 @@ function collectSearchItems(ctx) {
         title: op.label?.trim() || fallback,
         sub: `${s.name} · ${typeLabel}`,
         amount: op.amount, amountSign: sign, amountColor: colorCls,
-        target: { module: 'savings', savingId: s.id },
+        // Phase 2 : ouvre la sous-page du livret et flashe l'opération.
+        target: { module: 'savings', savingId: s.id, locate: `sop-${op.id}`, openDetail: true },
         keywords: `${op.label || ''} ${typeLabel}`,
         monthKey: (op.date || '').slice(0, 7), // pour le tri par date desc
       });
@@ -172,7 +176,7 @@ function collectSearchItems(ctx) {
       title: p.name,
       sub: `Portefeuille · ${(p.data?.etfs || []).length} support${(p.data?.etfs || []).length > 1 ? 's' : ''}`,
       amount: null,
-      target: { module: 'investments', portfolioId: p.id },
+      target: { module: 'investments', portfolioId: p.id, locate: `pf-${p.id}` },
       keywords: p.name,
     });
     for (const e of (p.data?.etfs || [])) {
@@ -184,7 +188,8 @@ function collectSearchItems(ctx) {
         title: label,
         sub: `${p.name || 'Portefeuille'} · ${kindLbl}`,
         amount: p.data?.currentValues?.[e.id] || 0,
-        target: { module: 'investments', portfolioId: p.id },
+        // Phase 2 : ouvre la sous-page du portefeuille et flashe le support.
+        target: { module: 'investments', portfolioId: p.id, locate: `etf-${e.id}`, openDetail: true },
         keywords: `${e.ticker || ''} ${e.label || ''}`,
       });
     }
@@ -198,7 +203,7 @@ function collectSearchItems(ctx) {
       title: ph.name,
       sub: `Actif physique · ${ph.quantity || 0} unité${(ph.quantity || 0) > 1 ? 's' : ''}`,
       amount: physicalCurrentValue(ph),
-      target: { module: 'physical' },
+      target: { module: 'physical', locate: `phys-${ph.id}` },
       keywords: ph.name,
     });
   }
