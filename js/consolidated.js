@@ -274,27 +274,32 @@ function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile
   );
 }
 
+// Tooltip du graphique d'évolution — fond BLANC, aligné sur le tooltip
+// standard des autres graphiques (CustomTooltip dans ui.js) : c'était le
+// seul habillage sombre de l'app hors hero cards (héritage v1), l'ombre et
+// le liseré suffisent à le détacher des aires colorées.
 function EvolutionTooltip({ active, payload, categories }) {
   if (!active || !payload || !payload.length) return null;
   const d = payload[0].payload;
   return (
     <div style={{
-      background: COLORS.text, color: 'white',
-      padding: '10px 14px', borderRadius: 8,
-      fontSize: 12.5, boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+      background: COLORS.surface, color: COLORS.text,
+      border: `1px solid ${COLORS.border}`,
+      padding: '10px 14px', borderRadius: 10,
+      fontSize: 12.5, boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
       minWidth: 200,
     }}>
-      <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
+      <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.border}` }}>
         {d.labelFull}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.10)', fontWeight: 600 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${COLORS.border}`, fontWeight: 600 }}>
         <span>Total</span>
         <span className="num">{fmt(d.total)} €</span>
       </div>
       {categories.map(c => (
-        <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginTop: 4, color: 'rgba(255,255,255,0.92)' }}>
+        <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginTop: 4, color: COLORS.text }}>
           <span style={{ width: 8, height: 8, borderRadius: 2, background: c.color, flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>{c.label}</span>
+          <span style={{ flex: 1, color: COLORS.muted }}>{c.label}</span>
           <span className="num" style={{ fontWeight: 600 }}>{fmt(d[c.key])} €</span>
         </div>
       ))}
