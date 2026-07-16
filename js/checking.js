@@ -843,18 +843,65 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
 // CheckingView). Le popover calendrier n'est rendu que dans la chip qui
 // l'a ouvert (pickerOpen === id).
 function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisabled, nextDisabled, pickerOpen, togglePicker, popover }) {
-  // Si labelShort est fourni, les DEUX libellés sont rendus et le CSS
-  // affiche l'un ou l'autre selon l'orientation (court en portrait).
+  // Chip ADAPTATIVE (maquette Mockup-Chip-Mois-Adaptatif) : quand
+  // labelShort est fourni (chip de la ligne de titre mobile), on affiche
+  // le mois COMPLET si « titre complet + chip complète » tiennent sans
+  // troncature, sinon le raccourci. Le CSS ne sait pas exprimer cette
+  // règle → mesure JS : largeur naturelle du titre (scrollWidth) + gap
+  // + largeur d'un CLONE invisible de la chip en mois complet, comparées
+  // à la largeur de la ligne. Recalcul à chaque rendu (changement de mois
+  // ou de titre), via ResizeObserver sur la ligne (resize, rotation) et
+  // au chargement de la police — même mécanique éprouvée que la goutte
+  // de la barre d'onglets.
   // Majuscule posée en JS : FRENCH_MONTHS_SHORT est en minuscules et le
-  // `text-transform: capitalize` du CSS n'est PAS réappliqué par WebKit
-  // quand le span passe de display:none à visible lors d'une rotation
-  // (« août 26 » apparaissait sans majuscule en revenant du paysage).
+  // `text-transform: capitalize` du CSS n'est pas réappliqué par WebKit
+  // sur un span rendu visible par rotation (« août 26 » sans majuscule).
   const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-  const labelNode = labelShort
-    ? (<><span className="mc-label-long">{label}</span><span className="mc-label-short">{capFirst(labelShort)}</span></>)
-    : label;
+  const [useShort, setUseShort] = useState(false);
+  const rootRef = useRef(null);
+  const measureRef = useRef(null);
+
+  const compute = () => {
+    const root = rootRef.current, meas = measureRef.current;
+    if (!root || !meas) return; // chip hero : pas de mode adaptatif
+    const row = root.closest('.title-row');
+    const title = row && row.querySelector('.mobile-page-title');
+    if (!row || !title || row.clientWidth === 0) return; // desktop : ligne masquée
+    // gap flex de 8px entre titre et slot + 1px de marge d'arrondi
+    const needed = title.scrollWidth + 8 + meas.offsetWidth + 1;
+    setUseShort(needed > row.clientWidth);
+  };
+  // À chaque rendu : capte les changements de mois ET de titre (renommage
+  // de compte). setState à valeur identique = pas de re-render → converge.
+  useEffect(compute);
+  // Observateurs montés une fois
+  useEffect(() => {
+    if (!labelShort) return;
+    const root = rootRef.current;
+    const row = root && root.closest('.title-row');
+    let ro;
+    if (row && window.ResizeObserver) { ro = new ResizeObserver(compute); ro.observe(row); }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(compute);
+    window.addEventListener('orientationchange', compute);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('orientationchange', compute);
+    };
+  }, []); // eslint-disable-line
+
+  const labelNode = labelShort && useShort ? capFirst(labelShort) : label;
   return (
-    <span className={`month-chip month-chip-${variant}`}>
+    <span className={`month-chip month-chip-${variant}`} ref={rootRef}>
+      {/* Clone invisible (hors flux) avec le mois COMPLET : donne la
+          largeur que la chip occuperait en mode complet, mesurée avec
+          les vraies règles CSS, quelle que soit la valeur affichée. */}
+      {labelShort && (
+        <span className="mc-measure" aria-hidden="true" ref={measureRef}>
+          <span className="mc-chev">‹</span>
+          <span className="mc-label">{label}<span className="mc-dd">▾</span></span>
+          <span className="mc-chev">›</span>
+        </span>
+      )}
       <button className="mc-chev" onClick={onPrev} disabled={prevDisabled} aria-label="Mois précédent">‹</button>
       <span className="month-picker">
         {/* stopPropagation sur mousedown : sans ça, le handler de « clic

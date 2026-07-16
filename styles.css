@@ -1557,13 +1557,17 @@ input[type="month"] {
    ligne de titre est verrouillé à 24px. */
 .month-chip-light .mc-label { font-size: 15px; }
 .month-chip-light .mc-dd { font-size: 11px; }
-/* Double libellé de la chip de titre : mois complet par défaut (paysage,
-   où la place ne manque pas), libellé court (« Juil. 26 ») en PORTRAIT
-   uniquement — même critère d'orientation que le reste du responsive. */
-.mc-label-short { display: none; }
-@media (max-width: 640px) and (orientation: portrait) {
-  .month-chip-light .mc-label-long { display: none; }
-  .month-chip-light .mc-label-short { display: inline; }
+/* Chip ADAPTATIVE (maquette Mockup-Chip-Mois-Adaptatif) : le choix
+   complet/raccourci n'est plus une affaire d'orientation mais de PLACE,
+   décidé par mesure JS dans MonthChip. Le clone .mc-measure (invisible,
+   hors flux, dans la chip) reproduit la chip avec le mois complet pour
+   donner sa largeur « cible » avec les vraies règles CSS (15px en
+   variante light, chevrons 26px, paddings réels). */
+.mc-measure {
+  position: absolute; left: 0; top: 0;
+  visibility: hidden; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px; white-space: nowrap;
 }
 .month-chip-light .mc-chev { color: var(--text-subtle); }
 .month-chip-light .mc-chev:hover:not(:disabled) { background: #e2e8f0; color: var(--text); }
