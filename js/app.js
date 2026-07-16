@@ -784,9 +784,11 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
             onClick={() => onSelect(t.id)}
             aria-label={t.label}
           >
+            {/* Icônes SEULES (variante A, maquette Mockup-Barre-Contraction) :
+                l'actif est signalé par la goutte foncée, le libellé complet
+                reste exposé aux lecteurs d'écran via aria-label. */}
             <span className="tab-pill">
-              <Icon name={t.icon} size={19} />
-              <span className="tab-lbl">{t.short || t.label}</span>
+              <span className="tab-ico"><Icon name={t.icon} size={22} /></span>
             </span>
           </button>
         ))}

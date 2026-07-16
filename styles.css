@@ -732,6 +732,10 @@ input[type="month"] {
      garantit 10px de marge sur les appareils sans indicateur. */
   bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 18px));
   z-index: 40;
+  /* Contraction façon Instagram : les insets latéraux s'animent
+     (12px ↔ 34px) en même temps que le contenu de la capsule. */
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   /* translateZ(0) : force une couche de compositing dédiée. Contourne un
      bug WebKit (iOS standalone) où un élément fixed contenant du
      backdrop-filter se désynchronise du viewport pendant le scroll. */
@@ -1706,7 +1710,9 @@ input[type="month"] {
   flex: 1; min-width: 0;
   border-radius: var(--radius-full);
   display: flex; align-items: stretch;
-  padding: 6px; position: relative;
+  /* Anneau FIN autour de la goutte (3px) — calé sur la barre d'Instagram :
+     la goutte occupe presque toute la hauteur, avec un léger espace. */
+  padding: 3px; position: relative;
   transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* Goutte glissante : elle porte le fond foncé et l'ombre de l'actif */
@@ -1726,17 +1732,18 @@ input[type="month"] {
   color: var(--text-light); padding: 0;
   position: relative; z-index: 1; min-width: 0;
 }
+/* Pill = icône SEULE (variante A façon Instagram) : pas de libellé,
+   la goutte foncée marque l'actif. L'icône est enveloppée dans .tab-ico
+   pour animer son échelle pendant la contraction. */
 .tab-pill {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  border-radius: var(--radius-full); padding: 7px 10px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); min-width: 0; max-width: 100%;
+  display: flex; align-items: center; justify-content: center;
+  /* Paddings ASYMÉTRIQUES (12px vertical / 19px horizontal) : la goutte
+     devient un OVALE ~60×46 (ratio Instagram), au lieu d'un rond. */
+  border-radius: var(--radius-full); padding: 12px 19px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); min-width: 0; max-width: 100%;
 }
 .tab-item-active { color: white; }
-.tab-lbl {
-  font-size: 10px; font-weight: 600; letter-spacing: 0.01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-  max-height: 14px; transition: all 0.2s;
-}
+.tab-ico { display: flex; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 /* Cercle « ⋯ » séparé de la capsule (pattern Music / App Store iOS 26+) */
 .tabbar-more {
   flex: 0 0 50px; height: 50px;
@@ -1745,11 +1752,13 @@ input[type="month"] {
   display: flex; align-items: center; justify-content: center;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* Rétractation au scroll : capsule compacte, icônes seules. La barre se
-   RÉDUIT mais ne disparaît jamais (pas de retour de l'auto-hide). */
-.tabbar-wrap.mini .tabbar-capsule { padding: 4px; }
-.tabbar-wrap.mini .tab-pill { padding: 6px 8px; }
-.tabbar-wrap.mini .tab-lbl { max-height: 0; opacity: 0; margin-top: -2px; }
+/* Contraction au scroll (façon Instagram) : TOUTE la capsule se resserre —
+   marges latérales élargies, padding réduit, icônes à −14 %, cercle « ⋯ »
+   40 px. La barre se RÉDUIT mais ne disparaît jamais. */
+.tabbar-wrap.mini { left: 34px; right: 34px; }
+.tabbar-wrap.mini .tabbar-capsule { padding: 2px; }
+.tabbar-wrap.mini .tab-pill { padding: 8px 13px; }
+.tabbar-wrap.mini .tab-ico { transform: scale(0.86); }
 .tabbar-wrap.mini .tabbar-more { flex-basis: 40px; height: 40px; font-size: 17px; }
 
 /* Bottom sheet (menu « ⋯ ») — flottante et en verre, comme la barre */
@@ -2523,12 +2532,18 @@ input[type="month"] {
     right: calc(12px + env(safe-area-inset-right, 0px));
     bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 10px));
   }
-  /* Compacte en permanence (équivaut au mode .mini, sans dépendre du
-     scroll) : icônes seules, capsule basse */
-  .tabbar-wrap .tabbar-capsule { padding: 4px; }
-  .tabbar-wrap .tab-pill { padding: 6px 8px; }
-  .tabbar-wrap .tab-lbl { max-height: 0; opacity: 0; margin-top: -2px; }
+  /* Compacte en permanence (équivaut au mode contracté, sans dépendre du
+     scroll) : la hauteur d'écran est comptée en paysage. */
+  .tabbar-wrap .tabbar-capsule { padding: 2px; }
+  .tabbar-wrap .tab-pill { padding: 8px 13px; }
+  .tabbar-wrap .tab-ico { transform: scale(0.86); }
   .tabbar-wrap .tabbar-more { flex: 0 0 40px; height: 40px; font-size: 17px; }
+  /* Le toggle .mini (scroll) ne doit pas écraser les insets safe-area
+     du paysage (spécificité supérieure de .tabbar-wrap.mini) */
+  .tabbar-wrap.mini {
+    left: calc(12px + env(safe-area-inset-left, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+  }
   /* Le contenu ne passe pas sous la barre (capsule compacte ≈ 48px),
      et scroller interne comme en portrait (page verrouillée). */
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
