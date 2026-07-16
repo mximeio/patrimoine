@@ -774,7 +774,11 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
   useEffect(() => { setMini(false); }, [current]);
 
   return (
-    <div className={`tabbar-wrap${mini ? ' mini' : ''}`} ref={wrapRef}>
+    // `hug` (moins de 5 rubriques) : la capsule s'ajuste à son contenu et
+    // se cale à GAUCHE — points d'ancrage immuables (1er onglet et « ⋯ »
+    // ne bougent jamais quand on active/désactive des modules). À 5
+    // rubriques, remplissage pleine largeur (comportement d'origine).
+    <div className={`tabbar-wrap${mini ? ' mini' : ''}${tabs.length < 5 ? ' hug' : ''}`} ref={wrapRef}>
       <nav className="tabbar-capsule glassbar" ref={barRef}>
         <div className="tab-slide-ind" ref={indRef} />
         {tabs.map(t => (
@@ -793,6 +797,9 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
           </button>
         ))}
       </nav>
+      {/* Espace élastique entre capsule et « ⋯ » : replié à zéro quand la
+          capsule remplit (5 rubriques), déployé en mode hug. */}
+      <div className="tabbar-spacer" />
       {/* « ⋯ » : une ACTION, pas une section → cercle séparé, icône seule,
           jamais d'état actif (recommandation retenue à la validation). */}
       <button className="tabbar-more glassbar" onClick={onMore} aria-label="Menu">⋯</button>

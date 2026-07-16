@@ -1744,6 +1744,26 @@ input[type="month"] {
 }
 .tab-item-active { color: white; }
 .tab-ico { display: flex; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+/* Espace élastique capsule ↔ « ⋯ » : nul à 5 rubriques (la capsule
+   remplit), déployé en mode hug (voir ci-dessous). Le gap de 10px du
+   wrap reste la seule séparation quand le spacer est nul. */
+.tabbar-spacer { flex: 0 0 0px; }
+/* Mode HUG (moins de 5 rubriques actives) : capsule ajustée à son
+   contenu, alignée à GAUCHE, onglets à largeur naturelle — le « ⋯ »
+   reste vissé à droite. Points d'ancrage immuables quel que soit le
+   nombre de modules activés. */
+.tabbar-wrap.hug .tabbar-capsule { flex: 0 0 auto; }
+.tabbar-wrap.hug .tab-item { flex: 0 0 auto; }
+.tabbar-wrap.hug .tabbar-spacer { flex: 1 1 auto; }
+
+/* Petits écrans (≤ 380px, ex. iPhone SE/mini) : à 5 rubriques, les cinq
+   ovales de 60px frôlent la limite — on resserre le padding horizontal
+   d'un cran pour garantir que le « ⋯ » reste dans l'écran. */
+@media (max-width: 380px) {
+  .tab-pill { padding: 12px 16px; }
+  .tabbar-wrap.mini .tab-pill { padding: 8px 11px; }
+}
+
 /* Cercle « ⋯ » séparé de la capsule (pattern Music / App Store iOS 26+) */
 .tabbar-more {
   flex: 0 0 50px; height: 50px;
