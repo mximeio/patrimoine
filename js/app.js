@@ -854,11 +854,13 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [closing, confirmOut]); // eslint-disable-line
 
-  // Recherche : la modale s'ouvre IMMÉDIATEMENT (pas après les 240 ms de
-  // fermeture) pour que l'autoFocus du champ reste dans le geste
-  // utilisateur — condition sine qua non pour qu'iOS ouvre le clavier.
-  // La sheet s'estompe en dessous pendant ce temps.
+  // Recherche et Paramètres : la modale s'ouvre IMMÉDIATEMENT (pas après
+  // les 240 ms de fermeture), la sheet s'estompe en dessous pendant ce
+  // temps. Pour la recherche c'est indispensable (l'autoFocus du champ
+  // doit rester dans le geste utilisateur pour qu'iOS ouvre le clavier) ;
+  // pour les paramètres c'est du confort : l'app paraît plus réactive.
   const openSearch = () => { onSearch(); closeWith(); };
+  const openSettings = () => { onSettings(); closeWith(); };
 
   const initial = (user?.email || '?').charAt(0).toUpperCase();
   const closingCls = closing ? ' closing' : '';
@@ -886,7 +888,7 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
                 <span className="sheet-act-circle"><Icon name="search" size={22} /></span>
                 <span className="sheet-act-lbl">Rechercher</span>
               </button>
-              <button className="sheet-act" onClick={() => closeWith(onSettings)}>
+              <button className="sheet-act" onClick={openSettings}>
                 <span className="sheet-act-circle accent"><Icon name="settings" size={22} /></span>
                 <span className="sheet-act-lbl">Paramètres</span>
               </button>

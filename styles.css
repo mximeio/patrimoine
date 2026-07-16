@@ -1832,8 +1832,11 @@ input[type="month"] {
   width: 58px; height: 58px; border-radius: var(--radius-full);
   color: white; font-size: 23px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.35);
+  /* Noir ardoise (comme l'avatar d'avant la refonte E1, l'icône de
+     l'app et le segmented desktop) — léger dégradé pour garder du
+     relief à cette taille, ombre assortie. */
+  background: linear-gradient(135deg, #1e293b, var(--text));
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
 }
 .sheet-id-name { font-size: 16px; font-weight: 700; margin-top: 10px; }
 .sheet-id-mail {
