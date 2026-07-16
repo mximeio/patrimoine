@@ -873,7 +873,11 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
   };
   // À chaque rendu : capte les changements de mois ET de titre (renommage
   // de compte). setState à valeur identique = pas de re-render → converge.
-  useEffect(compute);
+  // useLAYOUTEffect (et pas useEffect) : la mesure et la correction se
+  // font AVANT la peinture du navigateur — sinon un mois qui ne tient
+  // pas s'affiche d'abord en entier pendant une frame (titre écrasé),
+  // puis se corrige en raccourci → « saut » visible au changement de mois.
+  useLayoutEffect(compute);
   // Observateurs montés une fois
   useEffect(() => {
     if (!labelShort) return;
