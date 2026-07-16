@@ -1889,6 +1889,10 @@ input[type="month"] {
   text-align: center; font-size: 11px; color: var(--text-subtle);
   padding: 10px 0 0; font-variant-numeric: tabular-nums;
 }
+/* Poignée physique (drag-to-dismiss) : sans touch-action:none, iOS
+   transforme le glissement vertical en scroll et cesse d'émettre les
+   pointermove — la sheet n'a de toute façon aucun contenu défilant. */
+.bottom-sheet { touch-action: none; }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sheetFade { from { opacity: 0; } to { opacity: 1; } }
 /* Fermeture ANIMÉE (classe .closing posée par MobileSheet 240ms avant le

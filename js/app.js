@@ -818,8 +818,11 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
   // l'ouverture. L'action éventuelle (paramètres…) est déclenchée à la
   // fin de l'animation.
   const [closing, setClosing] = useState(false);
+  // Fermeture par GLISSEMENT en cours : bloque closeWith et les nouveaux
+  // drags. Ref (pas state) : lue dans des handlers non re-rendus.
+  const dragClosing = useRef(false);
   const closeWith = (action) => {
-    if (closing) return;
+    if (closing || dragClosing.current) return;
     setClosing(true);
     setTimeout(() => {
       onClose();
@@ -862,16 +865,88 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
   const openSearch = () => { onSearch(); closeWith(); };
   const openSettings = () => { onSettings(); closeWith(); };
 
+  // ---- Poignée « physique » (drag-to-dismiss) ------------------------
+  // La sheet suit le doigt : vers le BAS en 1:1 (le backdrop s'estompe
+  // proportionnellement), vers le HAUT avec une résistance élastique
+  // (asymptote ~42 px). Au lâcher : fermeture si on a assez descendu
+  // (> 80 px) ou d'un geste vif (> 0,5 px/ms), sinon retour en place
+  // avec un léger rebond. La fermeture par drag n'utilise PAS la classe
+  // .closing (son animation CSS repart de translateY(0) → saut visuel) :
+  // on anime depuis la position courante en styles inline.
+  const sheetRef = useRef(null);
+  const backdropRef = useRef(null);
+  const dragRef = useRef(null); // { startY, dy, lastY, lastT, vel }
+
+  const onDragStart = (e) => {
+    if (closing || dragClosing.current) return;
+    if (e.target.closest('button')) return; // tap sur une action ≠ drag
+    dragRef.current = { startY: e.clientY, dy: 0, lastY: e.clientY, lastT: e.timeStamp, vel: 0 };
+    const sheet = sheetRef.current, bd = backdropRef.current;
+    if (sheet) sheet.style.transition = 'none';
+    if (bd) bd.style.transition = 'none';
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+  };
+  const onDragMove = (e) => {
+    const d = dragRef.current;
+    if (!d || !sheetRef.current) return;
+    const dt = e.timeStamp - d.lastT;
+    if (dt > 0) d.vel = (e.clientY - d.lastY) / dt; // px/ms, > 0 = vers le bas
+    d.lastY = e.clientY; d.lastT = e.timeStamp;
+    d.dy = e.clientY - d.startY;
+    // Vers le haut : élastique r(a) = a·c/(a+c) — asymptote à c px.
+    const y = d.dy >= 0 ? d.dy : -((-d.dy * 42) / (-d.dy + 42));
+    sheetRef.current.style.transform = `translateY(${y}px)`;
+    const bd = backdropRef.current;
+    if (bd) bd.style.opacity = d.dy > 0
+      ? String(Math.max(0, 1 - d.dy / (sheetRef.current.offsetHeight || 320)))
+      : '';
+  };
+  const onDragEnd = () => {
+    const d = dragRef.current;
+    if (!d) return;
+    dragRef.current = null;
+    const sheet = sheetRef.current, bd = backdropRef.current;
+    if (!sheet) return;
+    const shouldClose = d.dy > 80 || (d.dy > 15 && d.vel > 0.5);
+    if (shouldClose) {
+      dragClosing.current = true;
+      sheet.style.pointerEvents = 'none';
+      sheet.style.transition = 'transform 0.22s ease-in';
+      sheet.style.transform = 'translateY(115%)';
+      if (bd) { bd.style.transition = 'opacity 0.22s ease-in'; bd.style.opacity = '0'; }
+      setTimeout(onClose, 230);
+    } else {
+      // Retour en place avec un léger REBOND (courbe à dépassement)
+      sheet.style.transition = 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      sheet.style.transform = 'translateY(0)';
+      if (bd) { bd.style.transition = 'opacity 0.2s ease'; bd.style.opacity = ''; }
+      setTimeout(() => {
+        if (sheetRef.current) { sheetRef.current.style.transition = ''; sheetRef.current.style.transform = ''; }
+        if (backdropRef.current) backdropRef.current.style.transition = '';
+      }, 340);
+    }
+  };
+
   const initial = (user?.email || '?').charAt(0).toUpperCase();
   const closingCls = closing ? ' closing' : '';
 
   return (
     <div>
-      <div className={`sheet-backdrop${closingCls}`} onClick={() => closeWith()} />
+      <div className={`sheet-backdrop${closingCls}`} ref={backdropRef} onClick={() => closeWith()} />
       {/* Fiche de compte (E1) : identité centrée + actions en boutons
           ronds — même philosophie « icônes d'abord » que la barre de nav.
-          La variante liste (E2) reste en réserve dans Mockup-Sheet-Moderne. */}
-      <div className={`bottom-sheet${closingCls}`} role="dialog" aria-label="Menu">
+          La variante liste (E2) reste en réserve dans Mockup-Sheet-Moderne.
+          Toute la surface (hors boutons) sert de poignée de glissement. */}
+      <div
+        className={`bottom-sheet${closingCls}`}
+        role="dialog"
+        aria-label="Menu"
+        ref={sheetRef}
+        onPointerDown={onDragStart}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        onPointerCancel={onDragEnd}
+      >
         <div className="sheet-handle" />
         <div className="sheet-id">
           <div className="sheet-avatar-lg">{initial}</div>
