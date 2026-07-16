@@ -482,9 +482,9 @@ function App() {
         <MobileSheet
           user={user}
           onClose={() => setShowSheet(false)}
-          onSearch={() => { setShowSheet(false); setShowSearch(true); }}
-          onSettings={() => { setShowSheet(false); setShowSettings(true); }}
-          onSignOut={() => { setShowSheet(false); handleSignOut(); }}
+          onSearch={() => setShowSearch(true)}
+          onSettings={() => setShowSettings(true)}
+          onSignOut={handleSignOut}
         />
       )}
 
@@ -811,42 +811,55 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
 // (avatar + email), champ de recherche, puis groupes "inset" arrondis.
 // L'action destructive (Déconnexion) est isolée dans son propre groupe.
 function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
+  // Fermeture ANIMÉE : la sheet glisse vers le bas (et le backdrop
+  // s'estompe) pendant 240 ms AVANT le démontage — symétrique de
+  // l'ouverture. L'action éventuelle (recherche, paramètres…) est
+  // déclenchée à la fin de l'animation.
+  const [closing, setClosing] = useState(false);
+  const closeWith = (action) => {
+    if (closing) return;
+    setClosing(true);
+    setTimeout(() => {
+      onClose();
+      if (action) action();
+    }, 240);
+  };
+
   // Fermeture par Échap (clavier externe iPad / débogage desktop)
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') closeWith(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []); // eslint-disable-line
+  }, [closing]); // eslint-disable-line
 
   const initial = (user?.email || '?').charAt(0).toUpperCase();
+  const closingCls = closing ? ' closing' : '';
 
   return (
     <div>
-      <div className="sheet-backdrop" onClick={onClose} />
-      <div className="bottom-sheet" role="dialog" aria-label="Menu">
+      <div className={`sheet-backdrop${closingCls}`} onClick={() => closeWith()} />
+      {/* Fiche de compte (E1) : identité centrée + actions en boutons
+          ronds — même philosophie « icônes d'abord » que la barre de nav.
+          La variante liste (E2) reste en réserve dans Mockup-Sheet-Moderne. */}
+      <div className={`bottom-sheet${closingCls}`} role="dialog" aria-label="Menu">
         <div className="sheet-handle" />
-        <div className="sheet-head">
-          <div className="sheet-avatar">{initial}</div>
-          <div className="sheet-user">
-            <div className="sheet-user-name">Patrimoine</div>
-            <div className="sheet-user-mail">{user?.email}</div>
-          </div>
+        <div className="sheet-id">
+          <div className="sheet-avatar-lg">{initial}</div>
+          <div className="sheet-id-name">Patrimoine</div>
+          <div className="sheet-id-mail">{user?.email}</div>
         </div>
-        <button className="sheet-search" onClick={onSearch}>
-          <Icon name="search" size={15} />
-          Rechercher…
-        </button>
-        <div className="sheet-group">
-          <button className="sheet-row" onClick={onSettings}>
-            <span className="sheet-row-ico ico-accent"><Icon name="settings" size={15} /></span>
-            Paramètres
-            <span className="sheet-chevron">›</span>
+        <div className="sheet-actions">
+          <button className="sheet-act" onClick={() => closeWith(onSearch)}>
+            <span className="sheet-act-circle"><Icon name="search" size={22} /></span>
+            <span className="sheet-act-lbl">Rechercher</span>
           </button>
-        </div>
-        <div className="sheet-group">
-          <button className="sheet-row sheet-row-danger" onClick={onSignOut}>
-            <span className="sheet-row-ico ico-danger"><Icon name="logout" size={15} /></span>
-            Déconnexion
+          <button className="sheet-act" onClick={() => closeWith(onSettings)}>
+            <span className="sheet-act-circle accent"><Icon name="settings" size={22} /></span>
+            <span className="sheet-act-lbl">Paramètres</span>
+          </button>
+          <button className="sheet-act danger" onClick={() => closeWith(onSignOut)}>
+            <span className="sheet-act-circle danger"><Icon name="logout" size={22} /></span>
+            <span className="sheet-act-lbl">Déconnexion</span>
           </button>
         </div>
         {/* Version de build + environnement : permet de vérifier d'un coup

@@ -736,11 +736,11 @@ input[type="month"] {
      (12px ↔ 34px) en même temps que le contenu de la capsule. */
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  /* translateZ(0) : force une couche de compositing dédiée. Contourne un
-     bug WebKit (iOS standalone) où un élément fixed contenant du
-     backdrop-filter se désynchronise du viewport pendant le scroll. */
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
+  /* PAS de transform ici : l'ancien translateZ(0) (contournement v439 du
+     bug de dérive iOS, rendu obsolète par le scroller interne) créait une
+     frontière de compositing qui COUPAIT l'échantillonnage du
+     backdrop-filter — le verre affichait du blanc au lieu du contenu
+     coloré qui passait dessous (visible au-dessus des graphiques). */
 }
 /* Ligne de titre mobile : titre à gauche + slot d'actions à droite
    (la chip de mois du Compte courant s'y insère via portal React).
@@ -1695,14 +1695,18 @@ input[type="month"] {
   /* Opacité du verre — pilotable plus tard par un réglage utilisateur
      (esprit du slider de transparence d'iOS 27). 0.60 = prudent côté
      lisibilité (Apple a re-opacifié ses barres après les bêtas d'iOS 26). */
-  --glass-a: 0.6;
+  --glass-a: 0.65;
 }
 /* Matériau Liquid Glass : translucidité + flou + saturation du contenu
    qui passe dessous, liseré clair et reflet intérieur façon verre. */
 .glassbar {
   background: rgba(252, 252, 254, var(--glass-a));
-  -webkit-backdrop-filter: blur(18px) saturate(1.8);
-  backdrop-filter: blur(18px) saturate(1.8);
+  /* blur 24 : fond les frontières de couleur nettes (bords de graphiques)
+     au lieu de les laisser lisibles à travers le verre.
+     saturate 1.25 (au lieu de 1.8) : garde la vivacité du matériau sans
+     effet fluo au-dessus des aplats saturés (bandes du graphique). */
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  backdrop-filter: blur(24px) saturate(1.25);
   border: 1px solid rgba(255, 255, 255, 0.65);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
@@ -1740,6 +1744,12 @@ input[type="month"] {
   /* Paddings ASYMÉTRIQUES (12px vertical / 19px horizontal) : la goutte
      devient un OVALE ~60×46 (ratio Instagram), au lieu d'un rond. */
   border-radius: var(--radius-full); padding: 12px 19px;
+  /* width:100% : la pill REMPLIT son slot. À 5 rubriques (slots flex:1
+     plus larges que l'ovale minimal), la goutte épouse toute la largeur →
+     anneau de 3px IDENTIQUE sur les 4 côtés, et ovale adaptatif selon la
+     largeur d'écran. En mode hug (<5), la largeur naturelle EST le slot :
+     aucun changement. */
+  width: 100%;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); min-width: 0; max-width: 100%;
 }
 .tab-item-active { color: white; }
@@ -1806,68 +1816,63 @@ input[type="month"] {
   width: 36px; height: 4px; border-radius: var(--radius-full);
   background: rgba(15, 23, 42, 0.15); margin: 4px auto 14px;
 }
-/* En-tête : avatar (initiale du compte) + email — donne du contexte et
-   un ancrage visuel professionnel à la feuille. */
-.sheet-head {
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 6px 14px;
+/* ============================================================
+   Sheet « fiche de compte » (maquette Mockup-Sheet-Moderne, E1 —
+   la variante E2 « liste raffinée » reste en réserve dans la maquette) :
+   identité mise en scène (avatar dégradé centré + email), puis les
+   actions en GROS BOUTONS RONDS de 58px — le pattern des fiches
+   contact iOS / apps bancaires, taillé pour 3 actions. Même philosophie
+   « icônes d'abord » que la barre de navigation.
+   ============================================================ */
+.sheet-id {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 16px 0 4px;
 }
-.sheet-avatar {
-  width: 38px; height: 38px; border-radius: var(--radius-full);
-  background: var(--text); color: white;
-  font-size: 16px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+.sheet-avatar-lg {
+  width: 58px; height: 58px; border-radius: var(--radius-full);
+  color: white; font-size: 23px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.35);
 }
-.sheet-user { min-width: 0; }
-.sheet-user-name { font-size: 14px; font-weight: 600; }
-.sheet-user-mail {
-  font-size: 12px; color: var(--text-muted); margin-top: 1px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.sheet-id-name { font-size: 16px; font-weight: 700; margin-top: 10px; }
+.sheet-id-mail {
+  font-size: 12.5px; color: var(--text-muted); margin-top: 2px;
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* Champ de recherche : blanc, délimité par le liseré standard de l'app
-   (ouvre la recherche globale) */
-.sheet-search {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px; padding: 11px 12px;
-  font-size: 15px; font-weight: 400; color: var(--text-muted);
-  margin-bottom: 12px; text-align: left;
-  box-shadow: var(--shadow-xs);
+.sheet-actions {
+  display: flex; justify-content: center; gap: 22px;
+  padding: 18px 0 6px;
 }
-.sheet-search:active { background: var(--surface-hover); }
-/* Groupes : cards blanches délimitées par le liseré standard var(--border),
-   séparateurs internes — cohérent avec les cards du reste de l'app */
-.sheet-group {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px; overflow: hidden;
-  margin-bottom: 10px;
-  box-shadow: var(--shadow-xs);
+.sheet-act {
+  border: none; background: transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: var(--text);
 }
-.sheet-group:last-child { margin-bottom: 0; }
-.sheet-row {
-  display: flex; align-items: center; gap: 12px; width: 100%;
-  border: none; background: transparent; text-align: left;
-  font-size: 15px; font-weight: 500; color: var(--text);
-  padding: 12px 14px;
+.sheet-act-circle {
+  width: 58px; height: 58px; border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+  background: #f1f3f7; color: var(--text-light);
+  transition: transform 0.12s;
 }
-.sheet-row + .sheet-row { border-top: 1px solid rgba(15, 23, 42, 0.06); }
-.sheet-row:active { background: var(--surface-hover); }
-.sheet-row-ico {
-  width: 29px; height: 29px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.sheet-row-ico.ico-accent { background: var(--accent-light); color: var(--accent); }
-.sheet-row-ico.ico-danger { background: var(--danger-light); color: var(--danger); }
-.sheet-chevron { margin-left: auto; color: var(--text-subtle); font-size: 17px; line-height: 1; }
-.sheet-row-danger { color: var(--danger); }
+.sheet-act:active .sheet-act-circle { transform: scale(0.93); }
+.sheet-act-circle.accent { background: var(--accent-light); color: var(--accent); }
+.sheet-act-circle.danger { background: var(--danger-light); color: var(--danger); }
+.sheet-act-lbl { font-size: 12px; font-weight: 600; color: var(--text-light); }
+.sheet-act.danger .sheet-act-lbl { color: var(--danger); }
 .sheet-version {
   text-align: center; font-size: 11px; color: var(--text-subtle);
   padding: 10px 0 0; font-variant-numeric: tabular-nums;
 }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sheetFade { from { opacity: 0; } to { opacity: 1; } }
+/* Fermeture ANIMÉE (classe .closing posée par MobileSheet 240ms avant le
+   démontage) : glissement vers le bas + fondu du backdrop, symétriques
+   de l'ouverture. `forwards` fige l'état final le temps du démontage. */
+@keyframes sheetDown { from { transform: translateY(0); } to { transform: translateY(110%); } }
+@keyframes sheetFadeOut { from { opacity: 1; } to { opacity: 0; } }
+.bottom-sheet.closing { animation: sheetDown 0.24s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.sheet-backdrop.closing { animation: sheetFadeOut 0.24s ease forwards; }
 
 /* Assets rows */
 .asset-row {
