@@ -411,8 +411,19 @@ function CheckingView({ ctx, onBack }) {
       {/* Sélecteur de mois : plus de bandeau au-dessus du hero (la card
           remonte au niveau des autres rubriques). Desktop → chip translucide
           dans le hero ; mobile → chip claire dans la ligne de titre (portal). */}
+      {/* Libellé COURT (« Juil. 26 ») en PORTRAIT seulement : depuis le
+          passage du label à 15px, le mois complet mangeait trop de place
+          face aux titres longs. En paysage, la place ne manque pas → mois
+          complet. Les deux libellés sont rendus, le CSS bascule par
+          orientation (pas de listener resize). */}
       {titleSlot && ReactDOM.createPortal(
-        <MonthChip id="title" variant="light" label={monthLabel(curKey)} {...chipProps} />,
+        <MonthChip
+          id="title"
+          variant="light"
+          label={monthLabel(curKey)}
+          labelShort={monthLabelShort(curKey)}
+          {...chipProps}
+        />,
         titleSlot
       )}
 
@@ -831,13 +842,36 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
 // variant 'light' = claire (ligne de titre mobile, via portal depuis
 // CheckingView). Le popover calendrier n'est rendu que dans la chip qui
 // l'a ouvert (pickerOpen === id).
-function MonthChip({ id, variant, label, onPrev, onNext, prevDisabled, nextDisabled, pickerOpen, togglePicker, popover }) {
+function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisabled, nextDisabled, pickerOpen, togglePicker, popover }) {
+  // Si labelShort est fourni, les DEUX libellés sont rendus et le CSS
+  // affiche l'un ou l'autre selon l'orientation (court en portrait).
+  // Majuscule posée en JS : FRENCH_MONTHS_SHORT est en minuscules et le
+  // `text-transform: capitalize` du CSS n'est PAS réappliqué par WebKit
+  // quand le span passe de display:none à visible lors d'une rotation
+  // (« août 26 » apparaissait sans majuscule en revenant du paysage).
+  const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  const labelNode = labelShort
+    ? (<><span className="mc-label-long">{label}</span><span className="mc-label-short">{capFirst(labelShort)}</span></>)
+    : label;
   return (
     <span className={`month-chip month-chip-${variant}`}>
       <button className="mc-chev" onClick={onPrev} disabled={prevDisabled} aria-label="Mois précédent">‹</button>
       <span className="month-picker">
-        <button className="mc-label" onClick={() => togglePicker(id)} aria-label="Choisir le mois">
-          {label}<span className="mc-dd"> ▾</span>
+        {/* stopPropagation sur mousedown : sans ça, le handler de « clic
+            extérieur » du popover (document, mousedown) ferme le calendrier
+            juste avant que le click ne déclenche togglePicker — qui le
+            rouvre aussitôt. Le re-clic ne fermait donc jamais. Ici, seul
+            le toggle décide. */}
+        <button
+          className="mc-label"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => togglePicker(id)}
+          aria-label="Choisir le mois"
+          aria-expanded={pickerOpen === id}
+        >
+          {/* Le caret se retourne (rotation animée) quand le calendrier
+              est ouvert — affordance classique des sélecteurs. */}
+          {labelNode}<span className={`mc-dd${pickerOpen === id ? ' mc-dd-open' : ''}`}>▾</span>
         </button>
         {pickerOpen === id && popover}
       </span>

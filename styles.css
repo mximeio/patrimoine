@@ -1535,7 +1535,14 @@ input[type="month"] {
 }
 /* vertical-align : le caret 10px est aligné baseline par défaut, donc
    visuellement trop bas face au texte 13px — on le recentre. */
-.mc-dd { font-size: 10px; margin-left: 3px; vertical-align: 2px; }
+.mc-dd {
+  font-size: 10px; margin-left: 3px; vertical-align: 2px;
+  /* Caret retournable : rotation animée quand le calendrier est ouvert
+     (classe .mc-dd-open posée par MonthChip). inline-block requis pour
+     que transform s'applique. */
+  display: inline-block; transition: transform 0.2s ease;
+}
+.mc-dd-open { transform: rotate(180deg); }
 /* Variante hero (translucide sur fond foncé) */
 .month-chip-hero { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.14); }
 .month-chip-hero .mc-chev { color: rgba(255,255,255,0.65); }
@@ -1544,6 +1551,20 @@ input[type="month"] {
 .month-chip-hero .mc-dd { color: rgba(255,255,255,0.5); }
 /* Variante claire (ligne de titre mobile) */
 .month-chip-light { background: #eef1f5; }
+/* Mois/année plus gros sur mobile (maquette Mockup-Chip-Mois-Taille,
+   option A : 15px). Sans AUCUN décalage : la hauteur de la chip est
+   imposée par les chevrons (26px), pas par le texte, et le slot de la
+   ligne de titre est verrouillé à 24px. */
+.month-chip-light .mc-label { font-size: 15px; }
+.month-chip-light .mc-dd { font-size: 11px; }
+/* Double libellé de la chip de titre : mois complet par défaut (paysage,
+   où la place ne manque pas), libellé court (« Juil. 26 ») en PORTRAIT
+   uniquement — même critère d'orientation que le reste du responsive. */
+.mc-label-short { display: none; }
+@media (max-width: 640px) and (orientation: portrait) {
+  .month-chip-light .mc-label-long { display: none; }
+  .month-chip-light .mc-label-short { display: inline; }
+}
 .month-chip-light .mc-chev { color: var(--text-subtle); }
 .month-chip-light .mc-chev:hover:not(:disabled) { background: #e2e8f0; color: var(--text); }
 .month-chip-light .mc-label { color: var(--text); }
