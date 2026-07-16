@@ -203,13 +203,29 @@ function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile
   }
 
   const categories = [
-    enabled && { key: 'checking', label: checkingModuleLabel(profile), color: MODULE_COLORS.checking },
+    // Fix : `enabled &&` (objet toujours truthy) incluait le Compte courant
+    // même module désactivé — l'ancien fallback unshift datait d'avant la
+    // possibilité de désactiver le module (v6).
+    enabled.checking !== false && { key: 'checking', label: checkingModuleLabel(profile), color: MODULE_COLORS.checking },
     enabled.savings && { key: 'savings', label: 'Épargne', color: MODULE_COLORS.savings },
     enabled.investments && { key: 'investments', label: 'Investissements', color: MODULE_COLORS.investments },
     enabled.physical && { key: 'physical', label: 'Actifs physiques', color: MODULE_COLORS.physical },
   ].filter(Boolean);
-  // Note : "checking" est toujours actif (cf. settings.js), donc on inclut systématiquement la catégorie
-  if (!categories.some(c => c.key === 'checking')) categories.unshift({ key: 'checking', label: checkingModuleLabel(profile), color: MODULE_COLORS.checking });
+
+  // Empilement trié par TAILLE (moyenne sur la période affichée), la plus
+  // grosse catégorie EN BAS : seule la bande du bas repose sur une ligne
+  // droite (le zéro) et se lit fidèlement — celles du dessus chevauchent
+  // les ondulations des bandes inférieures. Avant ce tri, le Compte
+  // courant (petit et volatil) était en bas et propageait ses dents de
+  // scie à tout l'empilement. Moyenne (et non dernier point) pour un
+  // ordre stable dans la vue. Le tooltip suit le même ordre.
+  const avgByKey = {};
+  for (const c of categories) {
+    avgByKey[c.key] = data.length
+      ? data.reduce((s, d) => s + (d[c.key] || 0), 0) / data.length
+      : 0;
+  }
+  const sortedCategories = [...categories].sort((a, b) => avgByKey[b.key] - avgByKey[a.key]);
 
   const periods = [
     { key: '3', label: '3M' },
@@ -247,8 +263,9 @@ function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile
             tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`}
             width={50}
           />
-          <Tooltip content={<EvolutionTooltip categories={categories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
-          {categories.map(c => (
+          <Tooltip content={<EvolutionTooltip categories={sortedCategories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
+          {/* Premier <Area> rendu = bande du BAS de l'empilement */}
+          {sortedCategories.map(c => (
             <Area
               key={c.key}
               type="monotone"
