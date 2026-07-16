@@ -477,14 +477,16 @@ function App() {
         onSelect={selectModule}
         onMore={() => setShowSheet(true)}
       />
-      {/* Menu « ⋯ » mobile : bottom sheet avec recherche + actions du kebab */}
+      {/* Menu « ⋯ » mobile : bottom sheet avec recherche + actions du kebab.
+          onSignOut = signOut DIRECT (pas handleSignOut) : la confirmation
+          de déconnexion est intégrée à la sheet, pas de confirm() natif. */}
       {showSheet && (
         <MobileSheet
           user={user}
           onClose={() => setShowSheet(false)}
           onSearch={() => setShowSearch(true)}
           onSettings={() => setShowSettings(true)}
-          onSignOut={handleSignOut}
+          onSignOut={() => Adapter.signOut()}
         />
       )}
 
@@ -813,8 +815,8 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
 function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
   // Fermeture ANIMÉE : la sheet glisse vers le bas (et le backdrop
   // s'estompe) pendant 240 ms AVANT le démontage — symétrique de
-  // l'ouverture. L'action éventuelle (recherche, paramètres…) est
-  // déclenchée à la fin de l'animation.
+  // l'ouverture. L'action éventuelle (paramètres…) est déclenchée à la
+  // fin de l'animation.
   const [closing, setClosing] = useState(false);
   const closeWith = (action) => {
     if (closing) return;
@@ -825,12 +827,38 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
     }, 240);
   };
 
-  // Fermeture par Échap (clavier externe iPad / débogage desktop)
+  // Confirmation de déconnexion INTÉGRÉE (maquette Mockup-Sheet-Confirm-
+  // Deconnexion) : au tap sur « Déconnexion », la zone d'actions bascule
+  // sur place en mode confirmation — la sheet RESTE affichée. « Annuler »
+  // restaure les trois actions ; le bouton rouge déclenche onSignOut
+  // (signOut direct, SANS confirm() natif : la confirmation, c'est ici).
+  const [confirmOut, setConfirmOut] = useState(false);
+  const swapRef = useRef(null);
+  const paneActRef = useRef(null);
+  const paneConfRef = useRef(null);
+  // Hauteur du conteneur animée entre les deux panneaux (les panneaux
+  // sont en position:absolute, le conteneur porte la hauteur).
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') closeWith(); };
+    const pane = confirmOut ? paneConfRef.current : paneActRef.current;
+    if (swapRef.current && pane) swapRef.current.style.height = pane.offsetHeight + 'px';
+  }, [confirmOut]);
+
+  // Échap : annule d'abord la confirmation, puis ferme la sheet
+  // (clavier externe iPad / débogage desktop)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (confirmOut) setConfirmOut(false); else closeWith();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [closing]); // eslint-disable-line
+  }, [closing, confirmOut]); // eslint-disable-line
+
+  // Recherche : la modale s'ouvre IMMÉDIATEMENT (pas après les 240 ms de
+  // fermeture) pour que l'autoFocus du champ reste dans le geste
+  // utilisateur — condition sine qua non pour qu'iOS ouvre le clavier.
+  // La sheet s'estompe en dessous pendant ce temps.
+  const openSearch = () => { onSearch(); closeWith(); };
 
   const initial = (user?.email || '?').charAt(0).toUpperCase();
   const closingCls = closing ? ' closing' : '';
@@ -848,19 +876,34 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
           <div className="sheet-id-name">Patrimoine</div>
           <div className="sheet-id-mail">{user?.email}</div>
         </div>
-        <div className="sheet-actions">
-          <button className="sheet-act" onClick={() => closeWith(onSearch)}>
-            <span className="sheet-act-circle"><Icon name="search" size={22} /></span>
-            <span className="sheet-act-lbl">Rechercher</span>
-          </button>
-          <button className="sheet-act" onClick={() => closeWith(onSettings)}>
-            <span className="sheet-act-circle accent"><Icon name="settings" size={22} /></span>
-            <span className="sheet-act-lbl">Paramètres</span>
-          </button>
-          <button className="sheet-act danger" onClick={() => closeWith(onSignOut)}>
-            <span className="sheet-act-circle danger"><Icon name="logout" size={22} /></span>
-            <span className="sheet-act-lbl">Déconnexion</span>
-          </button>
+        {/* Zone basculante actions ⇄ confirmation : glissement latéral
+            croisé + hauteur animée, l'identité reste visible au-dessus
+            (on voit DE QUEL compte on se déconnecte). */}
+        <div className="sheet-swap" ref={swapRef}>
+          <div className={`swap-pane${confirmOut ? ' hidden-left' : ''}`} ref={paneActRef}>
+            <div className="sheet-actions">
+              <button className="sheet-act" onClick={openSearch}>
+                <span className="sheet-act-circle"><Icon name="search" size={22} /></span>
+                <span className="sheet-act-lbl">Rechercher</span>
+              </button>
+              <button className="sheet-act" onClick={() => closeWith(onSettings)}>
+                <span className="sheet-act-circle accent"><Icon name="settings" size={22} /></span>
+                <span className="sheet-act-lbl">Paramètres</span>
+              </button>
+              <button className="sheet-act danger" onClick={() => setConfirmOut(true)}>
+                <span className="sheet-act-circle danger"><Icon name="logout" size={22} /></span>
+                <span className="sheet-act-lbl">Déconnexion</span>
+              </button>
+            </div>
+          </div>
+          <div className={`swap-pane${confirmOut ? '' : ' hidden-right'}`} ref={paneConfRef}>
+            <div className="sheet-confirm">
+              <div className="confirm-q">Te déconnecter de ce compte ?</div>
+              <div className="confirm-sub">Tu devras saisir à nouveau tes identifiants.</div>
+              <button className="confirm-btn out" onClick={onSignOut}>Se déconnecter</button>
+              <button className="confirm-btn cancel" onClick={() => setConfirmOut(false)}>Annuler</button>
+            </div>
+          </div>
         </div>
         {/* Version de build + environnement : permet de vérifier d'un coup
             d'œil quelle version tourne sur l'appareil (cache, déploiement). */}
