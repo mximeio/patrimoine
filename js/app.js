@@ -553,7 +553,14 @@ function App() {
 // en retard. Dans ce cas on suit l'élément actif IMAGE PAR IMAGE
 // (requestAnimationFrame, transition de la pastille coupée) pendant la durée
 // de la transition, puis on rend la main à la transition CSS normale.
-function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, followKey) {
+// useTransform (v499, opt-in — barre MOBILE uniquement pour l'instant) :
+// la position horizontale est écrite dans la variable CSS --tx consommée
+// par un translateX, au lieu de `left`. transform est animé par le
+// COMPOSITEUR du navigateur : la goutte glisse à 60fps même pendant que
+// React monte le nouveau module (le montage bloquait le thread principal
+// → animation `left` saccadée, diagnostiqué sur retour utilisateur).
+// Desktop (seg-indicator) et Charges restent en mode `left` historique.
+function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, followKey, useTransform = false) {
   const prevFollowKey = useRef(followKey);
   useEffect(() => {
     const move = () => {
@@ -573,8 +580,16 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
       // la distance du centre : visible tout à droite) avant d'être
       // rattrapée par la remesure de sécurité 380ms plus tard (v497).
       const s = cont.offsetWidth ? (c.width / cont.offsetWidth) : 1;
-      ind.style.left = ((b.left - c.left) / s + cont.scrollLeft - cont.clientLeft) + 'px';
-      ind.style.top = ((b.top - c.top) / s + cont.scrollTop - cont.clientTop) + 'px';
+      const l = (b.left - c.left) / s + cont.scrollLeft - cont.clientLeft;
+      const t = (b.top - c.top) / s + cont.scrollTop - cont.clientTop;
+      if (useTransform) {
+        // Mode compositeur : left reste à 0 (CSS), --tx porte la position.
+        ind.style.setProperty('--tx', l + 'px');
+        ind.style.top = t + 'px';
+      } else {
+        ind.style.left = l + 'px';
+        ind.style.top = t + 'px';
+      }
       ind.style.width = (b.width / s) + 'px';
       ind.style.height = (b.height / s) + 'px';
     };
@@ -740,7 +755,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
   // `mini` en followKey : pendant la rétractation/redéploiement, la goutte
   // suit la pill active image par image pour rester parfaitement collée à
   // l'animation de la capsule (au lieu de se recaler en retard).
-  useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.length, mini], mini);
+  useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.length, mini], mini, true);
 
   // Rétractation au scroll (pattern tab bar de Music sur iOS 26/27).
   // Le scroll vient du scroller interne .main-container sur mobile
@@ -836,7 +851,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
     // La bulle vient au doigt (transition ressort du CSS), aperçu
     // d'activation — l'onglet ne s'ouvrira qu'au relâcher.
     const rects = pillRects();
-    ind.style.left = rects[idx].left + 'px';
+    ind.style.setProperty('--tx', rects[idx].left + 'px');
     ind.style.width = rects[idx].width + 'px';
     setActivePreview(idx);
   };
@@ -856,7 +871,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
     // Bornes = premier et dernier slot : mêmes écarts qu'au repos.
     const x = Math.min(rects[rects.length - 1].left,
       Math.max(rects[0].left, fingerX - w / 2));
-    ind.style.left = x + 'px';
+    ind.style.setProperty('--tx', x + 'px');
     const cx = x + w / 2;
     let n = 0, bd = Infinity;
     rects.forEach((r, i) => { const d = Math.abs(r.cx - cx); if (d < bd) { bd = d; n = i; } });
@@ -883,7 +898,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
     if (ind) {
       // Pose de la bulle sur son slot exact (le ressort CSS reprend)
       const rects = pillRects();
-      ind.style.left = rects[g.hover].left + 'px';
+      ind.style.setProperty('--tx', rects[g.hover].left + 'px');
       ind.style.width = rects[g.hover].width + 'px';
     }
     const t = tabs[g.hover];
@@ -902,7 +917,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
     const ind = indRef.current;
     if (ind && idx >= 0) {
       const rects = pillRects();
-      ind.style.left = rects[idx].left + 'px';
+      ind.style.setProperty('--tx', rects[idx].left + 'px');
       ind.style.width = rects[idx].width + 'px';
     }
   };

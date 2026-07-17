@@ -1775,33 +1775,38 @@ input[type="month"] {
 /* État pressé (amplitude A validée, maquette Mockup-Barre-Pulse) */
 .tabbar-capsule.bar-pressed { transform: scale(1.035); }
 /* Goutte glissante : elle porte le fond foncé et l'ombre de l'actif */
+/* Goutte en MODE COMPOSITEUR (v499) : l'élément est une coquille
+   transparente positionnée à left:0, déplacée par translateX(--tx) —
+   transform est animé par le compositeur, la goutte glisse à 60fps même
+   pendant que React monte le module de destination (l'animation `left`
+   gelait sur le thread principal → saccades, diagnostiqué v498).
+   Le PINCEAU (fond, ombre, étirement pressé) vit sur ::before : deux
+   transforms indépendants (translateX de trajet / scaleX de pression),
+   chacun avec sa durée. Courbe de pose recalibrée v498 conservée :
+   départ vif, glissade feutrée, dépassement minuscule. */
 .tab-slide-ind {
-  position: absolute;
+  position: absolute; left: 0;
+  z-index: 0; pointer-events: none;
+  transform: translateX(var(--tx, 0px));
+  transition: transform 0.5s cubic-bezier(0.24, 1.12, 0.32, 1);
+  will-change: transform;
+}
+.tab-slide-ind::before {
+  content: '';
+  position: absolute; inset: 0;
   background: rgba(15, 23, 42, 0.92); border-radius: var(--radius-full);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
-  z-index: 0; pointer-events: none;
-  /* Courbes À RESSORT (v495, recalibrées v498 sur mesure vidéo 60fps) :
-     Instagram pose sa bulle LENTEMENT — arrivée rapide près de la cible
-     puis glissade douce ~200ms avec un dépassement minuscule. Notre
-     0.38s/1.35 rebondissait trop sec : allongé à 0.5s, dépassement
-     réduit — départ vif, pose feutrée. transform = étirement pressé. */
-  transition: left 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
-              width 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
-              top 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
-              height 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
-              transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1),
+  transition: transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1),
               box-shadow 0.2s ease;
 }
 /* Pressé : la bulle ne s'étire qu'en LARGEUR (scaleX) — l'écart avec le
    haut/bas de la capsule (l'anneau) reste STRICTEMENT identique au repos
    (règle utilisateur). */
-.tab-slide-ind.ind-pressed { transform: scaleX(1.07); }
-/* En main (drag) : position pilotée image par image (plus de transition
-   left/width), ombre soulevée. */
-.tab-slide-ind.ind-dragging {
-  transition: transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.2s ease;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.4);
-}
+.tab-slide-ind.ind-pressed::before { transform: scaleX(1.07); }
+/* En main (drag) : --tx suit le doigt image par image (transition de
+   trajet coupée), ombre soulevée. */
+.tab-slide-ind.ind-dragging { transition: none; }
+.tab-slide-ind.ind-dragging::before { box-shadow: 0 6px 16px rgba(15, 23, 42, 0.4); }
 .tab-item {
   flex: 1; border: none; background: transparent;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
