@@ -301,6 +301,10 @@ function CheckingView({ ctx, onBack }) {
   const stats = computeMonth(checking, curKey);
   const idx = sortedKeys.indexOf(curKey);
   const trEnabled = checking.settings.trEnabled !== false;
+  // Mois FIGÉ (v485, maquette Mockup-Mois-Fige-Interactif) : consultation
+  // seule. L'état vit sur le mois (m.frozen), l'action dans le kebab, la
+  // pédagogie dans un toast — pas de bandeau permanent.
+  const frozen = !!m.frozen;
 
   // setCurrentMonth est purement LOCAL : state React + localStorage.
   // Plus aucune écriture en Firestore pour le mois courant.
@@ -328,6 +332,7 @@ function CheckingView({ ctx, onBack }) {
     onPrev: goPrev, onNext: goNext,
     prevDisabled: idx <= 0, nextDisabled: idx >= sortedKeys.length - 1,
     pickerOpen, togglePicker, popover: monthPopover,
+    locked: frozen, // cadenas 🔒 informatif sur la chip (hero + titre mobile)
   };
   // Chip mobile : injectée dans la ligne de titre (app.js) via portal.
   // Le slot existe toujours dans le DOM (masqué sur desktop par le CSS).
@@ -372,6 +377,12 @@ function CheckingView({ ctx, onBack }) {
   };
 
   const updateMonth = (newMonth) => {
+    // Mois figé : FILET DE SÉCURITÉ au point d'étranglement unique — toute
+    // modification du contenu (opérations, TR, pointage, drag & drop…)
+    // passe par ici et est bloquée tant que le mois n'est pas défigé.
+    // (Le gel/dégel lui-même passe par freezeMonth/unfreezeMonth, qui
+    // écrivent directement via updateCheckingData.)
+    if (m.frozen) { showToast('Mois figé — défige-le via le menu ⋯'); return; }
     const newChecking = { ...checking, months: { ...checking.months, [curKey]: newMonth } };
     // 1) Le mois courant peut avoir un TR auto qui pointe sur curKey-1
     //    (cas d'une ligne TR auto créée ad-hoc) : on recalcule à partir
@@ -384,7 +395,27 @@ function CheckingView({ ctx, onBack }) {
     updateCheckingData(newChecking);
   };
 
+  // Gel / dégel du mois (v485). Confirmations en confirm() natif, comme
+  // partout ailleurs dans l'app. Le drapeau frozen ne change aucun montant :
+  // pas de cascade TR à recalculer.
+  const freezeMonth = () => {
+    const unpointed = (m.operations || []).filter(o => !o.pointed).length;
+    if (unpointed > 0 && !confirm(
+      `Figer ${monthLabel(curKey)} ?\n\n${unpointed} opération${unpointed > 1 ? 's ne sont pas pointées' : " n'est pas pointée"} dans ce mois. Un mois figé ne peut plus être modifié ni pointé sans être défigé.`
+    )) return;
+    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: true } } });
+    showToast(`${monthLabel(curKey)} figé`);
+  };
+  const unfreezeMonth = () => {
+    if (!confirm(`Défiger ${monthLabel(curKey)} ?\n\nLes modifications de ce mois se répercuteront sur les mois suivants ("Reste mois préc."). Pense à le re-figer après tes retouches.`)) return;
+    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: false } } });
+    showToast(`${monthLabel(curKey)} défigé`);
+  };
+
   const deleteMonth = () => {
+    // Un mois figé ne se supprime pas (l'item du kebab est désactivé —
+    // ceci est la ceinture ET les bretelles).
+    if (m.frozen) { showToast('Mois figé — défige-le avant de le supprimer'); return; }
     if (!confirm(`Supprimer ${monthLabel(curKey)} ?\n\nToutes les lignes (entrées, sorties, TR) seront effacées.`)) return;
     const { [curKey]: removed, ...remaining } = checking.months;
     const newChecking = { ...checking, months: remaining };
@@ -441,11 +472,18 @@ function CheckingView({ ctx, onBack }) {
             <MonthChip id="hero" variant="hero" label={monthLabel(curKey)} {...chipProps} />
             <ModuleBadge module="checking" />
             <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
-              <button className="dropdown-item" onClick={() => setOpCreateSignal(n => n + 1)}>
-                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
-                Nouvelle opération
-              </button>
-              <div className="dropdown-separator" />
+              {/* Mois figé : pas de création d'opération. Figer/Défiger et
+                  Supprimer partagent le même groupe (les deux actions
+                  « cycle de vie » du mois) — décision maquette v485. */}
+              {!frozen && (
+                <>
+                  <button className="dropdown-item" onClick={() => setOpCreateSignal(n => n + 1)}>
+                    <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
+                    Nouvelle opération
+                  </button>
+                  <div className="dropdown-separator" />
+                </>
+              )}
               <button className="dropdown-item" onClick={() => setShowRecurring(true)}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="arrowLeftRight" size={14} /></span>
                 Opérations récurrentes
@@ -461,8 +499,17 @@ function CheckingView({ ctx, onBack }) {
                 Réglages
               </button>
               <div className="dropdown-separator" />
-              <button className="dropdown-item dropdown-item-danger" onClick={deleteMonth}>
-                <span style={{ color: COLORS.danger, display: 'inline-flex' }}><Icon name="trash" size={14} /></span>
+              <button className="dropdown-item" onClick={frozen ? unfreezeMonth : freezeMonth}>
+                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name={frozen ? 'unlock' : 'lock'} size={14} /></span>
+                {frozen ? 'Défiger ce mois' : 'Figer ce mois'}
+              </button>
+              <button
+                className="dropdown-item dropdown-item-danger"
+                onClick={deleteMonth}
+                disabled={frozen}
+                title={frozen ? 'Mois figé — défige-le d’abord' : undefined}
+              >
+                <span style={{ color: frozen ? COLORS.subtle : COLORS.danger, display: 'inline-flex' }}><Icon name="trash" size={14} /></span>
                 Supprimer ce mois
               </button>
             </Dropdown>
@@ -540,11 +587,36 @@ function CheckingView({ ctx, onBack }) {
         )}
       </div>
 
+      {/* Mois FIGÉ : verrou d'interface par-dessus le filet updateMonth.
+          Le handler en phase de CAPTURE intercepte tous les clics des deux
+          sections (pointage, crayons, ajouts, dates…) → toast pédagogique,
+          SAUF le chevron des lignes composites (déplier/replier = pure
+          consultation). preventDefault bloque aussi le toggle natif.
+          Le CSS .frozen-month masque crayons et boutons d'ajout. */}
+      <div
+        className={frozen ? 'frozen-month' : undefined}
+        onClickCapture={frozen ? (e) => {
+          if (e.target.closest('.composite-chevron')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          showToast('Mois figé — défige-le via le menu ⋯');
+        } : undefined}
+        onDragStartCapture={frozen ? (e) => {
+          // Glisser/déposer : on annule le geste À LA SOURCE (preventDefault
+          // sur dragstart tue le drag natif) — sans ça, la ligne se soulevait
+          // puis rebondissait au lâcher (le drop étant bloqué par updateMonth),
+          // ce qui était trompeur.
+          e.preventDefault();
+          e.stopPropagation();
+          showToast('Mois figé — défige-le via le menu ⋯');
+        } : undefined}
+      >
       <OpsSection
         items={m.operations || []}
         onChange={(newItems) => updateMonth({ ...m, operations: newItems })}
         mKey={curKey}
         datesMode={checkingDatesEnabled(profile)}
+        noDrag={frozen}
         trEnabled={trEnabled}
         openCreateSignal={opCreateSignal}
         onAddTr={(it) => updateMonth({ ...m, tr: [...(m.tr || []), it] })}
@@ -568,11 +640,13 @@ function CheckingView({ ctx, onBack }) {
           onChange={(newTr) => updateMonth({ ...m, tr: newTr })}
           mKey={curKey}
           datesMode={checkingDatesEnabled(profile)}
+          noDrag={frozen}
           openCreateSignal={trCreateSignal}
           onAddOperation={(it) => updateMonth({ ...m, operations: [...(m.operations || []), it] })}
           onMoveToOps={(id, it) => updateMonth({ ...m, tr: (m.tr || []).filter(t => t.id !== id), operations: [...(m.operations || []), it] })}
         />
       )}
+      </div>
 
       {showRecurring && (
         <Modal title="Opérations récurrentes" onClose={() => setShowRecurring(false)} size="lg">
@@ -842,7 +916,7 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
 // variant 'light' = claire (ligne de titre mobile, via portal depuis
 // CheckingView). Le popover calendrier n'est rendu que dans la chip qui
 // l'a ouvert (pickerOpen === id).
-function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisabled, nextDisabled, pickerOpen, togglePicker, popover }) {
+function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisabled, nextDisabled, pickerOpen, togglePicker, popover, locked = false }) {
   // Chip ADAPTATIVE (maquette Mockup-Chip-Mois-Adaptatif) : quand
   // labelShort est fourni (chip de la ligne de titre mobile), on affiche
   // le mois COMPLET si « titre complet + chip complète » tiennent sans
@@ -921,7 +995,10 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
           aria-expanded={pickerOpen === id}
         >
           {/* Le caret se retourne (rotation animée) quand le calendrier
-              est ouvert — affordance classique des sélecteurs. */}
+              est ouvert — affordance classique des sélecteurs. Le cadenas
+              (mois figé, v485) est INFORMATIF : la chip et le calendrier
+              restent pleinement utilisables. */}
+          {locked && <span className="mc-lock" aria-label="Mois figé"><Icon name="lock" size={13} /></span>}
           {labelNode}<span className={`mc-dd${pickerOpen === id ? ' mc-dd-open' : ''}`}>▾</span>
         </button>
         {pickerOpen === id && popover}
@@ -971,17 +1048,24 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
           // En mode simple : tous les mois sont marqués "created" → sélectionnables uniformément
           const isCreated = simple ? true : !!months[k];
           const isCurrent = k === currentMonth;
+          // Mois figé (v485) : cadenas INFORMATIF — la cellule reste
+          // sélectionnable comme les autres (ouvre la consultation).
+          const isFrozen = !simple && isCreated && !!months[k].frozen;
           return (
             <button
               key={k}
               type="button"
-              className={`month-cell ${isCreated ? 'created' : ''} ${isCurrent ? 'current' : ''}`}
+              className={`month-cell ${isCreated ? 'created' : ''} ${isCurrent ? 'current' : ''} ${isFrozen ? 'frozen' : ''}`}
               onClick={() => onPick(k)}
               title={simple
                 ? `${FRENCH_MONTHS[m]} ${year}`
-                : `${FRENCH_MONTHS[m]} ${year}${isCreated ? '' : ' — Cliquer pour créer'}`}
+                : `${FRENCH_MONTHS[m]} ${year}${isCreated ? (isFrozen ? ' — figé (consultation)' : '') : ' — Cliquer pour créer'}`}
             >
               {FRENCH_MONTHS[m].slice(0, 4)}
+              {/* Cadenas VECTORIEL (icône du set, currentColor) à la place
+                  de la pastille « créé » (masquée via .frozen) : indigo sur
+                  cellule claire, blanc sur le mois courant et au survol. */}
+              {isFrozen && <span className="month-cell-lock" aria-hidden="true"><Icon name="lock" size={10} /></span>}
             </button>
           );
         })}
@@ -1257,7 +1341,7 @@ function getCheckingOpDisplay(op) {
 //  modifier le type, le libellé, le montant, ou activer le composite.
 //  Le pointage reste cliquable inline (case ✓).
 // ============================================================
-function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmount = 0, openCreateSignal = 0, onAddTr, onMoveToTr }) {
+function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmount = 0, openCreateSignal = 0, onAddTr, onMoveToTr, noDrag = false }) {
   const [expanded, setExpanded] = useState({});
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null); // item en cours d'édition (null = création)
@@ -1379,6 +1463,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
                 onEdit={() => openEdit(item)}
                 onDrop={onDrop}
                 datesMode={datesMode}
+                noDrag={noDrag}
                 mKey={mKey}
               />
             );
@@ -1397,6 +1482,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
               onEdit={() => openEdit(item)}
               onDrop={onDrop}
               datesMode={datesMode}
+              noDrag={noDrag}
               mKey={mKey}
             />
           );
@@ -1708,16 +1794,19 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
   );
 }
 
-function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey }) {
-  // En mode dates : pas de drag handle ni de drop target (D&D désactivé).
+function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey, noDrag = false }) {
+  // En mode dates OU mois figé (noDrag, v489) : pas de drag handle ni de
+  // drop target — plus d'attribut draggable, de curseur de prise ni
+  // d'info-bulle « Glisser pour réorganiser ».
+  const dndOff = datesMode || noDrag;
   const dragRef = useDragHandle({ scope, list, index, item });
   const dropRef = useDropTarget({ scope, list, index, item }, onDrop);
-  const rowRef = datesMode ? null : dropRef;
-  const handleRef = datesMode ? null : dragRef;
+  const rowRef = dndOff ? null : dropRef;
+  const handleRef = dndOff ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
     <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'} ${item.isTRRefund ? 'auto' : ''}`}>
-      <span ref={handleRef} className={`tx-icon ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}>
+      <span ref={handleRef} className={`tx-icon ${variant} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}>
         {variant === 'income' ? <Icon name="arrowDown" size={12} />
           : variant === 'expense' ? <Icon name="arrowUp" size={12} />
           : variant === 'tr' ? <Icon name="utensils" size={12} />
@@ -1815,23 +1904,25 @@ function DateChip({ value, mKey, onChange }) {
   );
 }
 
-function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey }) {
+function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey, noDrag = false }) {
   const total = r2((item.components || []).reduce((s, c) => s + (c.amount || 0), 0));
   // Sync amount si drift
   useEffect(() => {
     if (total !== item.amount) onUpdate({ amount: total });
   }, [total]);
 
+  // Mode dates OU mois figé (noDrag, v489) : D&D entièrement désactivé.
+  const dndOff = datesMode || noDrag;
   const dragRef = useDragHandle({ scope, list, index, item });
   const dropRef = useDropTarget({ scope, list, index, item }, onDrop);
-  const rowRef = datesMode ? null : dropRef;
-  const handleRef = datesMode ? null : dragRef;
+  const rowRef = dndOff ? null : dropRef;
+  const handleRef = dndOff ? null : dragRef;
 
   const labelText = (item.label || '').trim();
   return (
     <div className={`tx-composite-wrap ${expanded ? 'expanded' : ''} ${item.pointed ? '' : 'unpointed'}`}>
       <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row composite-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'}`}>
-        <span ref={handleRef} className={`tx-icon ${variant || 'expense'} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}>
+        <span ref={handleRef} className={`tx-icon ${variant || 'expense'} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}>
           {variant === 'income' ? <Icon name="arrowDown" size={12} />
             : variant === 'tr' ? <Icon name="utensils" size={12} />
             : (variant || 'expense') === 'expense' ? <Icon name="arrowUp" size={12} />
@@ -1868,6 +1959,7 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
             scope={scope} list={item.components} index={ci}
             onDrop={onDrop}
             withEdit={!!onEdit}
+            noDrag={dndOff}
           />
         ))}
         {/* L'ajout et la suppression de composantes se font via la modale
@@ -1877,9 +1969,11 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
   );
 }
 
-function CompositeComponentRow({ c, parent, variant, scope, list, index, onDrop, withEdit }) {
-  const dragRef = useDragHandle({ scope, list, index, item: c, parentItem: parent });
-  const dropRef = useDropTarget({ scope, list, index, item: c, parentItem: parent, noNest: true }, onDrop);
+function CompositeComponentRow({ c, parent, variant, scope, list, index, onDrop, withEdit, noDrag = false }) {
+  const dragRefRaw = useDragHandle({ scope, list, index, item: c, parentItem: parent });
+  const dropRefRaw = useDropTarget({ scope, list, index, item: c, parentItem: parent, noNest: true }, onDrop);
+  const dragRef = noDrag ? null : dragRefRaw;
+  const dropRef = noDrag ? null : dropRefRaw;
   // Affichage selon le SIGNE RÉEL : une composante négative est un crédit
   // (icône verte, « + ») même dans une composite de sortie ; positive = dépense
   // (rouge, « − »). TR refund (négatif) → « + » en ambre.
@@ -1890,7 +1984,7 @@ function CompositeComponentRow({ c, parent, variant, scope, list, index, onDrop,
   const compVariant = c.isTRRefund ? 'tr' : signVariant;
   return (
     <div ref={dropRef} className={`composite-comp-row ${withEdit ? 'with-edit' : ''}`}>
-      <span ref={dragRef} className={`tx-icon ${compVariant}`} title="Glisser">
+      <span ref={dragRef} className={`tx-icon ${compVariant}${noDrag ? ' no-drag' : ''}`} title={noDrag ? '' : 'Glisser'}>
         {compVariant === 'income' ? <Icon name="arrowDown" size={12} />
           : compVariant === 'expense' ? <Icon name="arrowUp" size={12} />
           : compVariant === 'tr' ? <Icon name="utensils" size={12} />
@@ -1926,7 +2020,7 @@ function CompositeComponentRow({ c, parent, variant, scope, list, index, onDrop,
   );
 }
 
-function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal = 0, onAddOperation, onMoveToOps }) {
+function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal = 0, onAddOperation, onMoveToOps, noDrag = false }) {
   const scope = `tr-${mKey}`;
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -1997,7 +2091,7 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
         {(datesMode ? sortItemsBySortKey(items, (it) => it.date || '') : items).map((item) => {
           const idx = items.findIndex(x => x.id === item.id);
           return (
-            <TrItemRow key={item.id} item={item} scope={scope} list={items} index={idx}
+            <TrItemRow key={item.id} item={item} scope={scope} list={items} index={idx} noDrag={noDrag}
               onRemove={() => {
                 const label = (item.label || '').trim() || 'ce paiement TR';
                 if (confirm(`Supprimer "${label}" ?`)) removeItem(idx);
@@ -2043,15 +2137,17 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
 //  TrItemRow — Ligne TR read-only, alignée sur le pattern op-main
 //  des lignes du mois. L'édition passe par le crayon → OperationForm (TR).
 // ============================================================
-function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMode }) {
+function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMode, noDrag = false }) {
+  // Mode dates OU mois figé (noDrag, v489) : D&D entièrement désactivé.
+  const dndOff = datesMode || noDrag;
   const dragRef = useDragHandle({ scope, list, index, item });
   const dropRef = useDropTarget({ scope, list, index, item, noNest: true }, onDrop);
-  const rowRef = datesMode ? null : dropRef;
-  const handleRef = datesMode ? null : dragRef;
+  const rowRef = dndOff ? null : dropRef;
+  const handleRef = dndOff ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
     <div ref={rowRef} data-locate={`tr-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''}`}>
-      <span ref={handleRef} className={`tx-icon tr ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}><Icon name="utensils" size={12} /></span>
+      <span ref={handleRef} className={`tx-icon tr ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}><Icon name="utensils" size={12} /></span>
       {/* Pas de tx-check sur les TR (pas de pointage), mais on garde une
           cellule vide de même largeur pour préserver le grid de .tx-row. */}
       <div style={{ width: 18 }} />

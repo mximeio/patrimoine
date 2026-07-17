@@ -1516,11 +1516,23 @@ input[type="month"] {
   display: inline-flex; align-items: center; gap: 2px;
   border-radius: var(--radius-full); padding: 3px;
   position: relative;
+  /* Hauteur VERROUILLÉE (v493) : 26px de chevrons + 2×3px de padding.
+     C'était déjà la hauteur naturelle, mais l'explicite garantit qu'AUCUN
+     contenu (cadenas de mois figé, libellé long, caret) ne peut plus la
+     faire varier, sur aucun navigateur. box-sizing: border-box global →
+     32px tout compris. */
+  height: 32px;
 }
 /* Le popover calendrier s'ancre sur la CHIP (droite alignée), pas centré
    sous le label — sinon il déborderait de l'écran, la chip vivant près
    du bord droit. */
-.month-chip .month-picker { position: static; }
+/* v494 — display:inline-flex + align-items:center : ce span alignait le
+   label sur sa BASELINE ; or un bouton flex exporte la baseline de son
+   PREMIER enfant — texte sans cadenas, bas du SVG avec cadenas (mois
+   figé) → le label entier se décalait de ~2px selon l'état (« Juillet
+   est plus bas »). Le centrage flex ignore les baselines : position
+   verticale identique dans tous les cas. */
+.month-chip .month-picker { position: static; display: inline-flex; align-items: center; }
 .month-chip .month-picker-popover {
   left: auto; right: 0; transform: none;
   top: calc(100% + 8px);
@@ -1541,11 +1553,17 @@ input[type="month"] {
 /* vertical-align : le caret 10px est aligné baseline par défaut, donc
    visuellement trop bas face au texte 13px — on le recentre. */
 .mc-dd {
-  font-size: 10px; margin-left: 3px; vertical-align: 2px;
+  font-size: 10px; margin-left: 3px;
   /* Caret retournable : rotation animée quand le calendrier est ouvert
      (classe .mc-dd-open posée par MonthChip). inline-block requis pour
      que transform s'applique. */
   display: inline-block; transition: transform 0.2s ease;
+  /* Recentrage optique : depuis que .mc-label est en flex (v491, centrage
+     du cadenas), vertical-align est inopérant — le caret était descendu
+     de ~2px sur TOUTES les chips (régression signalée). position:relative
+     + top reproduit l'ancien réglage sans entrer en conflit avec la
+     rotation (transform) de .mc-dd-open. */
+  position: relative; top: -1.5px;
 }
 .mc-dd-open { transform: rotate(180deg); }
 /* Variante hero (translucide sur fond foncé) */
@@ -2677,3 +2695,62 @@ input[type="month"] {
   border-radius: var(--radius-full); padding: 1px 7px;
   margin-left: 6px; vertical-align: 2px;
 }
+
+/* ============================================================
+   MOIS FIGÉ (v485, lignée PROD — maquette Mockup-Mois-Fige-Interactif)
+   Consultation seule : les contrôles d'ÉDITION disparaissent (rien de
+   grisé qui fait « cassé »), les cases de pointage gardent leur forme
+   mais deviennent inertes (clics interceptés par le wrapper + toast).
+   Le cadenas est partout INFORMATIF, jamais bloquant.
+   ============================================================ */
+.frozen-month .tx-edit,
+.frozen-month .btn-add { display: none; }
+/* Le crayon masqué ne doit pas laisser sa COLONNE vide : en mois figé,
+   les grilles .with-edit reprennent le gabarit sans crayon — le libellé
+   récupère la place et les montants se calent à droite. Les colonnes
+   fantômes des composantes suivent (alignement vertical conservé). */
+.frozen-month .tx-row.with-edit,
+.frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 28px 24px 1fr 130px; }
+.frozen-month .tx-row.with-edit.with-date,
+.frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 28px 24px 56px 1fr 130px; }
+.frozen-month .composite-comp-row.with-edit { grid-template-columns: 22px 1fr 130px; }
+.frozen-month .composite-comp-row.with-edit > span[aria-hidden] { display: none; }
+/* Déclinaison MOBILE : mêmes gabarits compacts que les lignes sans crayon
+   du media ≤ 640px (112/96px de montant, icônes 20px) — sans cette
+   déclinaison, les règles ci-dessus (gabarits desktop 130px) écraseraient
+   les colonnes compactes par spécificité. */
+@media (max-width: 640px) {
+  .frozen-month .tx-row.with-edit,
+  .frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr 112px; }
+  .frozen-month .tx-row.with-edit.with-date,
+  .frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr 96px; }
+  .frozen-month .composite-comp-row.with-edit { grid-template-columns: 20px 1fr 112px; }
+}
+/* Cases de pointage GRISÉES en mois figé : même forme, mais l'affordance
+   « désactivé » est explicite — coche grise au lieu d'indigo, bord adouci
+   (rendu des checkboxes disabled natives). */
+.frozen-month .tx-check { cursor: default; border-color: var(--border); }
+.frozen-month .tx-check.checked {
+  background: #cbd5e1; border-color: #cbd5e1; color: white;
+}
+.frozen-month .tx-date-chip { cursor: default; }
+.frozen-month .tx-icon { cursor: default; }
+/* Cadenas de la chip de mois (hero + titre mobile) — icône vectorielle
+   en currentColor : blanche sur la variante hero, ardoise sur la light.
+   Variante B (maquette Mockup-Chip-Cadenas) : 13px, opacité pleine,
+   trait 2.4, et CENTRAGE GÉOMÉTRIQUE — le label passe en flex (l'icône
+   s'alignait sinon sur la baseline du texte → visuellement trop basse). */
+.mc-label { display: inline-flex; align-items: center; }
+.mc-lock { display: inline-flex; align-items: center; margin-right: 5px; }
+.mc-lock svg { stroke-width: 2.4; display: block; }
+/* Cadenas des cellules du calendrier : REMPLACE la pastille « créé »
+   (masquée ci-dessous) à la même position — currentColor le rend indigo
+   sur cellule claire, blanc sur le mois courant et au survol. La cellule
+   reste sélectionnable normalement. */
+.month-cell { position: relative; }
+.month-cell-lock { position: absolute; top: 4px; right: 5px; display: inline-flex; }
+.month-cell-lock svg { stroke-width: 2.4; display: block; }
+.month-cell.created.frozen:not(.current)::after { content: none; }
+/* Item de menu désactivé (Supprimer un mois figé) */
+.dropdown-item:disabled { color: var(--text-subtle); cursor: not-allowed; }
+.dropdown-item:disabled:hover { background: transparent; }
