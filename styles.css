@@ -1780,13 +1780,15 @@ input[type="month"] {
   background: rgba(15, 23, 42, 0.92); border-radius: var(--radius-full);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
   z-index: 0; pointer-events: none;
-  /* Courbes À RESSORT (v495) : la goutte arrive avec un léger dépassement
-     élastique — la vraie différence de « feel » identifiée sur la barre
-     iOS 26 d'Instagram. transform = étirement de l'état pressé. */
-  transition: left 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
-              width 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
-              top 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
-              height 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
+  /* Courbes À RESSORT (v495, recalibrées v498 sur mesure vidéo 60fps) :
+     Instagram pose sa bulle LENTEMENT — arrivée rapide près de la cible
+     puis glissade douce ~200ms avec un dépassement minuscule. Notre
+     0.38s/1.35 rebondissait trop sec : allongé à 0.5s, dépassement
+     réduit — départ vif, pose feutrée. transform = étirement pressé. */
+  transition: left 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
+              width 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
+              top 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
+              height 0.5s cubic-bezier(0.24, 1.12, 0.32, 1),
               transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1),
               box-shadow 0.2s ease;
 }
