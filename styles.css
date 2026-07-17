@@ -1843,7 +1843,11 @@ input[type="month"] {
 }
 .bottom-sheet {
   position: fixed; left: 8px; right: 8px;
-  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  /* MÊME formule de bas que la barre (.tabbar-wrap) : les deux objets
+     flottants partagent la même ligne d'appui — l'ancien calage
+     (8px + safe-area ≈ 42px) laissait la sheet 12px plus haute que la
+     barre depuis le placement « Instagram » (~30px). */
+  bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px));
   z-index: 61;
   /* Tout en BLANC opaque, cartes délimitées par le liseré var(--border) —
      c'est le langage des cards partout ailleurs dans l'app (stat-cards,
