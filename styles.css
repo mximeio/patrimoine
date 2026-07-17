@@ -1769,7 +1769,7 @@ input[type="month"] {
      maintenu tant que le doigt touche), touch-action none pour que le
      geste (bulle magnétique + drag) ne déclenche jamais de scroll. */
   transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.46s cubic-bezier(0.26, 1.2, 0.36, 1);
+              transform 0.6s cubic-bezier(0.26, 1.2, 0.36, 1);
   touch-action: none;
 }
 /* État pressé (amplitude A validée, maquette Mockup-Barre-Pulse) */
@@ -1803,7 +1803,7 @@ input[type="month"] {
   /* v500 : ASYMÉTRIE de ressort — la transition de BASE (0.46s) régit
      la RETOMBÉE au relâcher (lente, feutrée) ; la classe pressée impose
      la sienne (0.18s) pour un gonflement immédiat à l'appui. */
-  transition: transform 0.46s cubic-bezier(0.26, 1.2, 0.36, 1),
+  transition: transform 0.6s cubic-bezier(0.26, 1.2, 0.36, 1),
               box-shadow 0.2s ease;
 }
 /* Pressé : la bulle ne s'étire qu'en LARGEUR (scaleX) — l'écart avec le
