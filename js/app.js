@@ -565,10 +565,18 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
       if (!btn) { ind.style.width = '0px'; return; }
       const c = cont.getBoundingClientRect();
       const b = btn.getBoundingClientRect();
-      ind.style.left = (b.left - c.left + cont.scrollLeft - cont.clientLeft) + 'px';
-      ind.style.top = (b.top - c.top + cont.scrollTop - cont.clientTop) + 'px';
-      ind.style.width = b.width + 'px';
-      ind.style.height = b.height + 'px';
+      // Neutralise un éventuel transform scale EN COURS sur le conteneur
+      // (état pressé de la barre liquide v495, qui met 340ms à retomber) :
+      // les rects vivent dans l'espace scalé alors que style.left/width
+      // s'appliquent dans l'espace layout — sans division par l'échelle,
+      // la goutte partait trop loin au relâcher (erreur proportionnelle à
+      // la distance du centre : visible tout à droite) avant d'être
+      // rattrapée par la remesure de sécurité 380ms plus tard (v497).
+      const s = cont.offsetWidth ? (c.width / cont.offsetWidth) : 1;
+      ind.style.left = ((b.left - c.left) / s + cont.scrollLeft - cont.clientLeft) + 'px';
+      ind.style.top = ((b.top - c.top) / s + cont.scrollTop - cont.clientTop) + 'px';
+      ind.style.width = (b.width / s) + 'px';
+      ind.style.height = (b.height / s) + 'px';
     };
 
     // Suivi frame par frame pendant une transition CSS des éléments mesurés
@@ -775,19 +783,154 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
   // Changement de section → barre redéployée (on revient en haut de page)
   useEffect(() => { setMini(false); }, [current]);
 
+  // ============================================================
+  //  BARRE « LIQUIDE » (v495, maquette Mockup-Barre-Pulse, amplitude A)
+  //  Modèle iOS 26 validé sur vidéo Instagram + retours utilisateur :
+  //   1. pointerdown N'IMPORTE OÙ sur la capsule → la bulle ACCOURT sous
+  //      le doigt (ressort) et tout gonfle — état PRESSÉ maintenu tant
+  //      que le contact dure (pas une impulsion à durée fixe) ;
+  //   2. drag → la bulle suit le doigt (bornée entre premier et dernier
+  //      slot : l'écart avec les bords de capsule ne descend jamais sous
+  //      l'anneau), les icônes s'activent en aperçu à son passage ;
+  //   3. pointerup → tout se dégonfle et l'onglet SOUS LA BULLE s'ouvre
+  //      (l'activation se fait au relâcher, geste annulable en glissant).
+  //  Pendant le geste, goutte et classes actives sont pilotées en DOM
+  //  direct ; au relâcher, onSelect() rend la main à React (le
+  //  useSlideIndicator recale la goutte à l'exact, avec le ressort CSS).
+  //  Pointer capture : la mécanique éprouvée de la poignée de la sheet.
+  // ============================================================
+  const gestureRef = useRef(null);
+  // Géométrie des pills en COORDONNÉES DE LAYOUT (offsetLeft cumulés),
+  // PAS getBoundingClientRect : pendant l'appui la capsule est scalée
+  // (×1.035) et les rects vivent dans l'espace agrandi alors que
+  // style.left vit dans l'espace layout — l'écart (proportionnel à la
+  // distance du centre) faisait sortir la bulle de la barre à droite
+  // (bug v495 signalé). Les offsets, eux, ignorent les transforms.
+  const pillRects = () => {
+    const bar = barRef.current;
+    const layoutLeft = (el) => {
+      let x = 0, n = el;
+      while (n && n !== bar) { x += n.offsetLeft; n = n.offsetParent; }
+      return x;
+    };
+    return [...bar.querySelectorAll('.tab-pill')].map(p => {
+      const left = layoutLeft(p);
+      return { left, width: p.offsetWidth, cx: left + p.offsetWidth / 2 };
+    });
+  };
+  const barItems = () => [...barRef.current.querySelectorAll('.tab-item')];
+  const setActivePreview = (idx) => {
+    barItems().forEach((it, k) => it.classList.toggle('tab-item-active', k === idx));
+  };
+  const onBarPointerDown = (e) => {
+    const bar = barRef.current, ind = indRef.current;
+    if (!bar || !ind) return;
+    const item = e.target.closest('.tab-item');
+    if (!item) return;
+    const idx = barItems().indexOf(item);
+    gestureRef.current = { hover: idx, startX: e.clientX, moved: false };
+    try { bar.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+    bar.classList.add('bar-pressed');
+    ind.classList.add('ind-pressed');
+    item.classList.add('item-pressed');
+    // La bulle vient au doigt (transition ressort du CSS), aperçu
+    // d'activation — l'onglet ne s'ouvrira qu'au relâcher.
+    const rects = pillRects();
+    ind.style.left = rects[idx].left + 'px';
+    ind.style.width = rects[idx].width + 'px';
+    setActivePreview(idx);
+  };
+  const onBarPointerMove = (e) => {
+    const g = gestureRef.current;
+    const bar = barRef.current, ind = indRef.current;
+    if (!g || !bar || !ind) return;
+    if (!g.moved && Math.abs(e.clientX - g.startX) < 6) return;
+    if (!g.moved) { g.moved = true; ind.classList.add('ind-dragging'); }
+    const rects = pillRects();
+    // Position du doigt convertie en coordonnées de LAYOUT : la capsule
+    // pressée est scalée, on divise par le facteur d'échelle courant.
+    const c = bar.getBoundingClientRect();
+    const s = bar.offsetWidth ? (c.width / bar.offsetWidth) : 1;
+    const fingerX = (e.clientX - c.left) / s - bar.clientLeft;
+    const w = rects[g.hover].width;
+    // Bornes = premier et dernier slot : mêmes écarts qu'au repos.
+    const x = Math.min(rects[rects.length - 1].left,
+      Math.max(rects[0].left, fingerX - w / 2));
+    ind.style.left = x + 'px';
+    const cx = x + w / 2;
+    let n = 0, bd = Infinity;
+    rects.forEach((r, i) => { const d = Math.abs(r.cx - cx); if (d < bd) { bd = d; n = i; } });
+    if (n !== g.hover) {
+      const items = barItems();
+      items[g.hover].classList.remove('item-pressed');
+      items[n].classList.add('item-pressed');
+      setActivePreview(n);
+      g.hover = n;
+    }
+  };
+  const clearPressVisuals = () => {
+    const bar = barRef.current, ind = indRef.current;
+    if (bar) bar.classList.remove('bar-pressed');
+    if (ind) ind.classList.remove('ind-pressed', 'ind-dragging');
+    if (bar) barItems().forEach(it => it.classList.remove('item-pressed'));
+  };
+  const onBarPointerUp = () => {
+    const g = gestureRef.current;
+    if (!g) return;
+    gestureRef.current = null;
+    clearPressVisuals();
+    const ind = indRef.current;
+    if (ind) {
+      // Pose de la bulle sur son slot exact (le ressort CSS reprend)
+      const rects = pillRects();
+      ind.style.left = rects[g.hover].left + 'px';
+      ind.style.width = rects[g.hover].width + 'px';
+    }
+    const t = tabs[g.hover];
+    // Relâcher sur l'onglet courant = re-tap (remonter en haut, géré
+    // par App.selectModule) ; sinon ouverture de l'onglet visé.
+    if (t) onSelect(t.id);
+  };
+  const onBarPointerCancel = () => {
+    // Geste interrompu par le système : on restaure l'état RÉEL sans
+    // rien ouvrir (le pointerup normal, lui, ouvre).
+    if (!gestureRef.current) return;
+    gestureRef.current = null;
+    clearPressVisuals();
+    const idx = tabs.findIndex(t => t.id === current);
+    setActivePreview(idx);
+    const ind = indRef.current;
+    if (ind && idx >= 0) {
+      const rects = pillRects();
+      ind.style.left = rects[idx].left + 'px';
+      ind.style.width = rects[idx].width + 'px';
+    }
+  };
+
   return (
     // `hug` (moins de 5 rubriques) : la capsule s'ajuste à son contenu et
     // se cale à GAUCHE — points d'ancrage immuables (1er onglet et « ⋯ »
     // ne bougent jamais quand on active/désactive des modules). À 5
     // rubriques, remplissage pleine largeur (comportement d'origine).
     <div className={`tabbar-wrap${mini ? ' mini' : ''}${tabs.length < 5 ? ' hug' : ''}`} ref={wrapRef}>
-      <nav className="tabbar-capsule glassbar" ref={barRef}>
+      <nav
+        className="tabbar-capsule glassbar"
+        ref={barRef}
+        onPointerDown={onBarPointerDown}
+        onPointerMove={onBarPointerMove}
+        onPointerUp={onBarPointerUp}
+        onPointerCancel={onBarPointerCancel}
+      >
         <div className="tab-slide-ind" ref={indRef} />
         {tabs.map(t => (
           <button
             key={t.id}
             className={`tab-item${current === t.id ? ' tab-item-active' : ''}`}
-            onClick={() => onSelect(t.id)}
+            /* Le geste tactile/souris passe par les Pointer Events de la
+               capsule (ouverture au RELÂCHER) ; onClick ne sert plus qu'au
+               CLAVIER (Entrée/Espace → e.detail === 0), sinon il doublerait
+               la sélection. */
+            onClick={(e) => { if (e.detail === 0) onSelect(t.id); }}
             aria-label={t.label}
           >
             {/* Icônes SEULES (variante A, maquette Mockup-Barre-Contraction) :
@@ -804,7 +947,15 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
       <div className="tabbar-spacer" />
       {/* « ⋯ » : une ACTION, pas une section → cercle séparé, icône seule,
           jamais d'état actif (recommandation retenue à la validation). */}
-      <button className="tabbar-more glassbar" onClick={onMore} aria-label="Menu">⋯</button>
+      <button
+        className="tabbar-more glassbar"
+        onClick={onMore}
+        onPointerDown={(e) => { e.currentTarget.classList.add('more-pressed'); }}
+        onPointerUp={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
+        onPointerCancel={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
+        onPointerLeave={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
+        aria-label="Menu"
+      >⋯</button>
     </div>
   );
 }

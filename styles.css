@@ -1765,18 +1765,40 @@ input[type="month"] {
   /* Anneau FIN autour de la goutte (3px) — calé sur la barre d'Instagram :
      la goutte occupe presque toute la hauteur, avec un léger espace. */
   padding: 3px; position: relative;
-  transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Barre « liquide » (v495) : transform pour l'état PRESSÉ (gonflement
+     maintenu tant que le doigt touche), touch-action none pour que le
+     geste (bulle magnétique + drag) ne déclenche jamais de scroll. */
+  transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1);
+  touch-action: none;
 }
+/* État pressé (amplitude A validée, maquette Mockup-Barre-Pulse) */
+.tabbar-capsule.bar-pressed { transform: scale(1.035); }
 /* Goutte glissante : elle porte le fond foncé et l'ombre de l'actif */
 .tab-slide-ind {
   position: absolute;
   background: rgba(15, 23, 42, 0.92); border-radius: var(--radius-full);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
   z-index: 0; pointer-events: none;
-  transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              top 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Courbes À RESSORT (v495) : la goutte arrive avec un léger dépassement
+     élastique — la vraie différence de « feel » identifiée sur la barre
+     iOS 26 d'Instagram. transform = étirement de l'état pressé. */
+  transition: left 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
+              width 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
+              top 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
+              height 0.38s cubic-bezier(0.3, 1.35, 0.45, 1),
+              transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1),
+              box-shadow 0.2s ease;
+}
+/* Pressé : la bulle ne s'étire qu'en LARGEUR (scaleX) — l'écart avec le
+   haut/bas de la capsule (l'anneau) reste STRICTEMENT identique au repos
+   (règle utilisateur). */
+.tab-slide-ind.ind-pressed { transform: scaleX(1.07); }
+/* En main (drag) : position pilotée image par image (plus de transition
+   left/width), ombre soulevée. */
+.tab-slide-ind.ind-dragging {
+  transition: transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.2s ease;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.4);
 }
 .tab-item {
   flex: 1; border: none; background: transparent;
@@ -1801,7 +1823,15 @@ input[type="month"] {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); min-width: 0; max-width: 100%;
 }
 .tab-item-active { color: white; }
-.tab-ico { display: flex; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+/* Échelle de l'icône en VARIABLES composées (v495) : base (mode mini /
+   paysage : 0.86) × pression (état pressé : 1.12) — les deux états se
+   combinent sans s'écraser (un appui en mode mini reste correct). */
+.tab-ico {
+  display: flex;
+  transform: scale(calc(var(--icob, 1) * var(--icop, 1)));
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tab-item.item-pressed .tab-ico { --icop: 1.12; transition: transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1); }
 /* Espace élastique capsule ↔ « ⋯ » : nul à 5 rubriques (la capsule
    remplit), déployé en mode hug (voir ci-dessous). Le gap de 10px du
    wrap reste la seule séparation quand le spacer est nul. */
@@ -1844,13 +1874,15 @@ input[type="month"] {
   display: flex; align-items: center; justify-content: center;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* État pressé du « ⋯ » (v495) — maintenu tant que le doigt touche */
+.tabbar-more.more-pressed { transform: scale(1.1); }
 /* Contraction au scroll (façon Instagram) : TOUTE la capsule se resserre —
    marges latérales élargies, padding réduit, icônes à −14 %, cercle « ⋯ »
    40 px. La barre se RÉDUIT mais ne disparaît jamais. */
 .tabbar-wrap.mini { left: 57px; right: 57px; }
 .tabbar-wrap.mini .tabbar-capsule { padding: 2px; }
 .tabbar-wrap.mini .tab-pill { padding: 8px 13px; }
-.tabbar-wrap.mini .tab-ico { transform: scale(0.86); }
+.tabbar-wrap.mini .tab-ico { --icob: 0.86; }
 .tabbar-wrap.mini .tabbar-more { flex-basis: 40px; height: 40px; font-size: 17px; }
 
 /* Bottom sheet (menu « ⋯ ») — flottante et en verre, comme la barre */
@@ -2658,7 +2690,7 @@ input[type="month"] {
      scroll) : la hauteur d'écran est comptée en paysage. */
   .tabbar-wrap .tabbar-capsule { padding: 2px; }
   .tabbar-wrap .tab-pill { padding: 8px 13px; }
-  .tabbar-wrap .tab-ico { transform: scale(0.86); }
+  .tabbar-wrap .tab-ico { --icob: 0.86; }
   .tabbar-wrap .tabbar-more { flex: 0 0 40px; height: 40px; font-size: 17px; }
   /* Le toggle .mini (scroll) ne doit pas écraser les insets safe-area
      du paysage (spécificité supérieure de .tabbar-wrap.mini) */
