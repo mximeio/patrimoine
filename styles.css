@@ -1769,11 +1769,11 @@ input[type="month"] {
      maintenu tant que le doigt touche), touch-action none pour que le
      geste (bulle magnétique + drag) ne déclenche jamais de scroll. */
   transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1);
+              transform 0.46s cubic-bezier(0.26, 1.2, 0.36, 1);
   touch-action: none;
 }
 /* État pressé (amplitude A validée, maquette Mockup-Barre-Pulse) */
-.tabbar-capsule.bar-pressed { transform: scale(1.035); }
+.tabbar-capsule.bar-pressed { transform: scale(1.035); transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s ease-out; }
 /* Goutte glissante : elle porte le fond foncé et l'ombre de l'actif */
 /* Goutte en MODE COMPOSITEUR (v499) : l'élément est une coquille
    transparente positionnée à left:0, déplacée par translateX(--tx) —
@@ -1788,7 +1788,9 @@ input[type="month"] {
   position: absolute; left: 0;
   z-index: 0; pointer-events: none;
   transform: translateX(var(--tx, 0px));
-  transition: transform 0.5s cubic-bezier(0.24, 1.12, 0.32, 1);
+  /* v500 : pose allongée (0.62s) et encore plus feutrée — calage fin
+     sur le rebond post-relâcher d'Instagram (retour utilisateur). */
+  transition: transform 0.62s cubic-bezier(0.22, 1.08, 0.3, 1);
   will-change: transform;
 }
 .tab-slide-ind::before {
@@ -1796,13 +1798,16 @@ input[type="month"] {
   position: absolute; inset: 0;
   background: rgba(15, 23, 42, 0.92); border-radius: var(--radius-full);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
-  transition: transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1),
+  /* v500 : ASYMÉTRIE de ressort — la transition de BASE (0.46s) régit
+     la RETOMBÉE au relâcher (lente, feutrée) ; la classe pressée impose
+     la sienne (0.18s) pour un gonflement immédiat à l'appui. */
+  transition: transform 0.46s cubic-bezier(0.26, 1.2, 0.36, 1),
               box-shadow 0.2s ease;
 }
 /* Pressé : la bulle ne s'étire qu'en LARGEUR (scaleX) — l'écart avec le
    haut/bas de la capsule (l'anneau) reste STRICTEMENT identique au repos
    (règle utilisateur). */
-.tab-slide-ind.ind-pressed::before { transform: scaleX(1.07); }
+.tab-slide-ind.ind-pressed::before { transform: scaleX(1.07); transition: transform 0.18s ease-out, box-shadow 0.2s ease; }
 /* En main (drag) : --tx suit le doigt image par image (transition de
    trajet coupée), ombre soulevée. */
 .tab-slide-ind.ind-dragging { transition: none; }
@@ -1838,7 +1843,7 @@ input[type="month"] {
   transform: scale(calc(var(--icob, 1) * var(--icop, 1)));
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.tab-item.item-pressed .tab-ico { --icop: 1.12; transition: transform 0.34s cubic-bezier(0.3, 1.4, 0.5, 1); }
+.tab-item.item-pressed .tab-ico { --icop: 1.12; transition: transform 0.18s ease-out; }
 /* Espace élastique capsule ↔ « ⋯ » : nul à 5 rubriques (la capsule
    remplit), déployé en mode hug (voir ci-dessous). Le gap de 10px du
    wrap reste la seule séparation quand le spacer est nul. */
