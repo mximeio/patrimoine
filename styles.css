@@ -726,14 +726,19 @@ input[type="month"] {
    portrait ≤640px ET paysage téléphone (pointer:coarse). */
 .tabbar-wrap {
   display: none; align-items: center; gap: 10px;
-  position: fixed; left: 12px; right: 12px;
-  /* Calé sur les tab bars natives : la barre descend dans la zone
-     safe-area (l'indicateur d'accueil se dessine par-dessus). Le max()
-     garantit 10px de marge sur les appareils sans indicateur. */
-  bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 18px));
+  position: fixed; left: 34px; right: 34px;
+  /* Placement « Instagram » aux valeurs EXACTES mesurées sur captures
+     iPhone 17 Pro Max (maquette Mockup-Barre-Marges-Reel) : côtés 34px,
+     bas ≈30px sur appareils à encoche (safe-area 34 − 4). Le max()
+     garantit 14px sans indicateur d'accueil. Remplace le calage
+     « WhatsApp » (12px / safe-area − 18) des v419-465. Contrepartie
+     assumée : notre barre étant plus large qu'IG (capsule + « ⋯ »
+     séparé), les ovales se resserrent sur les écrans < 440pt — paliers
+     de padding plus bas. */
+  bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px));
   z-index: 40;
   /* Contraction façon Instagram : les insets latéraux s'animent
-     (12px ↔ 34px) en même temps que le contenu de la capsule. */
+     (34px ↔ 57px — amplitude de 23px, celle mesurée sur Instagram). */
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   /* PAS de transform ici : l'ancien translateZ(0) (contournement v439 du
@@ -1791,12 +1796,26 @@ input[type="month"] {
 .tabbar-wrap.hug .tab-item { flex: 0 0 auto; }
 .tabbar-wrap.hug .tabbar-spacer { flex: 1 1 auto; }
 
-/* Petits écrans (≤ 380px, ex. iPhone SE/mini) : à 5 rubriques, les cinq
-   ovales de 60px frôlent la limite — on resserre le padding horizontal
-   d'un cran pour garantir que le « ⋯ » reste dans l'écran. */
-@media (max-width: 380px) {
+/* Écrans < 440pt : avec les marges « Instagram » exactes (34/57px), les
+   cinq ovales + « ⋯ » ne tiennent qu'en resserrant le padding horizontal
+   des pills par PALIERS (calculés pour chaque largeur d'iPhone réelle :
+   430/428, 414, 393/390, 375, 360, 320). L'icône de 22px ne bouge pas,
+   seul l'ovale s'affine. */
+@media (max-width: 434px) {
   .tab-pill { padding: 12px 16px; }
   .tabbar-wrap.mini .tab-pill { padding: 8px 11px; }
+}
+@media (max-width: 400px) {
+  .tab-pill { padding: 12px 13px; }
+  .tabbar-wrap.mini .tab-pill { padding: 8px 9px; }
+}
+@media (max-width: 370px) {
+  .tab-pill { padding: 12px 11px; }
+  .tabbar-wrap.mini .tab-pill { padding: 8px 8px; }
+}
+@media (max-width: 330px) {
+  .tab-pill { padding: 12px 7px; }
+  .tabbar-wrap.mini .tab-pill { padding: 8px 4px; }
 }
 
 /* Cercle « ⋯ » séparé de la capsule (pattern Music / App Store iOS 26+) */
@@ -1810,7 +1829,7 @@ input[type="month"] {
 /* Contraction au scroll (façon Instagram) : TOUTE la capsule se resserre —
    marges latérales élargies, padding réduit, icônes à −14 %, cercle « ⋯ »
    40 px. La barre se RÉDUIT mais ne disparaît jamais. */
-.tabbar-wrap.mini { left: 34px; right: 34px; }
+.tabbar-wrap.mini { left: 57px; right: 57px; }
 .tabbar-wrap.mini .tabbar-capsule { padding: 2px; }
 .tabbar-wrap.mini .tab-pill { padding: 8px 13px; }
 .tabbar-wrap.mini .tab-ico { transform: scale(0.86); }
@@ -2317,8 +2336,10 @@ input[type="month"] {
   .stats-grid,
   .stats-grid.cols-3 { grid-template-columns: repeat(2, 1fr); }
   /* padding-bottom = hauteur de la barre basse (+ safe-area) pour que le
-     contenu et les boutons "+ Ajouter" en fin de liste ne passent pas dessous. */
-  .main-container { padding: 4px 14px calc(88px + env(safe-area-inset-bottom, 0px)); }
+     contenu et les boutons "+ Ajouter" en fin de liste ne passent pas
+     dessous. 88 → 102px : la barre est remontée de ~14px par le
+     placement « Instagram » (bottom safe-area − 4 au lieu de − 18). */
+  .main-container { padding: 4px 14px calc(102px + env(safe-area-inset-bottom, 0px)); }
   .header-inner { padding: 10px 14px; gap: 8px; }
   .hero-value-big { font-size: 32px; }
   .hero-card { padding: 18px; min-height: 0; }
