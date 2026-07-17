@@ -2663,3 +2663,17 @@ input[type="month"] {
   /* Bottom sheet : recadrée en largeur (pleine largeur = absurde en paysage) */
   .bottom-sheet { left: 0; right: 0; margin: 0 auto; width: min(430px, calc(100% - 16px)); }
 }
+
+/* ============================================================
+   Carte « À rafraîchir » (v480, lignée PROD — maquette
+   Mockup-Card-Arafraichir) : icône neutre grise tant que la plus
+   ancienne valorisation a moins de 30 jours ; au-delà, l'icône passe
+   en ambre (.tr-utensils, réutilisé) et la date porte un compteur.
+   ============================================================ */
+.stat-card-icon.stale-neutral { background: #f1f5f9; color: var(--text-muted); }
+.stale-tag {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  background: var(--warning-light); color: #b45309;
+  border-radius: var(--radius-full); padding: 1px 7px;
+  margin-left: 6px; vertical-align: 2px;
+}
