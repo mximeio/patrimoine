@@ -648,7 +648,9 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
   // Segmented control : la pastille foncée glisse entre les onglets.
   const railRef = useRef(null);
   const indRef = useRef(null);
-  useSlideIndicator(railRef, indRef, '.module-tab-active', [currentModule, tabs.length]);
+  // Mode compositeur (v506) : même mécanique translateX que la barre
+  // mobile — la pastille glisse à 60fps même pendant le montage du module.
+  useSlideIndicator(railRef, indRef, '.module-tab-active', [currentModule, tabs.length], undefined, true);
 
   return (
     <header className="app-header">

@@ -473,7 +473,8 @@ function ChargesModal({ ctx, onClose }) {
   // porte l'état foncé.
   const railRef = useRef(null);
   const railIndRef = useRef(null);
-  useSlideIndicator(railRef, railIndRef, '.seg-tab-active', [activeId, view, data.scenarios.length]);
+  // Mode compositeur (v506) : cf. AppBar — translateX via --tx.
+  useSlideIndicator(railRef, railIndRef, '.seg-tab-active', [activeId, view, data.scenarios.length], undefined, true);
   // null = fermé, 'new' = création, objet charge = édition
   const [editingCharge, setEditingCharge] = useState(null);
   const personColor = personColorAt;
