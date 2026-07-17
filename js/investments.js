@@ -118,12 +118,17 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
   const dated = portfolios.map(p => ({ id: p.id, name: p.name, d: p.data?.currentValuesDate })).filter(x => x.d);
   const oldestUpdate = dated.sort((a, b) => a.d.localeCompare(b.d))[0];
   const allSameDate = dated.length > 1 && dated.every(x => x.d === dated[0].d);
+  // Noms COURTS (v484, maquette Mockup-Card-Portefeuilles-1ligne, variante
+  // B) : tout ce qui précède la parenthèse — « PEA (XTB) » → « PEA ». La
+  // banque reste visible dans la liste « Mes portefeuilles » en dessous.
+  // Appliqué partout (mobile ET desktop), nom complet en tooltip.
+  const shortName = (n) => String(n || '').split(' (')[0].trim() || n;
   // Ex æquo sur la date la plus ancienne (v481) : on nomme TOUS les
   // retardataires, pas le premier venu de l'ordre de tri. Séparateur
   // virgule, comme le sous-titre de la carte « Portefeuilles ».
-  const oldestNames = oldestUpdate
-    ? dated.filter(x => x.d === oldestUpdate.d).sort(byWeightDesc).map(x => x.name).join(', ')
-    : '';
+  const oldestList = oldestUpdate ? dated.filter(x => x.d === oldestUpdate.d).sort(byWeightDesc) : [];
+  const oldestNames = oldestList.map(x => shortName(x.name)).join(', ');
+  const oldestNamesFull = oldestList.map(x => x.name).join(', ');
   const staleDays = oldestUpdate
     ? Math.max(0, Math.floor((Date.now() - new Date(oldestUpdate.d + 'T12:00:00').getTime()) / 86400000))
     : 0;
@@ -175,7 +180,13 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
           <div className="stat-card-icon"><Icon name="layers" size={14} /></div>
           <div className="stat-card-label">Portefeuilles</div>
           <div className="stat-card-value num">{portfolios.length}</div>
-          <div className="stat-card-sub">{portfoliosByValue.map(p => p.name).slice(0, 3).join(', ') + (portfolios.length > 3 ? '…' : '')}</div>
+          <div
+            className="stat-card-sub"
+            style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            title={portfoliosByValue.map(p => p.name).join(', ')}
+          >
+            {portfoliosByValue.map(p => shortName(p.name)).slice(0, 3).join(', ') + (portfolios.length > 3 ? '…' : '')}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-card-icon income"><Icon name="trendUp" size={14} /></div>
@@ -201,7 +212,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
           <div
             className="stat-card-sub"
             style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-            title={oldestNames || undefined}
+            title={oldestNamesFull || undefined}
           >
             {!oldestUpdate ? 'Aucune valorisation' : allSameDate ? 'Tous les portefeuilles' : oldestNames}
           </div>
