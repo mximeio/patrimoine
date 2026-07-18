@@ -1780,8 +1780,10 @@ input[type="month"] {
               transform 0.7s cubic-bezier(0.26, 1.2, 0.36, 1);
   touch-action: none;
 }
-/* État pressé (amplitude A validée, maquette Mockup-Barre-Pulse) */
-.tabbar-capsule.bar-pressed { transform: scale(1.035); transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s ease-out; }
+/* v508 : PULSE SUPPRIMÉ à la demande de l'utilisateur — les classes
+   .bar-pressed/.ind-pressed/.item-pressed restent posées par le JS
+   (réactivation en une règle CSS si l'envie revient), mais plus aucun
+   gonflement. Bulle magnétique, drag et ressorts de trajet conservés. */
 /* Goutte glissante : elle porte le fond foncé et l'ombre de l'actif */
 /* Goutte en MODE COMPOSITEUR (v499) : l'élément est une coquille
    transparente positionnée à left:0, déplacée par translateX(--tx) —
@@ -1814,10 +1816,6 @@ input[type="month"] {
   transition: transform 0.7s cubic-bezier(0.26, 1.2, 0.36, 1),
               box-shadow 0.2s ease;
 }
-/* Pressé : la bulle ne s'étire qu'en LARGEUR (scaleX) — l'écart avec le
-   haut/bas de la capsule (l'anneau) reste STRICTEMENT identique au repos
-   (règle utilisateur). */
-.tab-slide-ind.ind-pressed::before { transform: scaleX(1.07); transition: transform 0.18s ease-out, box-shadow 0.2s ease; }
 /* En main (drag) : --tx suit le doigt image par image (transition de
    trajet coupée), ombre soulevée. */
 .tab-slide-ind.ind-dragging { transition: none; }
@@ -1853,7 +1851,6 @@ input[type="month"] {
   transform: scale(calc(var(--icob, 1) * var(--icop, 1)));
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.tab-item.item-pressed .tab-ico { --icop: 1.12; transition: transform 0.18s ease-out; }
 /* Espace élastique capsule ↔ « ⋯ » : nul à 5 rubriques (la capsule
    remplit), déployé en mode hug (voir ci-dessous). Le gap de 10px du
    wrap reste la seule séparation quand le spacer est nul. */
@@ -1896,8 +1893,6 @@ input[type="month"] {
   display: flex; align-items: center; justify-content: center;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* État pressé du « ⋯ » (v495) — maintenu tant que le doigt touche */
-.tabbar-more.more-pressed { transform: scale(1.1); }
 /* Contraction au scroll (façon Instagram) : TOUTE la capsule se resserre —
    marges latérales élargies, padding réduit, icônes à −14 %, cercle « ⋯ »
    40 px. La barre se RÉDUIT mais ne disparaît jamais. */
@@ -2808,3 +2803,33 @@ input[type="month"] {
 /* Item de menu désactivé (Supprimer un mois figé) */
 .dropdown-item:disabled { color: var(--text-subtle); cursor: not-allowed; }
 .dropdown-item:disabled:hover { background: transparent; }
+
+/* ============================================================
+   ŒIL DE POINTAGE (v509 — maquettes Mockup-Oeil-Pointage et
+   Mockup-Oeil-B-Responsive, variante B). L'œil masque les lignes déjà
+   pointées (mois actifs seulement) ; compteur d'en-tête si la place le
+   permet (mesure JS) ; bande de rappel sous la liste, toujours.
+   ============================================================ */
+/* PASTILLE œil+compteur (v515, forme B — contrôle UNIQUE du masquage).
+   Compacte (~54px masquée, ~28px affichée), marges verticales négatives :
+   n'agrandit jamais l'en-tête. Indigo quand le masquage est actif —
+   même langage que les pastilles de compteur de l'app. */
+.ops-eye-pill {
+  border: none; cursor: pointer; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; color: var(--text-subtle);
+  border-radius: var(--radius-full); padding: 6px 9px; margin: -6px 0;
+  font-family: inherit; font-size: 11.5px; font-weight: 800; line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+.ops-eye-pill:hover { background: var(--surface-hover); color: var(--text); }
+.ops-eye-pill.on { background: var(--accent-light); color: var(--accent); }
+.ops-eye-pill.on:hover { background: #e0e7ff; }
+.ops-all-done {
+  padding: 22px 14px; text-align: center; font-size: 12.5px; color: var(--text-muted);
+}
+.ops-all-done-big { font-size: 15px; font-weight: 700; color: var(--success); margin-bottom: 4px; }
+/* Fondu de disparition au pointage en mode masqué */
+.tx-row.fading, .tx-composite-wrap.fading { opacity: 0; transition: opacity 0.35s ease; }
+
+

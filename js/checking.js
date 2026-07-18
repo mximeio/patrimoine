@@ -408,7 +408,10 @@ function CheckingView({ ctx, onBack }) {
   };
   const unfreezeMonth = () => {
     if (!confirm(`Défiger ${monthLabel(curKey)} ?\n\nLes modifications de ce mois se répercuteront sur les mois suivants ("Reste mois préc."). Pense à le re-figer après tes retouches.`)) return;
-    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: false } } });
+    // Défigeage → retour en « tout affiché » (v512, décision utilisateur) :
+    // on repart d'une vue complète pour les retouches, le masquage se
+    // réactive à la demande.
+    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: false, hidePointed: false } } });
     showToast(`${monthLabel(curKey)} défigé`);
   };
 
@@ -617,6 +620,9 @@ function CheckingView({ ctx, onBack }) {
         mKey={curKey}
         datesMode={checkingDatesEnabled(profile)}
         noDrag={frozen}
+        frozen={frozen}
+        hidePointed={!!m.hidePointed}
+        onHidePointedChange={(v) => updateMonth({ ...m, hidePointed: v })}
         trEnabled={trEnabled}
         openCreateSignal={opCreateSignal}
         onAddTr={(it) => updateMonth({ ...m, tr: [...(m.tr || []), it] })}
@@ -1341,8 +1347,30 @@ function getCheckingOpDisplay(op) {
 //  modifier le type, le libellé, le montant, ou activer le composite.
 //  Le pointage reste cliquable inline (case ✓).
 // ============================================================
-function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmount = 0, openCreateSignal = 0, onAddTr, onMoveToTr, noDrag = false }) {
+function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmount = 0, openCreateSignal = 0, onAddTr, onMoveToTr, noDrag = false, frozen = false, hidePointed = false, onHidePointedChange }) {
   const [expanded, setExpanded] = useState({});
+
+  // ============================================================
+  //  ŒIL DE POINTAGE (v509, maquettes Mockup-Oeil-Pointage +
+  //  Mockup-Oeil-B-Responsive, variante B). Sur un mois ACTIF, l'œil de
+  //  l'en-tête masque/affiche les lignes déjà pointées (la liste devient
+  //  le « reste à pointer »). DÉFAUT : tout affiché. L'état est CONTRÔLÉ
+  //  par le parent et stocké SUR LE MOIS en base (month.hidePointed) —
+  //  décision utilisateur : maintenu et synchronisé entre appareils.
+  //  Mois figé : pas d'œil, tout visible. Le drag & drop RESTE actif en
+  //  mode masqué : les lignes portant leur index RÉEL, un dépôt s'insère
+  //  adjacent à sa voisine visible (sémantique validée par l'utilisateur).
+  // ============================================================
+  const setHidePointed = (v) => { if (onHidePointedChange) onHidePointedChange(!!v); };
+  const hideActive = !!hidePointed && !frozen;
+  const pointedCount = items.filter(it => it.pointed).length;
+
+  // Pointage pendant le masquage : la ligne reste rendue ~380ms avec un
+  // fondu avant de disparaître (feedback « c'est fait »).
+  const [fading, setFading] = useState(() => new Set());
+  const fadeTimers = useRef({});
+  useEffect(() => () => { Object.values(fadeTimers.current).forEach(clearTimeout); }, []);
+
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null); // item en cours d'édition (null = création)
 
@@ -1362,7 +1390,17 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
   // "+ Tickets resto (auto)" que quand il manque encore.
   const hasTR = items.some(hasTRInItem);
 
-  const updateItem = (idx, patch) => onChange(items.map((it, i) => i === idx ? { ...it, ...patch } : it));
+  const updateItem = (idx, patch) => {
+    const it = items[idx];
+    if (hideActive && it && patch.pointed === true && !it.pointed) {
+      setFading(prev => { const n = new Set(prev); n.add(it.id); return n; });
+      clearTimeout(fadeTimers.current[it.id]);
+      fadeTimers.current[it.id] = setTimeout(() => {
+        setFading(prev => { const n = new Set(prev); n.delete(it.id); return n; });
+      }, 380);
+    }
+    onChange(items.map((x, i) => i === idx ? { ...x, ...patch } : x));
+  };
   const removeItem = (idx) => {
     // Les lignes TR auto peuvent être supprimées librement : le bouton
     // "+ Tickets resto (auto)" du footer permettra de les recréer.
@@ -1445,9 +1483,28 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
           <span className="section-icon checking"><Icon name="arrowLeftRight" size={14} /></span>
           Entrées et sorties d'argent
         </div>
+        {/* PASTILLE œil+compteur fusionnés (v515, maquette Mockup-Oeil-
+            Compteur-Compact, forme B) : LE contrôle unique du masquage.
+            Masqué → pilule indigo « œil barré + N » (~54px, tient même
+            sur iPhone 12 Pro : PLUS AUCUNE mesure adaptative nécessaire) ;
+            affiché → œil simple. Absente sur mois figé et tant que rien
+            n'est pointé. */}
+        {!frozen && pointedCount > 0 && (
+          <button
+            className={`ops-eye-pill${hideActive ? ' on' : ''}`}
+            onClick={() => setHidePointed(!hidePointed)}
+            title={hideActive ? 'Afficher les lignes pointées' : 'Masquer les lignes pointées'}
+            aria-pressed={!hidePointed}
+          >
+            <Icon name={hideActive ? 'eyeOff' : 'eye'} size={13} />
+            {hideActive && <span className="num">{pointedCount}</span>}
+          </button>
+        )}
       </div>
       <div className="tx-list">
-        {(datesMode ? sortItemsBySortKey(items, (it) => it.date || '') : items).map((item) => {
+        {(datesMode ? sortItemsBySortKey(items, (it) => it.date || '') : items)
+          .filter(item => !hideActive || !item.pointed || fading.has(item.id))
+          .map((item) => {
           const idx = items.findIndex(x => x.id === item.id);
           const disp = getCheckingOpDisplay(item);
           const isComposite = item.isComposite || (item.components || []).length > 0;
@@ -1464,6 +1521,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
                 onDrop={onDrop}
                 datesMode={datesMode}
                 noDrag={noDrag}
+                fading={fading.has(item.id)}
                 mKey={mKey}
               />
             );
@@ -1483,6 +1541,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
               onDrop={onDrop}
               datesMode={datesMode}
               noDrag={noDrag}
+              fading={fading.has(item.id)}
               mKey={mKey}
             />
           );
@@ -1490,8 +1549,16 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
         {items.length === 0 && (
           <div className="empty-state" style={{ padding: 20 }}>Aucune opération pour ce mois.</div>
         )}
+        {/* Tout est pointé : la liste masquée ne devient jamais un vide
+            inquiétant (v509). */}
+        {items.length > 0 && hideActive && items.every(it => it.pointed) && fading.size === 0 && (
+          <div className="ops-all-done">
+            <div className="ops-all-done-big">✓ Tout est pointé</div>
+            {pointedCount} ligne{pointedCount > 1 ? 's' : ''} masquée{pointedCount > 1 ? 's' : ''} — la pastille en haut les affiche.
+          </div>
+        )}
       </div>
-      <div className="section-footer" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="section-footer" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <button className="btn-add" onClick={openCreate}>+ Nouvelle opération</button>
         {trEnabled && !hasTR && (
           <button className="btn-add" onClick={addTrRefund}>+ Tickets resto (auto)</button>
@@ -1794,7 +1861,7 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
   );
 }
 
-function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey, noDrag = false }) {
+function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey, noDrag = false, fading = false }) {
   // En mode dates OU mois figé (noDrag, v489) : pas de drag handle ni de
   // drop target — plus d'attribut draggable, de curseur de prise ni
   // d'info-bulle « Glisser pour réorganiser ».
@@ -1805,7 +1872,7 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
   const handleRef = dndOff ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
-    <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'} ${item.isTRRefund ? 'auto' : ''}`}>
+    <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'} ${item.isTRRefund ? 'auto' : ''} ${fading ? 'fading' : ''}`}>
       <span ref={handleRef} className={`tx-icon ${variant} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}>
         {variant === 'income' ? <Icon name="arrowDown" size={12} />
           : variant === 'expense' ? <Icon name="arrowUp" size={12} />
@@ -1904,7 +1971,7 @@ function DateChip({ value, mKey, onChange }) {
   );
 }
 
-function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey, noDrag = false }) {
+function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey, noDrag = false, fading = false }) {
   const total = r2((item.components || []).reduce((s, c) => s + (c.amount || 0), 0));
   // Sync amount si drift
   useEffect(() => {
@@ -1920,7 +1987,7 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
 
   const labelText = (item.label || '').trim();
   return (
-    <div className={`tx-composite-wrap ${expanded ? 'expanded' : ''} ${item.pointed ? '' : 'unpointed'}`}>
+    <div className={`tx-composite-wrap ${expanded ? 'expanded' : ''} ${item.pointed ? '' : 'unpointed'} ${fading ? 'fading' : ''}`}>
       <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row composite-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'}`}>
         <span ref={handleRef} className={`tx-icon ${variant || 'expense'} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}>
           {variant === 'income' ? <Icon name="arrowDown" size={12} />
