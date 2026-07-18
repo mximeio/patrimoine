@@ -16,7 +16,7 @@ function PhysicalView({ ctx }) {
     await Adapter.createPhysical(user.uid, { ...data, priceUpdatedAt: todayIso() });
     await refreshPhysical();
     setShowNew(false);
-    showToast('Actif créé');
+    showToast('Actif créé', 'success');
   };
   const handleUpdate = async (id, patch) => {
     const update = { ...patch };

@@ -39,10 +39,10 @@ function InvestmentsView({ ctx }) {
       await Adapter.createPortfolio(user.uid, name);
       await refreshPortfolios();
       setShowCreate(false);
-      showToast('Portefeuille créé');
+      showToast('Portefeuille créé', 'success');
     } catch (e) {
       console.error(e);
-      showToast('Erreur lors de la création', 'error');
+      showToast('Erreur de création', 'error');
     }
   };
 
@@ -509,7 +509,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
       {/* MODALES */}
       {modal === 'add' && (
         <Modal title="Nouvelle opération" onClose={() => setModal(null)}>
-          <AddOperationForm data={data} onSubmit={(newData) => { handleUpdateData(newData); setModal(null); showToast('Opération ajoutée'); }} />
+          <AddOperationForm data={data} onSubmit={(newData) => { handleUpdateData(newData); setModal(null); showToast('Opération ajoutée', 'success'); }} />
         </Modal>
       )}
       {modal === 'values' && (

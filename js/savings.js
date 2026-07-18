@@ -36,7 +36,7 @@ function SavingsView({ ctx }) {
         name, balance, balanceUpdatedAt: todayIso(), operations: [],
       });
       setShowCreate(false);
-      showToast("Compte d'épargne créé");
+      showToast("Compte d'épargne créé", 'success');
     } catch (e) {
       console.error(e); showToast('Erreur de création', 'error');
     }
@@ -271,7 +271,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
   const handleAddOp = async (op) => {
     await Adapter.addSavingsOperation(user.uid, saving.id, op);
     setModal(null);
-    showToast('Opération ajoutée');
+    showToast('Opération ajoutée', 'success');
   };
   const handleUpdateOp = async (opId, patch) => {
     await Adapter.updateSavingsOperation(user.uid, saving.id, opId, patch);

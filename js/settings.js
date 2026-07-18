@@ -1279,7 +1279,7 @@ function DataActionsCard({ ctx }) {
         if (data.joint) {
           const { access } = await Adapter.getJoint();
           if (!access) {
-            showToast("Charges non importées : tu n'as pas accès au document partagé.", 'error');
+            showToast("Charges non importées — pas d'accès au document partagé", 'error');
           } else if (confirm(
             "Ce fichier contient aussi la répartition des charges (partagée).\n\n" +
             "Attention : la remplacer écrasera les charges pour les DEUX comptes.\n\n" +
@@ -1287,10 +1287,10 @@ function DataActionsCard({ ctx }) {
           )) {
             const { id, members, updatedAt, ...jointData } = data.joint;
             await Adapter.updateJoint(jointData);
-            showToast('Répartition des charges importée.', 'success');
+            showToast('Répartition des charges importée', 'success');
           }
         }
-        showToast('Import complet réussi. Rechargement…', 'success');
+        showToast('Import complet réussi — rechargement…', 'success');
         setTimeout(() => window.location.reload(), 900);
       } catch (err) {
         console.error(err);

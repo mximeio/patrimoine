@@ -54,10 +54,46 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   // Bottom sheet du menu « ⋯ » mobile (refonte nav)
   const [showSheet, setShowSheet] = useState(false);
+  // Mise à jour du service worker en attente (mode hors ligne, v522) :
+  // le worker « waiting » est transmis par le script d'enregistrement
+  // d'index.html — via __SW_WAITING si l'événement a été émis avant le
+  // montage de React (Babel compile après « load »), via l'événement sinon.
+  const [swWaiting, setSwWaiting] = useState(() => window.__SW_WAITING || null);
+  useEffect(() => {
+    const onSwUpdate = (e) => setSwWaiting(e.detail);
+    window.addEventListener('patrimoine:sw-update', onSwUpdate);
+    return () => window.removeEventListener('patrimoine:sw-update', onSwUpdate);
+  }, []);
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  // Indicateur réseau (v523, maquettes Mockup-Pilule-Offline*.html) :
+  // `netOnline` pilote le point ambre PERMANENT sur les « ⋯ » (barre
+  // mobile et header desktop) ; `netPill` la pilule TRANSITOIRE (4 s)
+  // affichée à chaque bascule — ambre à la coupure, verte au retour.
+  // Canal séparé des toasts : aucun écrasement mutuel possible avec les
+  // confirmations d'action. Tout est superposé : zéro décalage de layout.
+  const [netOnline, setNetOnline] = useState(() => navigator.onLine !== false);
+  const [netPill, setNetPill] = useState(null); // { text, color }
+  const netPillTimer = useRef(null);
+  useEffect(() => {
+    const showPill = (text, color) => {
+      if (netPillTimer.current) clearTimeout(netPillTimer.current);
+      setNetPill({ text, color });
+      netPillTimer.current = setTimeout(() => setNetPill(null), 4000);
+    };
+    const goOffline = () => { setNetOnline(false); showPill('Hors ligne — modifications en attente', 'amber'); };
+    const goOnline = () => { setNetOnline(true); showPill('De retour en ligne', 'green'); };
+    window.addEventListener('offline', goOffline);
+    window.addEventListener('online', goOnline);
+    return () => {
+      window.removeEventListener('offline', goOffline);
+      window.removeEventListener('online', goOnline);
+      if (netPillTimer.current) clearTimeout(netPillTimer.current);
+    };
   }, []);
 
   // wasLoggedIn permet de différencier :
@@ -444,6 +480,7 @@ function App() {
         onSelectModule={selectModule}
         onOpenSearch={() => setShowSearch(true)}
         onOpenSettings={() => setShowSettings(true)}
+        online={netOnline}
       />
       <main className="main-container">
         {/* .main-inner : sur mobile, garantit un contenu TOUJOURS plus haut
@@ -476,6 +513,7 @@ function App() {
         current={safeModule}
         onSelect={selectModule}
         onMore={() => setShowSheet(true)}
+        online={netOnline}
       />
       {/* Menu « ⋯ » mobile : bottom sheet avec recherche + actions du kebab.
           onSignOut = signOut DIRECT (pas handleSignOut) : la confirmation
@@ -491,6 +529,29 @@ function App() {
       )}
 
       <Toast toast={toast} />
+      {/* Pilule réseau transitoire (v523) : disparaît seule après 4 s,
+          le point ambre des « ⋯ » prend le relais tant que dure la coupure. */}
+      {netPill && (
+        <div className={`net-pill net-pill-${netPill.color}`}>
+          <span className="net-pill-dot" />
+          {netPill.text}
+        </div>
+      )}
+      {/* Toast PERSISTANT de mise à jour (maquette Mockup-Toast-MAJ.html,
+          variante A) : « Recharger » active le nouveau SW (SKIP_WAITING →
+          controllerchange → reload, géré dans index.html) ; « Plus tard »
+          le laisse en attente, il s'activera au prochain démarrage. */}
+      {swWaiting && (
+        <div className="toast update">
+          Nouvelle version disponible
+          <button className="act" onClick={() => { try { swWaiting.postMessage('SKIP_WAITING'); } catch (e) { window.location.reload(); } }}>
+            Recharger
+          </button>
+          <button className="later" onClick={() => { setSwWaiting(null); window.__SW_WAITING = null; }}>
+            Plus tard
+          </button>
+        </div>
+      )}
       {showSettings && (
         <Modal title="Paramètres" size="lg" noDirtyGuard onClose={() => setShowSettings(false)}>
           <SettingsView ctx={ctx} />
@@ -644,7 +705,7 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
   }, deps); // eslint-disable-line
 }
 
-function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSearch, onOpenSettings }) {
+function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSearch, onOpenSettings, online = true }) {
   // Segmented control : la pastille foncée glisse entre les onglets.
   const railRef = useRef(null);
   const indRef = useRef(null);
@@ -680,7 +741,9 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
             <Icon name="search" size={16} />
           </button>
           <span className="user-email">{user.email}</span>
-          <Dropdown trigger={<button className="btn-icon" aria-label="Menu">⋯</button>}>
+          {/* Point ambre réseau (v523) : superposé au coin du « ⋯ »,
+              visible tant que l'app est hors ligne. */}
+          <Dropdown trigger={<button className="btn-icon" style={{ position: 'relative' }} aria-label="Menu">⋯{!online && <span className="net-dot" />}</button>}>
             <button
               className="dropdown-item"
               onClick={onOpenSettings}
@@ -710,7 +773,7 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
 // Fixée en bas, jamais masquée : au scroll vers le bas elle se RÉTRACTE en
 // icônes seules (mode mini), au scroll vers le haut elle se redéploie.
 // Affichée uniquement sur mobile (CSS).
-function MobileTabBar({ tabs, current, onSelect, onMore }) {
+function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
   const wrapRef = useRef(null);
   const barRef = useRef(null);
   const indRef = useRef(null);
@@ -972,7 +1035,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore }) {
         onPointerCancel={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
         onPointerLeave={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
         aria-label="Menu"
-      >⋯</button>
+      >⋯{!online && <span className="net-dot" />}</button>
     </div>
   );
 }

@@ -59,7 +59,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
   const handleCreate = async ({ name, initialBalance, initialBalanceMonth }) => {
     await createCheckingAccount(name, { initialBalance, initialBalanceMonth });
     setShowCreate(false);
-    showToast(`Compte "${name}" créé`);
+    showToast(`Compte "${name}" créé`, 'success');
   };
 
   return (
