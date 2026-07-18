@@ -1043,17 +1043,41 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
 // Bottom sheet du « ⋯ » — composition style iOS : en-tête de compte
 // (avatar + email), champ de recherche, puis groupes "inset" arrondis.
 // L'action destructive (Déconnexion) est isolée dans son propre groupe.
+// v524 : pilotage ACTIF de la couleur de barre d'état iOS pendant la sheet.
+// Constat vidéo (60 fps) : le voile assombrit toute la page en 0,2 s, mais
+// la bande de la status bar est repeinte par iOS, qui ÉCHANTILLONNE le haut
+// de page à son propre tempo — d'où un « flash » désynchronisé, surtout à
+// la fermeture (~250 ms de retard). Ici on lui DIT la couleur via le meta
+// theme-color au lieu de le laisser deviner : #fafafa assombri par le
+// backdrop rgba(15,23,42,.4) donne #9c9fa7. Restauré dès le DÉBUT de la
+// fermeture (pas à la fin) pour donner une longueur d'avance au fondu
+// système. Essai réversible : deux constantes + trois appels.
+const THEME_BASE = '#fafafa';
+const THEME_DIMMED = '#9c9fa7';
+function setThemeColor(color) {
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute('content', color);
+}
+
 function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
   // Fermeture ANIMÉE : la sheet glisse vers le bas (et le backdrop
   // s'estompe) pendant 240 ms AVANT le démontage — symétrique de
   // l'ouverture. L'action éventuelle (paramètres…) est déclenchée à la
   // fin de l'animation.
   const [closing, setClosing] = useState(false);
+  // Theme-color assombri pendant toute la vie de la sheet ; le cleanup
+  // au démontage est le filet de sécurité (les chemins de fermeture
+  // restaurent plus tôt, dès le début de leur animation).
+  useEffect(() => {
+    setThemeColor(THEME_DIMMED);
+    return () => setThemeColor(THEME_BASE);
+  }, []);
   // Fermeture par GLISSEMENT en cours : bloque closeWith et les nouveaux
   // drags. Ref (pas state) : lue dans des handlers non re-rendus.
   const dragClosing = useRef(false);
   const closeWith = (action) => {
     if (closing || dragClosing.current) return;
+    setThemeColor(THEME_BASE); // tête de course pour le fondu système iOS
     setClosing(true);
     setTimeout(() => {
       onClose();
@@ -1141,6 +1165,7 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
     const shouldClose = d.dy > 80 || (d.dy > 15 && d.vel > 0.5);
     if (shouldClose) {
       dragClosing.current = true;
+      setThemeColor(THEME_BASE); // même tête de course qu'en closeWith
       sheet.style.pointerEvents = 'none';
       sheet.style.transition = 'transform 0.22s ease-in';
       sheet.style.transform = 'translateY(115%)';
