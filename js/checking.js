@@ -246,7 +246,12 @@ function CheckingView({ ctx, onBack }) {
       const stored = localStorage.getItem(monthStorageKey);
       if (stored) return stored;
     } catch (e) { /* localStorage indisponible : on ignore */ }
-    return checking.currentMonth || currentMonthKey();
+    // v519 : plus de repli sur checking.currentMonth (champ Firestore
+    // fossile, plus jamais mis à jour depuis que le mois courant est
+    // purement local — il figeait les nouvelles installations sur un
+    // vieux mois). Appareil neuf → mois calendaire actuel ; s'il
+    // n'existe pas encore, curKey retombe sur le dernier mois créé.
+    return currentMonthKey();
   };
   const [currentMonthLocal, setCurrentMonthState] = useState(readStoredMonth);
   // Re-synchroniser quand on change de compte (multi-comptes)
