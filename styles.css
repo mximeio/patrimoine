@@ -1906,7 +1906,10 @@ input[type="month"] {
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 60;
   background: rgba(15, 23, 42, 0.4);
-  animation: sheetFade 0.2s ease;
+  /* v525 : fondu allongé (0,2 → 0,4 s) pour NOYER la bascule de la barre
+     d'état iOS (repeinte par le système avec ~170-250 ms de retard) dans
+     l'animation. La sheet, elle, garde ses timings vifs. */
+  animation: sheetFade 0.4s ease;
 }
 .bottom-sheet {
   position: fixed; left: 8px; right: 8px;
@@ -2016,7 +2019,7 @@ input[type="month"] {
 @keyframes sheetDown { from { transform: translateY(0); } to { transform: translateY(110%); } }
 @keyframes sheetFadeOut { from { opacity: 1; } to { opacity: 0; } }
 .bottom-sheet.closing { animation: sheetDown 0.24s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
-.sheet-backdrop.closing { animation: sheetFadeOut 0.24s ease forwards; }
+.sheet-backdrop.closing { animation: sheetFadeOut 0.4s ease forwards; } /* v525 */
 
 /* Assets rows */
 .asset-row {

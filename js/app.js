@@ -1043,46 +1043,28 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
 // Bottom sheet du « ⋯ » — composition style iOS : en-tête de compte
 // (avatar + email), champ de recherche, puis groupes "inset" arrondis.
 // L'action destructive (Déconnexion) est isolée dans son propre groupe.
-// v524 : pilotage ACTIF de la couleur de barre d'état iOS pendant la sheet.
-// Constat vidéo (60 fps) : le voile assombrit toute la page en 0,2 s, mais
-// la bande de la status bar est repeinte par iOS, qui ÉCHANTILLONNE le haut
-// de page à son propre tempo — d'où un « flash » désynchronisé, surtout à
-// la fermeture (~250 ms de retard). Ici on lui DIT la couleur via le meta
-// theme-color au lieu de le laisser deviner : #fafafa assombri par le
-// backdrop rgba(15,23,42,.4) donne #9c9fa7. Restauré dès le DÉBUT de la
-// fermeture (pas à la fin) pour donner une longueur d'avance au fondu
-// système. Essai réversible : deux constantes + trois appels.
-const THEME_BASE = '#fafafa';
-const THEME_DIMMED = '#9c9fa7';
-function setThemeColor(color) {
-  const m = document.querySelector('meta[name="theme-color"]');
-  if (m) m.setAttribute('content', color);
-}
-
+// Flash de la barre d'état iOS (analyse vidéo 60 fps, v524-v525) : la bande
+// de la status bar est repeinte par iOS, qui échantillonne le haut de page à
+// son propre tempo (~170-250 ms de retard sur le voile). L'essai v524
+// (theme-color dynamique) a été MESURÉ SANS EFFET et retiré. Palliatif v525 :
+// les fondus du backdrop passent à 0,4 s — la bascule système tombe PENDANT
+// l'animation au lieu d'après, le décalage se fond dans le mouvement.
 function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
-  // Fermeture ANIMÉE : la sheet glisse vers le bas (et le backdrop
-  // s'estompe) pendant 240 ms AVANT le démontage — symétrique de
-  // l'ouverture. L'action éventuelle (paramètres…) est déclenchée à la
-  // fin de l'animation.
+  // Fermeture ANIMÉE : le backdrop s'estompe pendant 400 ms (v525) AVANT le
+  // démontage ; la sheet, elle, glisse en 240 ms (sheetDown, `forwards` la
+  // fige hors écran le temps que le fondu se termine). L'action éventuelle
+  // (paramètres…) est déclenchée à la fin.
   const [closing, setClosing] = useState(false);
-  // Theme-color assombri pendant toute la vie de la sheet ; le cleanup
-  // au démontage est le filet de sécurité (les chemins de fermeture
-  // restaurent plus tôt, dès le début de leur animation).
-  useEffect(() => {
-    setThemeColor(THEME_DIMMED);
-    return () => setThemeColor(THEME_BASE);
-  }, []);
   // Fermeture par GLISSEMENT en cours : bloque closeWith et les nouveaux
   // drags. Ref (pas state) : lue dans des handlers non re-rendus.
   const dragClosing = useRef(false);
   const closeWith = (action) => {
     if (closing || dragClosing.current) return;
-    setThemeColor(THEME_BASE); // tête de course pour le fondu système iOS
     setClosing(true);
     setTimeout(() => {
       onClose();
       if (action) action();
-    }, 240);
+    }, 400);
   };
 
   // Confirmation de déconnexion INTÉGRÉE (maquette Mockup-Sheet-Confirm-
@@ -1165,12 +1147,13 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
     const shouldClose = d.dy > 80 || (d.dy > 15 && d.vel > 0.5);
     if (shouldClose) {
       dragClosing.current = true;
-      setThemeColor(THEME_BASE); // même tête de course qu'en closeWith
       sheet.style.pointerEvents = 'none';
       sheet.style.transition = 'transform 0.22s ease-in';
       sheet.style.transform = 'translateY(115%)';
-      if (bd) { bd.style.transition = 'opacity 0.22s ease-in'; bd.style.opacity = '0'; }
-      setTimeout(onClose, 230);
+      // v525 : fondu du backdrop allongé (0,4 s) — même palliatif que
+      // closeWith, la sheet garde sa vivacité (0,22 s).
+      if (bd) { bd.style.transition = 'opacity 0.4s ease'; bd.style.opacity = '0'; }
+      setTimeout(onClose, 410);
     } else {
       // Retour en place avec un léger REBOND (courbe à dépassement)
       sheet.style.transition = 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)';
