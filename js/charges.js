@@ -664,15 +664,28 @@ function ChargesModal({ ctx, onClose }) {
                 {(() => {
                   // Répartition de « Il reste » (déjà net du virement et de la
                   // provision, qui sont dans « À payer »).
-                  //  - Virement / Provision : rappel (provision arrondie à la dizaine).
+                  //  - Provision : arrondie au 5 SUPÉRIEUR (v526 — l'ancienne
+                  //    dizaine au plus proche pouvait SOUS-provisionner :
+                  //    223,08 affiché 220). Virement rond, jamais en dessous
+                  //    du besoin, dépassement ≤ 4,99.
+                  //  - Le DÉPASSEMENT (provision arrondie − exacte) est retiré
+                  //    du reste avant le partage PEA/Tampon : chaque euro
+                  //    n'apparaît qu'une seule fois, la somme des lignes colle
+                  //    au centime à l'argent réel (variante « B » validée).
                   //  - Tampon : au moins TAMPON_MIN → on arrondit le PEA À L'INFÉRIEUR.
-                  //  - PEA : plancher à 50 de (il reste − tampon min) ; Tampon = reste.
+                  //  - PEA : cran de 5 (v527 — avant : 50, qui laissait dormir
+                  //    jusqu'à 45 € sur le compte commun). Règle unique de la
+                  //    carte : tout s'arrondit à 5 près — le Livret vers le
+                  //    HAUT (besoin), le PEA vers le BAS (le tampon d'abord).
+                  //    Tampon résultant : entre 300 et 304,99.
                   const restant = sum.restant[p.id];
                   const virement = sum.virement[p.id];
-                  const provision = Math.round((sum.provision[p.id] || 0) / 10) * 10;
+                  const provisionExact = sum.provision[p.id] || 0;
+                  const provision = Math.ceil(provisionExact / 5) * 5;
+                  const alloue = r2(restant - r2(provision - provisionExact));
                   const TAMPON_MIN = 300;
-                  const pea = Math.max(0, Math.floor((restant - TAMPON_MIN) / 50) * 50);
-                  const tampon = r2(restant - pea);
+                  const pea = Math.max(0, Math.floor((alloue - TAMPON_MIN) / 5) * 5);
+                  const tampon = r2(alloue - pea);
                   return (
                     <div className="pcard-alloc">
                       {virement > 0 && (
