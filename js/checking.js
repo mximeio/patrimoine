@@ -257,6 +257,10 @@ function CheckingView({ ctx, onBack }) {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(parseMonth(currentMonthLocal).year);
+  // Détail dépliable de la projection (v517) — éphémère, replié au
+  // changement de mois.
+  const [projOpen, setProjOpen] = useState(false);
+  useEffect(() => { setProjOpen(false); }, [currentMonthLocal]);
   const [showRecurring, setShowRecurring] = useState(false);
   const [showReglages, setShowReglages] = useState(false);
   const [showCharges, setShowCharges] = useState(false);
@@ -524,11 +528,33 @@ function CheckingView({ ctx, onBack }) {
         <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Projection fin de mois</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600, color: stats.balanceProjected >= 0 ? '#86efac' : '#fca5a5' }}>
+            {/* Projection EXPLIQUÉE (v517, maquette Mockup-Quatuor-Confort) :
+                tap sur la valeur → détail du calcul déplié dessous. On
+                comprend le rouge en une seconde, sans reconstituer de tête. */}
+            <button
+              className="num proj-value"
+              onClick={() => setProjOpen(o => !o)}
+              style={{ color: stats.balanceProjected >= 0 ? '#86efac' : '#fca5a5' }}
+              aria-expanded={projOpen}
+              title="Voir le détail du calcul"
+            >
               {eur(stats.balanceProjected)}
-            </div>
+              <span className={`proj-chev${projOpen ? ' open' : ''}`}>▾</span>
+            </button>
           </div>
         </div>
+        {projOpen && (
+          <div className="proj-detail num">
+            <div className="pd-row"><span>Reste de {monthLabel(prevMonthKey(curKey))} (projeté)</span><b>{eur(stats.carryProjected)}</b></div>
+            <div className="pd-row"><span>+ Entrées du mois</span><b>+ {fmt(stats.entriesAll)} €</b></div>
+            <div className="pd-row"><span>− Sorties du mois</span><b>− {fmt(stats.exitsAll)} €</b></div>
+            <div className="pd-row pd-total"><span>= Projection fin de mois</span><b style={{ color: stats.balanceProjected >= 0 ? '#86efac' : '#fca5a5' }}>{eur(stats.balanceProjected)}</b></div>
+            <div className="pd-note">
+              Part de la PROJECTION du mois précédent (les non-pointés se propagent) —
+              la carte « Reste mois préc. », elle, montre le solde pointé.
+            </div>
+          </div>
+        )}
       </div>
 
       <div className={`stats-grid ${!trEnabled ? 'cols-3' : ''}`}>

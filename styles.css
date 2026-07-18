@@ -2833,3 +2833,35 @@ input[type="month"] {
 .tx-row.fading, .tx-composite-wrap.fading { opacity: 0; transition: opacity 0.35s ease; }
 
 
+
+/* ============================================================
+   PROJECTION EXPLIQUÉE (v517 — maquette Mockup-Quatuor-Confort).
+   La valeur « Projection fin de mois » du hero est dépliable : détail
+   du calcul (reste projeté du mois précédent + entrées − sorties).
+   ============================================================ */
+.proj-value {
+  border: none; background: transparent; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 16px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.proj-chev {
+  font-size: 10px; color: rgba(255, 255, 255, 0.4);
+  display: inline-block; transition: transform 0.2s ease;
+}
+.proj-chev.open { transform: rotate(180deg); }
+.proj-detail {
+  margin-top: 12px; padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px; font-size: 12.5px;
+}
+.pd-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 3px 0; color: rgba(255, 255, 255, 0.75);
+}
+.pd-row b { color: white; font-weight: 600; }
+.pd-row.pd-total { border-top: 1px solid rgba(255, 255, 255, 0.15); margin-top: 5px; padding-top: 7px; }
+.pd-note {
+  margin-top: 8px; font-size: 10.5px; line-height: 1.5;
+  color: rgba(255, 255, 255, 0.4);
+}

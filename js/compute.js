@@ -48,6 +48,9 @@ function computeMonth(checking, mKey) {
     // L'UI affiche stats.carry sous "Reste mois préc." → c'est bien le
     // pointé qui correspond ("ce qu'il reste vraiment en banque").
     carry: r2(carryPointed),
+    // Exposé pour le détail dépliable de la projection (v517) : c'est LUI
+    // qui entre dans la formule de balanceProjected, pas carryPointed.
+    carryProjected: r2(carryProjected),
     balancePointed: r2(carryPointed + entriesPointed - exitsPointed),
     balanceProjected: r2(carryProjected + entriesAll - exitsAll),
   };
