@@ -1485,11 +1485,11 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
         </div>
         {/* PASTILLE œil+compteur fusionnés (v515, maquette Mockup-Oeil-
             Compteur-Compact, forme B) : LE contrôle unique du masquage.
-            Masqué → pilule indigo « œil barré + N » (~54px, tient même
-            sur iPhone 12 Pro : PLUS AUCUNE mesure adaptative nécessaire) ;
-            affiché → œil simple. Absente sur mois figé et tant que rien
-            n'est pointé. */}
-        {!frozen && pointedCount > 0 && (
+            TOUJOURS visible sur un mois actif (v516) : on peut ARMER le
+            masquage dès la création du mois — au premier pointage, la
+            ligne disparaît aussitôt. Le compteur ne s'affiche que quand
+            des lignes sont effectivement masquées. Absente sur mois figé. */}
+        {!frozen && (
           <button
             className={`ops-eye-pill${hideActive ? ' on' : ''}`}
             onClick={() => setHidePointed(!hidePointed)}
@@ -1497,7 +1497,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
             aria-pressed={!hidePointed}
           >
             <Icon name={hideActive ? 'eyeOff' : 'eye'} size={13} />
-            {hideActive && <span className="num">{pointedCount}</span>}
+            {hideActive && pointedCount > 0 && <span className="num">{pointedCount}</span>}
           </button>
         )}
       </div>
