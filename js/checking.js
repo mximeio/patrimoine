@@ -549,10 +549,16 @@ function CheckingView({ ctx, onBack }) {
             <div className="pd-row"><span>+ Entrées du mois</span><b>+ {fmt(stats.entriesAll)} €</b></div>
             <div className="pd-row"><span>− Sorties du mois</span><b>− {fmt(stats.exitsAll)} €</b></div>
             <div className="pd-row pd-total"><span>= Projection fin de mois</span><b style={{ color: stats.balanceProjected >= 0 ? '#86efac' : '#fca5a5' }}>{eur(stats.balanceProjected)}</b></div>
-            <div className="pd-note">
-              Part de la PROJECTION du mois précédent (les non-pointés se propagent) —
-              la carte « Reste mois préc. », elle, montre le solde pointé.
-            </div>
+            {/* Note affichée SEULEMENT quand elle explique un vrai écart :
+                si le mois précédent est entièrement pointé, reste projeté et
+                reste pointé sont identiques — rien à justifier (v518). */}
+            {stats.carryProjected !== stats.carry && (
+              <div className="pd-note">
+                Ce « Reste de {monthLabel(prevMonthKey(curKey))} » inclut les opérations
+                non pointées du mois dernier — d'où l'écart avec la carte
+                « Reste mois préc. » ({eur(stats.carry)}), qui ne compte que le pointé.
+              </div>
+            )}
           </div>
         )}
       </div>
