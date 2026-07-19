@@ -1272,10 +1272,24 @@ input[type="month"] {
   width: 22px; height: 22px; padding: 0;
   border: none; background: transparent;
   color: var(--text-muted); border-radius: 5px;
-  font-size: 12px; cursor: pointer;
+  cursor: pointer;
   transition: transform 0.15s, background 0.1s;
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* v529 : chevron vectoriel (Icon chevronDown 12px) — même trait 2.4 que
+   la chip et la projection (v528). La rotation reste portée par le
+   BOUTON (.expanded), rien ne change. */
+.composite-chevron svg { stroke-width: 2.4; display: block; }
+/* v530 : bouton « Afficher/Masquer l'évolution » (onglet Patrimoine) —
+   dernier glyphe flèche remplacé. Chevron rotatif à 7 px du libellé
+   (gap), règle commune v528. */
+.evo-toggle { display: inline-flex; align-items: center; gap: 7px; }
+.evo-chev {
+  display: inline-flex; align-items: center;
+  transition: transform 0.2s ease;
+}
+.evo-chev.open { transform: rotate(180deg); }
+.evo-chev svg { stroke-width: 2.4; display: block; }
 .composite-chevron:hover { background: var(--surface-hover); color: var(--text); }
 .tx-composite-wrap.expanded .composite-chevron { transform: rotate(180deg); }
 
@@ -1561,18 +1575,17 @@ input[type="month"] {
 /* vertical-align : le caret 10px est aligné baseline par défaut, donc
    visuellement trop bas face au texte 13px — on le recentre. */
 .mc-dd {
-  font-size: 10px; margin-left: 3px;
-  /* Caret retournable : rotation animée quand le calendrier est ouvert
-     (classe .mc-dd-open posée par MonthChip). inline-block requis pour
-     que transform s'applique. */
-  display: inline-block; transition: transform 0.2s ease;
-  /* Recentrage optique : depuis que .mc-label est en flex (v491, centrage
-     du cadenas), vertical-align est inopérant — le caret était descendu
-     de ~2px sur TOUTES les chips (régression signalée). position:relative
-     + top reproduit l'ancien réglage sans entrer en conflit avec la
-     rotation (transform) de .mc-dd-open. */
-  position: relative; top: -1.5px;
+  /* Chevron VECTORIEL (v528, maquette Mockup-Caret-Espacement.html, D) :
+     remplace le glyphe ▾. Écart 7px = règle commune à tous les chevrons
+     de dépliage (projection incluse) et au sélecteur d'année de Mosaïque.
+     Aligné en flex comme le cadenas → plus AUCUN recentrage optique
+     (l'ancien top -1.5px du glyphe est retiré). La rotation .mc-dd-open
+     pivote autour du vrai centre du SVG. */
+  margin-left: 7px;
+  display: inline-flex; align-items: center;
+  transition: transform 0.2s ease;
 }
+.mc-dd svg { stroke-width: 2.4; display: block; }
 .mc-dd-open { transform: rotate(180deg); }
 /* Variante hero (translucide sur fond foncé) */
 .month-chip-hero { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.14); }
@@ -2910,12 +2923,15 @@ input[type="month"] {
 .proj-value {
   border: none; background: transparent; padding: 0; cursor: pointer;
   font-family: inherit; font-size: 16px; font-weight: 600;
-  display: inline-flex; align-items: center; gap: 6px;
+  /* gap 7px (v528) : écart unique de tous les chevrons de dépliage. */
+  display: inline-flex; align-items: center; gap: 7px;
 }
 .proj-chev {
-  font-size: 10px; color: rgba(255, 255, 255, 0.4);
-  display: inline-block; transition: transform 0.2s ease;
+  /* v528 : chevron vectoriel, même règle que .mc-dd (trait 2.4). */
+  color: rgba(255, 255, 255, 0.4);
+  display: inline-flex; align-items: center; transition: transform 0.2s ease;
 }
+.proj-chev svg { stroke-width: 2.4; display: block; }
 .proj-chev.open { transform: rotate(180deg); }
 .proj-detail {
   margin-top: 12px; padding: 10px 12px;

@@ -544,7 +544,7 @@ function CheckingView({ ctx, onBack }) {
               title="Voir le détail du calcul"
             >
               {eur(stats.balanceProjected)}
-              <span className={`proj-chev${projOpen ? ' open' : ''}`}>▾</span>
+              <span className={`proj-chev${projOpen ? ' open' : ''}`}><Icon name="chevronDown" size={11} /></span>
             </button>
           </div>
         </div>
@@ -1019,7 +1019,7 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
       {labelShort && (
         <span className="mc-measure" aria-hidden="true" ref={measureRef}>
           <span className="mc-chev">‹</span>
-          <span className="mc-label">{label}<span className="mc-dd">▾</span></span>
+          <span className="mc-label">{label}<span className="mc-dd"><Icon name="chevronDown" size={11} /></span></span>
           <span className="mc-chev">›</span>
         </span>
       )}
@@ -1042,7 +1042,7 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
               (mois figé, v485) est INFORMATIF : la chip et le calendrier
               restent pleinement utilisables. */}
           {locked && <span className="mc-lock" aria-label="Mois figé"><Icon name="lock" size={13} /></span>}
-          {labelNode}<span className={`mc-dd${pickerOpen === id ? ' mc-dd-open' : ''}`}>▾</span>
+          {labelNode}<span className={`mc-dd${pickerOpen === id ? ' mc-dd-open' : ''}`}><Icon name="chevronDown" size={11} /></span>
         </button>
         {pickerOpen === id && popover}
       </span>
@@ -2038,7 +2038,7 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
             <span className="op-label">
               {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
             </span>
-            <button className="composite-chevron" onClick={onToggle} title={expanded ? 'Replier' : 'Déplier les composantes'}>▾</button>
+            <button className="composite-chevron" onClick={onToggle} title={expanded ? 'Replier' : 'Déplier les composantes'}><Icon name="chevronDown" size={12} /></button>
           </span>
           <span className="composite-tag" title="Ligne composite">Composite</span>
           {datesMode && item.date && (

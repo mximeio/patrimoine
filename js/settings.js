@@ -922,7 +922,7 @@ function CompositeRecurringRow({ item, scope, list, index, expanded, onToggle, o
             <span className="op-label">
               {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
             </span>
-            <button className="composite-chevron" onClick={onToggle} title={expanded ? 'Replier' : 'Déplier les composantes'}>▾</button>
+            <button className="composite-chevron" onClick={onToggle} title={expanded ? 'Replier' : 'Déplier les composantes'}><Icon name="chevronDown" size={12} /></button>
           </span>
           <span className="composite-tag" title="Ligne composite">Composite</span>
           {datesMode && item.dayOfMonth && (

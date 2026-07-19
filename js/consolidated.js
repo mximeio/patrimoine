@@ -131,8 +131,12 @@ function ConsolidatedView({ ctx, onNavigate }) {
 
       {/* GRAPHIQUE D'ÉVOLUTION — replié par défaut */}
       <div style={{ marginBottom: 16 }}>
-        <button className="btn-add" style={{ borderStyle: 'solid' }} onClick={() => setShowEvolution(s => !s)}>
-          {showEvolution ? "▴ Masquer l'évolution" : "▾ Afficher l'évolution"}
+        {/* v530 : chevron vectoriel ROTATIF (règle v528) au lieu des deux
+            glyphes ▴/▾ — dernier glyphe flèche de l'app. Le libellé garde
+            ses deux états, seule la flèche pivote. */}
+        <button className="btn-add evo-toggle" style={{ borderStyle: 'solid' }} onClick={() => setShowEvolution(s => !s)}>
+          <span className={`evo-chev${showEvolution ? ' open' : ''}`}><Icon name="chevronDown" size={12} /></span>
+          {showEvolution ? "Masquer l'évolution" : "Afficher l'évolution"}
         </button>
       </div>
       {showEvolution && (
