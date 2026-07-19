@@ -2294,6 +2294,10 @@ input[type="month"] {
 .toast.update {
   display: flex; align-items: center; gap: 12px;
   padding-right: 14px; white-space: nowrap; z-index: 1999;
+  /* v548 : décalé plus bas que les toasts passagers (top:20px) pour ne
+     jamais être recouvert par un « Opération ajoutée » — les deux restent
+     lisibles, empilés. Toast de MàJ persistant tant qu'on n'a pas mis à jour. */
+  top: 64px;
 }
 .toast.update .act {
   border: none; cursor: pointer; font-family: inherit;
@@ -2301,11 +2305,6 @@ input[type="month"] {
   font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 7px;
 }
 .toast.update .act:hover { background: rgba(255, 255, 255, 0.26); }
-.toast.update .later {
-  border: none; background: transparent; cursor: pointer; font-family: inherit;
-  color: rgba(255, 255, 255, 0.55); font-size: 12px; font-weight: 500; padding: 5px 2px;
-}
-.toast.update .later:hover { color: rgba(255, 255, 255, 0.85); }
 /* ---- Indicateur réseau (v523, maquettes Mockup-Pilule-Offline*.html) ----
    Deux pièces, toutes SUPERPOSÉES (aucun décalage de layout) :
    1. .net-dot — point ambre PERMANENT au coin des « ⋯ » (barre mobile et

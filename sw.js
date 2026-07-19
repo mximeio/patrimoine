@@ -11,11 +11,11 @@
    le MÊME sed que le cache-busting d'index.html — la routine de
    bump doit donc s'appliquer à index.html ET sw.js. Un bump
    change le contenu de ce fichier → le navigateur installe un
-   nouveau SW en arrière-plan → l'app affiche le toast
-   « Nouvelle version disponible » (voir app.js) → « Recharger »
+   nouveau SW en arrière-plan → l'app affiche le toast PERSISTANT
+   « Nouvelle version disponible » (voir app.js) → « Mettre à jour »
    envoie SKIP_WAITING ici, controllerchange recharge la page.
-   « Plus tard » : la nouvelle version s'activera d'elle-même au
-   prochain démarrage complet de la PWA.
+   Pas de « Plus tard » (v548) : les utilisateurs ne ferment jamais
+   la PWA, le toast reste donc jusqu'à la mise à jour volontaire.
 
    Jamais intercepté : les domaines Firebase (Firestore/Auth
    temps réel gèrent eux-mêmes leur hors-ligne), et sw.js
@@ -23,7 +23,7 @@
    toujours pouvoir détecter une nouvelle version).
    ============================================================ */
 
-const VERSION = '?v=547'.replace('?v=', 'v'); // réécrit par le sed de bump
+const VERSION = '?v=548'.replace('?v=', 'v'); // réécrit par le sed de bump
 const CACHE = 'patrimoine-' + VERSION;
 const RUNTIME = 'patrimoine-runtime-' + VERSION;
 
@@ -31,29 +31,29 @@ const RUNTIME = 'patrimoine-runtime-' + VERSION;
 const APP_SHELL = [
   './',
   'index.html',
-  'styles.css?v=547',
-  'manifest.json?v=547',
-  'manifest-dev.json?v=547',
-  'apple-touch-icon.png?v=547',
+  'styles.css?v=548',
+  'manifest.json?v=548',
+  'manifest-dev.json?v=548',
+  'apple-touch-icon.png?v=548',
   'icon-192.png',
   'icon-512.png',
   'icon-maskable-512.png',
-  'js/config.js?v=547',
-  'js/utils.js?v=547',
-  'js/adapter.js?v=547',
-  'js/compute.js?v=547',
-  'js/ui.js?v=547',
-  'js/dnd.js?v=547',
-  'js/auth.js?v=547',
-  'js/settings.js?v=547',
-  'js/checking.js?v=547',
-  'js/savings.js?v=547',
-  'js/physical.js?v=547',
-  'js/investments.js?v=547',
-  'js/consolidated.js?v=547',
-  'js/search.js?v=547',
-  'js/charges.js?v=547',
-  'js/app.js?v=547',
+  'js/config.js?v=548',
+  'js/utils.js?v=548',
+  'js/adapter.js?v=548',
+  'js/compute.js?v=548',
+  'js/ui.js?v=548',
+  'js/dnd.js?v=548',
+  'js/auth.js?v=548',
+  'js/settings.js?v=548',
+  'js/checking.js?v=548',
+  'js/savings.js?v=548',
+  'js/physical.js?v=548',
+  'js/investments.js?v=548',
+  'js/consolidated.js?v=548',
+  'js/search.js?v=548',
+  'js/charges.js?v=548',
+  'js/app.js?v=548',
 ];
 
 // --- Dépendances CDN (versions pinées, immuables) ---

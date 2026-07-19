@@ -537,18 +537,18 @@ function App() {
           {netPill.text}
         </div>
       )}
-      {/* Toast PERSISTANT de mise à jour (maquette Mockup-Toast-MAJ.html,
-          variante A) : « Recharger » active le nouveau SW (SKIP_WAITING →
-          controllerchange → reload, géré dans index.html) ; « Plus tard »
-          le laisse en attente, il s'activera au prochain démarrage. */}
+      {/* Toast PERSISTANT de mise à jour (v548). PAS de « Plus tard » : nos
+          utilisateurs ne ferment jamais la PWA (juste au 1er plan), donc sans
+          rechargement volontaire ils resteraient sur une vieille version. Le
+          toast reste donc affiché (petit, en haut, non bloquant) jusqu'à ce
+          qu'on clique « Mettre à jour » — on finit sa saisie puis on met à
+          jour. « Mettre à jour » active le nouveau SW (SKIP_WAITING →
+          controllerchange → reload, géré dans index.html). */}
       {swWaiting && (
         <div className="toast update">
           Nouvelle version disponible
           <button className="act" onClick={() => { try { swWaiting.postMessage('SKIP_WAITING'); } catch (e) { window.location.reload(); } }}>
-            Recharger
-          </button>
-          <button className="later" onClick={() => { setSwWaiting(null); window.__SW_WAITING = null; }}>
-            Plus tard
+            Mettre à jour
           </button>
         </div>
       )}
