@@ -643,15 +643,6 @@ function CheckingView({ ctx, onBack }) {
           e.stopPropagation();
           showToast('Mois figé — défige-le via le menu ⋯');
         } : undefined}
-        onDragStartCapture={frozen ? (e) => {
-          // Glisser/déposer : on annule le geste À LA SOURCE (preventDefault
-          // sur dragstart tue le drag natif) — sans ça, la ligne se soulevait
-          // puis rebondissait au lâcher (le drop étant bloqué par updateMonth),
-          // ce qui était trompeur.
-          e.preventDefault();
-          e.stopPropagation();
-          showToast('Mois figé — défige-le via le menu ⋯');
-        } : undefined}
       >
       <OpsSection
         items={m.operations || []}
@@ -1454,7 +1445,28 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
     onChange(items.filter((_, i) => i !== idx));
   };
   const onDrop = (drop) => {
-    const newRoot = performDrop(items, drop.source, drop);
+    let newRoot = performDrop(items, drop.source, drop);
+    // v542 : si le retrait laisse le composite source avec UNE seule
+    // composante, on PROPOSE sa dissolution en ligne simple (choix
+    // utilisateur, comme dans le formulaire). Oui = dissout (la composante
+    // devient une ligne simple) ; Non = garde le composite à 1 composante.
+    const parent = drop.source.parentItem;
+    if (parent) {
+      const after = newRoot.find(x => x.id === parent.id);
+      if (after && Array.isArray(after.components) && after.components.length === 1) {
+        const only = after.components[0];
+        if (confirm(`« ${after.label} » n'a plus qu'une seule ligne (${only.label || 'sans libellé'}).\n\nDissoudre le composite en ligne simple ?`)) {
+          newRoot = newRoot.map(x => {
+            if (x.id !== parent.id) return x;
+            const s = { ...x, label: only.label, amount: only.amount };
+            if (only.isTRRefund) s.isTRRefund = true; else delete s.isTRRefund;
+            delete s.components;
+            delete s.isComposite;
+            return s;
+          });
+        }
+      }
+    }
     onChange(newRoot);
   };
 
@@ -1483,6 +1495,11 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
       return;
     }
     if (editing) {
+      // v542 : composite réduit à UNE composante via le formulaire → on
+      // propose la dissolution en ligne simple (même choix qu'au glissé).
+      const comps = data.components || [];
+      const oneComp = data.isComposite && comps.length === 1;
+      const dissolve = oneComp && confirm(`Ce composite n'a plus qu'une seule ligne (${comps[0].label || 'sans libellé'}).\n\nDissoudre en ligne simple ?`);
       // Édition : on cherche par id et on applique le patch.
       onChange(items.map(it => {
         if (it.id !== editing.id) return it;
@@ -1492,10 +1509,16 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
         // Date : soit on l'écrit, soit on la retire si vide (et datesMode actif)
         if (data.date) next.date = data.date;
         else delete next.date;
-        if (data.isComposite) {
+        if (oneComp && dissolve) {
+          // Dissolution : la ligne reprend le nom + montant de la composante.
+          delete next.isComposite;
+          delete next.components;
+          next.label = comps[0].label;
+          next.amount = comps[0].amount;
+        } else if (data.isComposite) {
           next.isComposite = true;
-          next.components = data.components;
-          next.amount = r2((data.components || []).reduce((s, c) => s + (c.amount || 0), 0));
+          next.components = comps;
+          next.amount = r2(comps.reduce((s, c) => s + (c.amount || 0), 0));
         } else {
           delete next.isComposite;
           delete next.components;
@@ -1507,10 +1530,18 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
       // Création : nouvel item en fin de liste.
       const base = { id: uid(), label: data.label, pointed: false, type: data.type };
       if (data.date) base.date = data.date;
-      if (data.isComposite) {
+      const comps = data.components || [];
+      const oneComp = data.isComposite && comps.length === 1;
+      // v542 : un « composite » à une seule ligne créé au formulaire → on
+      // propose de créer une ligne simple à la place.
+      const dissolve = oneComp && confirm(`Ce composite n'a qu'une seule ligne (${comps[0].label || 'sans libellé'}).\n\nCréer une ligne simple à la place ?`);
+      if (oneComp && dissolve) {
+        base.label = comps[0].label;
+        base.amount = comps[0].amount;
+      } else if (data.isComposite) {
         base.isComposite = true;
-        base.components = data.components;
-        base.amount = r2((data.components || []).reduce((s, c) => s + (c.amount || 0), 0));
+        base.components = comps;
+        base.amount = r2(comps.reduce((s, c) => s + (c.amount || 0), 0));
       } else {
         base.amount = data.amount;
       }
@@ -1926,7 +1957,11 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
           : variant === 'tr' ? <Icon name="utensils" size={12} />
           : '€'}
       </span>
-      <div className={`tx-check ${item.pointed ? 'checked' : ''}`} onClick={() => onUpdate({ pointed: !item.pointed })} title={item.pointed ? 'Pointé' : 'Prévisionnel'} />
+      {/* Zone de tap élargie (v538, idée 10) : toute la hauteur de la
+          colonne, sans déborder sur la poignée — plus facile au pouce. */}
+      <div className="tx-check-hit" onClick={() => onUpdate({ pointed: !item.pointed })} title={item.pointed ? 'Pointé' : 'Prévisionnel'}>
+        <div className={`tx-check ${item.pointed ? 'checked' : ''}`} />
+      </div>
       <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
         <span className="op-label">
           {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
@@ -2042,7 +2077,9 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
             : (variant || 'expense') === 'expense' ? <Icon name="arrowUp" size={12} />
             : '€'}
         </span>
-        <div className={`tx-check ${item.pointed ? 'checked' : ''}`} onClick={() => onUpdate({ pointed: !item.pointed })} />
+        <div className="tx-check-hit" onClick={() => onUpdate({ pointed: !item.pointed })} title={item.pointed ? 'Pointé' : 'Prévisionnel'}>
+          <div className={`tx-check ${item.pointed ? 'checked' : ''}`} />
+        </div>
         <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
           <span className="op-label-chevron">
             <span className="op-label">

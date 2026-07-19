@@ -1038,8 +1038,12 @@ function DataActionsCard({ ctx }) {
     a.href = url;
     a.download = `patrimoine-${todayIso()}.json`;
     a.click();
-    URL.revokeObjectURL(url);
-    showToast('Export téléchargé');
+    // v544 : on retarde la libération de l'URL objet. La révoquer tout de
+    // suite après a.click() peut couper le téléchargement sur les navigateurs
+    // qui lisent le blob de façon asynchrone. 1,5 s laisse le temps au
+    // navigateur de finir de lire avant qu'on ne libère la mémoire.
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    showToast('Fichier exporté');
   };
 
   const restoreComplete = async (data) => {

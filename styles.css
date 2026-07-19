@@ -938,7 +938,43 @@ input[type="month"] {
   flex-shrink: 0; cursor: grab;
   user-select: none;
 }
-.tx-icon[draggable="true"]:active { cursor: grabbing; }
+.tx-icon:active:not(.no-drag) { cursor: grabbing; }
+/* Zone de toucher élargie SYMÉTRIQUE de la poignée (v541, maquette
+   Mockup-Zone-Poignee.html) : la pastille reste 22px, mais un ::before
+   transparent étend sa zone tactile de 10px TOUT AUTOUR (~42px). Marge
+   identique sur les quatre côtés — bornée par la case ✓ à droite, qui reste
+   à ~6px et donc pleinement cochable. Classe .dnd-handle posée par le hook
+   useDragHandle : seules les vraies poignées sont concernées. */
+.tx-icon.dnd-handle { position: relative; }
+.tx-icon.dnd-handle::before { content: ''; position: absolute; inset: -10px; }
+/* v547 : protection anti-sélection/loupe sur TOUTES les poignées de drag,
+   quelle que soit leur classe de base — .dnd-handle est posée par le hook
+   useDragHandle sur chaque poignée (compte courant .tx-icon, récurrents
+   .tx-icon, charges .charge-badge). L'appui long tactile ne doit jamais
+   déclencher la sélection de texte ni la loupe/menu « Copier » d'iOS. Le
+   contenu de la ligne (libellés) reste sélectionnable. */
+.dnd-handle {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+/* v547 : le « chrome » de navigation ne doit pas laisser sélectionner son
+   texte ni afficher la loupe iOS au long-press — ce sont des commandes, pas
+   du contenu. Barre d'onglets mobile (capsule + libellés + « ⋯ »), segmented
+   desktop, et boutons recherche/« ⋯ » du header. Le CONTENU reste
+   sélectionnable (libellés, montants, e-mail du header, texte des sheets). */
+.tabbar-wrap, .app-bar-nav, .app-bar-user .btn-icon {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+/* Zone de tap de la case de pointage (v538) : remplit toute la hauteur de
+   sa colonne de grille (align-self stretch) pour un tap facile au pouce,
+   la case visuelle .tx-check restant centrée dedans. Sans déborder sur la
+   poignée (colonne voisine). */
+.tx-check-hit {
+  align-self: stretch; display: flex; align-items: center; justify-content: flex-start;
+  cursor: pointer; margin: -8px 0; /* récupère aussi le padding vertical de la ligne */
+  /* justify-content: flex-start (v539) : la case visuelle reste calée À GAUCHE
+     de sa colonne, comme avant la v538 — le centrage (v538) l'avait décalée
+     de ~3px vers la droite (régression signalée). */
+}
 /* Mode "Gestion des dates" : le drag & drop est désactivé, on retire
    donc le cursor:grab pour ne pas suggérer une interaction qui n'existe plus. */
 .tx-icon.no-drag,
@@ -2337,23 +2373,30 @@ input[type="month"] {
 .tx-row.dragging,
 .composite-comp-row.dragging,
 .recurring-row.dragging { opacity: 0.4; }
+/* Indicateur d'insertion RENFORCÉ (v543, maquette Mockup-Drag-Lisibilite,
+   option 2) : barre de 3px INSET (marges latérales) à coins arrondis + halo
+   diffus — se lit nettement même à travers le clone translucide (v543). */
 .tx-row.drag-over-top::before,
 .composite-comp-row.drag-over-top::before,
 .recurring-row.drag-over-top::before {
-  content: ''; position: absolute; top: -1px; left: 0; right: 0;
-  height: 2px; background: var(--accent); border-radius: 1px;
+  content: ''; position: absolute; top: -2px; left: 8px; right: 8px;
+  height: 3px; background: var(--accent); border-radius: 2px;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
   z-index: 5;
 }
 .tx-row.drag-over-bottom::after,
 .composite-comp-row.drag-over-bottom::after,
 .recurring-row.drag-over-bottom::after {
-  content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
-  height: 2px; background: var(--accent); border-radius: 1px;
+  content: ''; position: absolute; bottom: -2px; left: 8px; right: 8px;
+  height: 3px; background: var(--accent); border-radius: 2px;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
   z-index: 5;
 }
+/* Surbrillance d'imbrication FRANCHE (v543) : contour + fond indigo léger. */
 .tx-row.drag-over-nest,
 .recurring-row.drag-over-nest {
   box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--accent-light);
   border-radius: 4px;
 }
 
