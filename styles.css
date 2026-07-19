@@ -2305,6 +2305,23 @@ input[type="month"] {
   font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 7px;
 }
 .toast.update .act:hover { background: rgba(255, 255, 255, 0.26); }
+/* Tag « hors ligne » dans le menu ⋯ (v549, forme A) : pilule ambre discrète,
+   affichée dans la sheet mobile (sous l'identité) et dans le dropdown desktop,
+   pour expliquer le point ambre du « ⋯ ». Même code couleur que la pilule
+   réseau et le point ambre. */
+.offline-tag {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--warning-light); border: 1px solid #fde68a; color: #92400e;
+  font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px;
+  /* v550 : centré verticalement entre l'e-mail et les boutons. .sheet-id a
+     4px de padding-bas et .sheet-actions 18px de padding-haut → margin-top 14
+     donne 18px au-dessus et 18px en dessous. (Le desktop garde sa propre
+     marge via .offline-tag--menu ci-dessous.) */
+  margin: 14px auto 0; white-space: nowrap;
+}
+.offline-tag-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
+/* Variante menu desktop : pleine largeur du dropdown, un peu d'air autour. */
+.offline-tag--menu { margin: 2px 4px 6px; }
 /* ---- Indicateur réseau (v523, maquettes Mockup-Pilule-Offline*.html) ----
    Deux pièces, toutes SUPERPOSÉES (aucun décalage de layout) :
    1. .net-dot — point ambre PERMANENT au coin des « ⋯ » (barre mobile et

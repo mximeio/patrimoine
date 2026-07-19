@@ -525,6 +525,7 @@ function App() {
           onSearch={() => setShowSearch(true)}
           onSettings={() => setShowSettings(true)}
           onSignOut={() => Adapter.signOut()}
+          online={netOnline}
         />
       )}
 
@@ -744,6 +745,10 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
           {/* Point ambre réseau (v523) : superposé au coin du « ⋯ »,
               visible tant que l'app est hors ligne. */}
           <Dropdown trigger={<button className="btn-icon" style={{ position: 'relative' }} aria-label="Menu">⋯{!online && <span className="net-dot" />}</button>}>
+            {/* Tag hors-ligne (v549) : explique le point ambre du « ⋯ ». */}
+            {!online && (
+              <div className="offline-tag offline-tag--menu"><span className="offline-tag-dot" /> Hors ligne — modifications en attente</div>
+            )}
             <button
               className="dropdown-item"
               onClick={onOpenSettings}
@@ -1049,7 +1054,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
 // (theme-color dynamique) a été MESURÉ SANS EFFET et retiré. Palliatif v525 :
 // les fondus du backdrop passent à 0,4 s — la bascule système tombe PENDANT
 // l'animation au lieu d'après, le décalage se fond dans le mouvement.
-function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
+function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = true }) {
   // Fermeture ANIMÉE : le backdrop s'estompe pendant 400 ms (v525) AVANT le
   // démontage ; la sheet, elle, glisse en 240 ms (sheetDown, `forwards` la
   // fige hors écran le temps que le fondu se termine). L'action éventuelle
@@ -1192,6 +1197,11 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut }) {
           <div className="sheet-id-name">Patrimoine</div>
           <div className="sheet-id-mail">{user?.email}</div>
         </div>
+        {/* Tag hors-ligne (v549, maquette Mockup-Tag-HorsLigne-Menu, forme A) :
+            explique le point ambre du « ⋯ » quand le menu est ouvert. */}
+        {!online && (
+          <div className="offline-tag"><span className="offline-tag-dot" /> Hors ligne — modifications en attente</div>
+        )}
         {/* Zone basculante actions ⇄ confirmation : glissement latéral
             croisé + hauteur animée, l'identité reste visible au-dessus
             (on voit DE QUEL compte on se déconnecte). */}

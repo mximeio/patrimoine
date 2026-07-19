@@ -23,7 +23,7 @@
    toujours pouvoir détecter une nouvelle version).
    ============================================================ */
 
-const VERSION = '?v=548'.replace('?v=', 'v'); // réécrit par le sed de bump
+const VERSION = '?v=550'.replace('?v=', 'v'); // réécrit par le sed de bump
 const CACHE = 'patrimoine-' + VERSION;
 const RUNTIME = 'patrimoine-runtime-' + VERSION;
 
@@ -31,29 +31,29 @@ const RUNTIME = 'patrimoine-runtime-' + VERSION;
 const APP_SHELL = [
   './',
   'index.html',
-  'styles.css?v=548',
-  'manifest.json?v=548',
-  'manifest-dev.json?v=548',
-  'apple-touch-icon.png?v=548',
+  'styles.css?v=550',
+  'manifest.json?v=550',
+  'manifest-dev.json?v=550',
+  'apple-touch-icon.png?v=550',
   'icon-192.png',
   'icon-512.png',
   'icon-maskable-512.png',
-  'js/config.js?v=548',
-  'js/utils.js?v=548',
-  'js/adapter.js?v=548',
-  'js/compute.js?v=548',
-  'js/ui.js?v=548',
-  'js/dnd.js?v=548',
-  'js/auth.js?v=548',
-  'js/settings.js?v=548',
-  'js/checking.js?v=548',
-  'js/savings.js?v=548',
-  'js/physical.js?v=548',
-  'js/investments.js?v=548',
-  'js/consolidated.js?v=548',
-  'js/search.js?v=548',
-  'js/charges.js?v=548',
-  'js/app.js?v=548',
+  'js/config.js?v=550',
+  'js/utils.js?v=550',
+  'js/adapter.js?v=550',
+  'js/compute.js?v=550',
+  'js/ui.js?v=550',
+  'js/dnd.js?v=550',
+  'js/auth.js?v=550',
+  'js/settings.js?v=550',
+  'js/checking.js?v=550',
+  'js/savings.js?v=550',
+  'js/physical.js?v=550',
+  'js/investments.js?v=550',
+  'js/consolidated.js?v=550',
+  'js/search.js?v=550',
+  'js/charges.js?v=550',
+  'js/app.js?v=550',
 ];
 
 // --- Dépendances CDN (versions pinées, immuables) ---
