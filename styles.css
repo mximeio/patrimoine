@@ -2999,6 +2999,18 @@ input[type="month"] {
 .ops-eye-pill:hover { background: var(--surface-hover); color: var(--text); }
 .ops-eye-pill.on { background: var(--accent-light); color: var(--accent); }
 .ops-eye-pill.on:hover { background: #e0e7ff; }
+/* v551 — œil « aperçu au survol ». Au repos l'icône .eye-ico-rest (état
+   courant) est visible ; au survol on masque le repos et on montre
+   .eye-ico-hover (le résultat du clic), pour que l'icône dise la même chose
+   que l'infobulle. Cantonné à @media (hover: hover) : sur tactile il n'y a
+   pas de survol, et surtout le :hover « colle » au tap sur iOS/Android — on
+   éviterait donc un clignotement de l'icône d'aperçu au toucher. */
+.ops-eye-pill .eye-ico { display: inline-flex; }
+.ops-eye-pill .eye-ico-hover { display: none; }
+@media (hover: hover) {
+  .ops-eye-pill:hover .eye-ico-rest { display: none; }
+  .ops-eye-pill:hover .eye-ico-hover { display: inline-flex; }
+}
 .ops-all-done {
   padding: 22px 14px; text-align: center; font-size: 12.5px; color: var(--text-muted);
 }

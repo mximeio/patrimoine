@@ -1574,7 +1574,13 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
             title={hideActive ? 'Afficher les lignes pointées' : 'Masquer les lignes pointées'}
             aria-pressed={!hidePointed}
           >
-            <Icon name={hideActive ? 'eyeOff' : 'eye'} size={13} />
+            {/* v551 — aperçu au survol : au REPOS l'icône montre l'état
+                courant, au SURVOL elle bascule vers le résultat du clic
+                (accord avec l'infobulle). La commutation se fait en CSS,
+                cantonnée aux appareils à survol réel (@media hover) : le
+                tactile garde l'état courant, sans clignotement au tap. */}
+            <span className="eye-ico eye-ico-rest"><Icon name={hideActive ? 'eyeOff' : 'eye'} size={13} /></span>
+            <span className="eye-ico eye-ico-hover"><Icon name={hideActive ? 'eye' : 'eyeOff'} size={13} /></span>
             {hideActive && pointedCount > 0 && <span className="num">{pointedCount}</span>}
           </button>
         )}
