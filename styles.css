@@ -1670,12 +1670,21 @@ input[type="month"] {
   display: flex; justify-content: center;
 }
 .year-nav {
+  /* v532 (maquette Mockup-YearNav-Hauteur.html, variante B) : en-tête
+     COMPACT — l'ancienne hauteur venait des .btn-icon standard de 36 px
+     (taille header), surdimensionnés dans un popover (la chip de mois vit
+     très bien avec des flèches de 26 px). Gabarit PARTAGÉ par les 3
+     calendriers (picker de mois, date-picker des opérations, « Jour du
+     mois » des récurrents) : −14 px d'en-tête partout, d'un coup.
+     Bonus : les placeholders width:28 des variantes verrouillées
+     correspondent désormais exactement à la taille des boutons. */
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 4px 12px;
+  padding: 0 4px 8px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
-.year-label { font-size: 17px; font-weight: 600; }
+.year-nav .btn-icon { width: 28px; height: 28px; font-size: 14px; border-radius: 8px; }
+.year-label { font-size: 16px; font-weight: 600; }
 .month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .month-cell {
   background: white; border: 1px dashed var(--border);
@@ -1698,6 +1707,25 @@ input[type="month"] {
   background: var(--text); color: white; border-color: var(--text);
   border-style: solid;
 }
+/* Mode SIMPLE du picker (v533, maquette Mockup-Picker-Simple.html) :
+   sélecteur d'options NEUTRE pour les formulaires (réglages, création de
+   compte) — bordure PLEINE fine (le pointillé signifie « à créer » dans le
+   picker riche), pas de pastille, pas de « + » au survol, pas de légende
+   (déjà masquée). Seule la sélection (.current) est mise en avant. */
+/* :not(.current) OBLIGATOIRE (v534) : cette règle est déclarée APRÈS
+   .month-cell.current à spécificité égale — sans la garde, elle écrasait
+   la couleur blanche du mois sélectionné (gris foncé sur fond foncé,
+   illisible — constaté en prod, la maquette masquait le bug par un
+   !important de confort). */
+.month-cell.plain:not(.current) { border: 1px solid var(--border); color: var(--text-light); }
+.month-cell.plain:not(.current):hover {
+  border-color: var(--text-light); color: var(--text);
+  background: var(--bg); border-style: solid;
+}
+/* Double classe : bat la règle « + » (.month-cell:not(.created)::after),
+   déclarée PLUS BAS avec la même spécificité — sans elle, le + gagnerait. */
+.month-cell.plain.plain::after { content: none; }
+
 /* Pastille "créé" en haut à droite des mois existants (sauf le mois courant) */
 .month-cell.created:not(.current)::after {
   content: '';
@@ -1717,7 +1745,9 @@ input[type="month"] {
 
 /* Légende du picker de mois */
 .picker-legend {
-  display: flex; gap: 16px; justify-content: center;
+  /* flex-wrap (v531) : 3 items possibles (+ « Mois figé ») — sur le
+     popover mobile de 300px, le 3e passe à la ligne au lieu de déborder. */
+  display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: center;
   margin-top: 12px; padding-top: 12px;
   border-top: 1px solid var(--border);
   font-size: 11px; color: var(--text-muted);
@@ -1731,6 +1761,10 @@ input[type="month"] {
   width: 10px; height: 10px; border-radius: 3px;
   border: 1px dashed var(--border-strong); background: white;
 }
+/* v531 : cadenas en légende — même dessin que dans les cellules
+   (Icon lock 10px, trait 2.4, indigo comme la pastille « créé »). */
+.picker-legend-lock { display: inline-flex; align-items: center; color: var(--accent); }
+.picker-legend-lock svg { stroke-width: 2.4; display: block; }
 
 /* Module nav */
 /* Onglet du segmented control desktop (refonte nav) : segment sans bordure,

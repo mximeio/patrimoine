@@ -18,7 +18,7 @@ function Spinner() { return <div className="spinner"></div>; }
 // puis appelle markDirty() (typiquement via un useEffect sur ses états).
 const ModalDirtyContext = React.createContext(null);
 
-function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false }) {
+function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, dirty }) {
   // Confirmation avant fermeture si le contenu a été modifié sans enregistrer.
   // dirtyRef passe à true au 1er input/change ; on ne confirme QUE si la modale
   // contient un <form> (les listes, la lecture seule « Toutes les opérations »,
@@ -35,7 +35,16 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false }) 
   const attemptClose = () => {
     // noDirtyGuard : modales en auto-enregistrement (ex. Paramètres) où il n'y a
     // jamais de « modifications non enregistrées » à abandonner.
-    if (!noDirtyGuard && dirtyRef.current && bodyRef.current && bodyRef.current.querySelector('form')) {
+    // Prop `dirty` CONTRÔLÉE (v535) : quand le parent la fournit (calcul exact
+    // champ par champ, ex. Réglages du compte courant ou du portefeuille), elle
+    // PRIME sur l'heuristique des événements input/change — celle-ci est aveugle
+    // aux contrôles à CLIC (picker de mois, boutons…) qui n'émettent aucun de
+    // ces événements, et ne sait pas « dé-salir » quand on revient aux valeurs
+    // d'origine. Sans la prop : comportement historique inchangé.
+    const hasUnsaved = dirty != null
+      ? dirty
+      : (dirtyRef.current && bodyRef.current && bodyRef.current.querySelector('form'));
+    if (!noDirtyGuard && hasUnsaved) {
       if (!window.confirm('Des modifications n\'ont pas été enregistrées et seront perdues.\n\nFermer sans enregistrer ?')) return;
     }
     onClose();

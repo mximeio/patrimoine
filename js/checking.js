@@ -277,9 +277,11 @@ function CheckingView({ ctx, onBack }) {
   const [opCreateSignal, setOpCreateSignal] = useState(0);
   const [trCreateSignal, setTrCreateSignal] = useState(0);
   const closeReglages = () => {
-    // La confirmation « modifications non enregistrées » est désormais gérée de
-    // façon générique par le composant Modal (cf. ui.js) pour toutes les modales
-    // à formulaire — on ne re-demande donc plus ici (sinon double confirmation).
+    // La confirmation « modifications non enregistrées » est portée par le
+    // composant Modal via la prop dirty={reglagesDirty} (v535) : le calcul
+    // EXACT champ par champ de ReglagesForm — l'heuristique générique des
+    // événements input/change était aveugle au picker de mois (contrôle à
+    // clic, aucun événement émis → fermeture sans confirmation, constaté).
     setShowReglages(false);
     setReglagesDirty(false);
   };
@@ -709,7 +711,7 @@ function CheckingView({ ctx, onBack }) {
       )}
 
       {showReglages && (
-        <Modal title="Réglages" onClose={closeReglages}>
+        <Modal title="Réglages" dirty={reglagesDirty} onClose={closeReglages}>
           <ReglagesForm
             checking={checking}
             isMultiMode={isMultiMode}
@@ -1088,8 +1090,11 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
       <div className="month-grid">
         {Array.from({ length: 12 }, (_, m) => {
           const k = monthKey(year, m);
-          // En mode simple : tous les mois sont marqués "created" → sélectionnables uniformément
-          const isCreated = simple ? true : !!months[k];
+          // Mode simple (v533) : plus AUCUN costume « créé » — la notion
+          // n'existe pas dans les formulaires (réglages, création de
+          // compte). Cellules neutres (classe .plain), seule la sélection
+          // est mise en avant (maquette Mockup-Picker-Simple.html).
+          const isCreated = simple ? false : !!months[k];
           const isCurrent = k === currentMonth;
           // Mois figé (v485) : cadenas INFORMATIF — la cellule reste
           // sélectionnable comme les autres (ouvre la consultation).
@@ -1098,7 +1103,7 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
             <button
               key={k}
               type="button"
-              className={`month-cell ${isCreated ? 'created' : ''} ${isCurrent ? 'current' : ''} ${isFrozen ? 'frozen' : ''}`}
+              className={`month-cell ${simple ? 'plain' : ''} ${isCreated ? 'created' : ''} ${isCurrent ? 'current' : ''} ${isFrozen ? 'frozen' : ''}`}
               onClick={() => onPick(k)}
               title={simple
                 ? `${FRENCH_MONTHS[m]} ${year}`
@@ -1117,6 +1122,11 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
         <div className="picker-legend">
           <span className="picker-legend-item"><span className="picker-legend-dot" /> Mois créé</span>
           <span className="picker-legend-item"><span className="picker-legend-box" /> Cliquer pour créer</span>
+          {/* v531 : le cadenas n'apparaît en légende que si au moins un
+              mois est figé — inutile d'expliquer un symbole absent. */}
+          {Object.values(months).some(m => m && m.frozen) && (
+            <span className="picker-legend-item"><span className="picker-legend-lock"><Icon name="lock" size={10} /></span> Mois figé</span>
+          )}
         </div>
       )}
     </div>

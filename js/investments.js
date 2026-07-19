@@ -328,8 +328,9 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   // Garde-fou « modifications non enregistrées » de la modale Réglages.
   const [configureDirty, setConfigureDirty] = useState(false);
   const closeConfigure = () => {
-    // Confirmation « modifications non enregistrées » désormais gérée de façon
-    // générique par le composant Modal (ui.js) → on ne re-demande plus ici.
+    // Confirmation « modifications non enregistrées » portée par Modal via la
+    // prop dirty={configureDirty} (v535) : calcul exact du formulaire, fiable
+    // aussi pour les contrôles à clic (cf. Réglages du compte courant).
     setConfigureDirty(false);
     setModal(null);
   };
@@ -550,7 +551,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         );
       })()}
       {modal === 'configure' && (
-        <Modal title="Réglages" onClose={closeConfigure} size="lg">
+        <Modal title="Réglages" dirty={configureDirty} onClose={closeConfigure} size="lg">
           <PortfolioConfigureForm
             data={data}
             portfolioName={portfolio.name}
