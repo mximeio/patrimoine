@@ -207,7 +207,10 @@ input[type="month"] {
 @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 24px; border-bottom: 1px solid var(--border);
+  /* v566 : padding vertical réduit 18→12px (en-tête plus compact sur
+     desktop). Titre et bouton ✕ inchangés. Le mobile garde ses réglages
+     dédiés plus bas (dont la marge d'encoche en PWA), non touchés. */
+  padding: 12px 24px; border-bottom: 1px solid var(--border);
   background: var(--surface); flex-shrink: 0;
 }
 .modal-title { font-size: 15px; font-weight: 600; margin: 0; }
@@ -2322,6 +2325,127 @@ input[type="month"] {
 .offline-tag-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
 /* Variante menu desktop : pleine largeur du dropdown, un peu d'air autour. */
 .offline-tag--menu { margin: 2px 4px 6px; }
+
+/* ============================================================
+   SAUVEGARDES (v552) — carte Paramètres + confirmation de
+   restauration (comparatif Actuel/Restauré, piste 2).
+   ============================================================ */
+/* Statut sobre, au ton des Paramètres (pas de bandeau coloré). */
+.backup-status {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0 0 12px; font-size: 12px; color: var(--text-muted);
+}
+.backup-status .ic { color: var(--text-subtle); flex-shrink: 0; display: inline-flex; }
+.backup-save { margin-bottom: 4px; }
+.backup-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.backup-row {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface);
+}
+.backup-row.latest { border-color: #c7d2fe; background: #fbfbff; }
+.backup-row .ic {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  background: var(--accent-light); color: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.backup-row .meta { flex: 1; min-width: 0; }
+.backup-row .d {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+  font-size: 13px; font-weight: 700; line-height: 1.2;
+}
+.backup-row .figs { font-size: 11px; color: var(--text-subtle); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+/* Le tag type sur la ligne d'âge n'apparaît qu'en portrait mobile (cf. media query). */
+.backup-tag.sub-tag { display: none; }
+.backup-row .figs b { color: var(--text-muted); font-weight: 700; }
+.backup-row .figs .cc b { color: var(--accent); }
+.backup-tag {
+  font-size: 9px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: var(--radius-full);
+}
+.backup-tag.manual { background: var(--accent-light); color: var(--accent); }
+.backup-tag.auto { background: var(--surface-hover); color: var(--text-subtle); }
+.backup-tag.latest-tag { background: var(--accent-light); color: var(--accent); }
+/* « avant restauration » : teinte ardoise neutre, casse normale (libellé long). */
+.backup-tag.pre { background: #e7ecf3; color: #475569; text-transform: none; letter-spacing: 0; font-weight: 700; }
+.backup-restore {
+  border: 1px solid var(--border); background: var(--surface); color: var(--accent);
+  border-radius: 9px; padding: 7px 11px; font-family: inherit; font-size: 12px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0;
+}
+.backup-restore:hover { background: var(--accent-light); }
+.backup-del {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-subtle);
+  border-radius: 9px; padding: 7px 9px; display: inline-flex; align-items: center; cursor: pointer; flex-shrink: 0;
+}
+.backup-del:hover { color: var(--danger); border-color: #fecaca; background: var(--danger-light); }
+.backup-showall {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+  font-family: inherit; font-size: 12px; font-weight: 700; color: var(--accent);
+  background: none; border: none; padding: 4px 2px; cursor: pointer;
+}
+.backup-showall:hover { text-decoration: underline; }
+.backup-showall .backup-chev { display: inline-flex; transition: transform 0.15s; }
+.backup-showall .backup-chev.up { transform: rotate(180deg); }
+
+/* v559 — Portrait mobile UNIQUEMENT : lignes de sauvegarde compactes
+   (2 lignes). On masque le pictogramme de gauche, on déplace le tag type
+   sur la ligne d'âge, et « Restaurer » devient une icône seule (la
+   confirmation s'ouvre de toute façon). Desktop/paysage : inchangé. */
+@media (max-width: 480px) and (orientation: portrait) {
+  .backup-row { gap: 10px; padding: 9px 11px; }
+  .backup-row .ic { display: none; }
+  .backup-row .d { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .backup-row .d .d-tag { display: none; }
+  .backup-row .figs .sub-tag { display: inline-block; }
+  .backup-restore { padding: 7px 9px; gap: 0; }
+  .backup-restore .lbl { display: none; }
+}
+
+/* --- Confirmation de restauration --- */
+.restore-confirm .rc-lead { font-size: 13px; line-height: 1.5; margin: 0 0 12px; color: var(--text); }
+.restore-confirm .rc-summary { font-size: 11.5px; color: var(--text-muted); margin: 0 0 9px; }
+.restore-confirm .rc-summary b { color: var(--accent); }
+.restore-confirm .rc-head {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 0 12px 6px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--text-subtle);
+}
+.restore-confirm .rc-head span:nth-child(2), .restore-confirm .rc-head span:nth-child(3) { text-align: right; }
+.restore-confirm .rc-grid { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.restore-confirm .rc-r {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px;
+  padding: 8px 12px; font-size: 12.5px;
+}
+.restore-confirm .rc-r + .rc-r { border-top: 1px solid var(--border); }
+.restore-confirm .rc-r .gl { color: var(--text); font-weight: 600; }
+.restore-confirm .rc-r .ga { color: var(--text-subtle); text-align: right; white-space: nowrap; font-size: 11.5px; }
+.restore-confirm .rc-r .gb { text-align: right; white-space: nowrap; font-weight: 700; min-width: 58px; }
+.restore-confirm .rc-r.eq .gb { color: var(--text-subtle); font-weight: 600; }
+/* v560 — rubrique modifiée : fin liseré indigo à gauche + valeur restaurée
+   en accent (charte de l'app), sans fond coloré (fini l'ambre/brun). */
+.restore-confirm .rc-r.chgd { box-shadow: inset 3px 0 0 var(--accent); }
+.restore-confirm .rc-r.chgd .gb { color: var(--accent); }
+.restore-confirm .rc-r.total { background: #f8fafc; font-weight: 800; }
+.restore-confirm .rc-r.total .gl, .restore-confirm .rc-r.total .gb { font-weight: 800; color: var(--text); }
+.restore-confirm .rc-r.detail { background: #fbfbfd; }
+.restore-confirm .rc-r.detail .gl { padding-left: 12px; color: var(--text-subtle); font-weight: 500; font-size: 11.5px; }
+.restore-confirm .rc-r.detail .ga, .restore-confirm .rc-r.detail .gb { font-size: 11px; font-weight: 600; }
+.restore-confirm .rc-expand {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--accent);
+  cursor: pointer; background: none; border: none; padding: 9px 2px 0; font-family: inherit;
+}
+.restore-confirm .rc-safe {
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 10px 12px;
+  font-size: 11.5px; color: #166534; line-height: 1.45; display: flex; gap: 8px; align-items: flex-start; margin: 16px 0 18px;
+}
+.restore-confirm .rc-safe svg { color: var(--success); flex-shrink: 0; margin-top: 1px; }
+.restore-confirm .rc-blocked {
+  background: var(--warning-light); border: 1px solid #fde68a; border-radius: 10px; padding: 12px;
+  font-size: 12.5px; color: #92400e; line-height: 1.45; display: flex; gap: 9px; align-items: flex-start; margin: 4px 0 18px;
+}
+.restore-confirm .rc-blocked svg { flex-shrink: 0; margin-top: 1px; }
+.restore-confirm .rc-errs { font-size: 10.5px; opacity: .85; margin-top: 5px; }
+/* Pied de la fenêtre de restauration : on réutilise .form-actions de l'app
+   (flex + boutons flex:1) — plus de conteneur maison .rc-acts. */
 /* ---- Indicateur réseau (v523, maquettes Mockup-Pilule-Offline*.html) ----
    Deux pièces, toutes SUPERPOSÉES (aucun décalage de layout) :
    1. .net-dot — point ambre PERMANENT au coin des « ⋯ » (barre mobile et

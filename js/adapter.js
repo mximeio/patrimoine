@@ -564,6 +564,39 @@ const Adapter = {
   },
 
   // ============================================================
+  //  Sauvegardes (v552) — instantanés perso restaurables.
+  //  users/{uid}/backups : 1 doc par sauvegarde, 10 en rotation.
+  //  On trie sur `at` (ISO client) et non `createdAt` (serverTimestamp
+  //  null tant que l'écriture n'est pas propagée → inutilisable hors
+  //  ligne). `createdAt` reste stocké pour référence serveur.
+  // ============================================================
+  _backupsCol(uid) { return this._userDoc(uid).collection('backups'); },
+  async listBackups(uidStr) {
+    const snap = await this._backupsCol(uidStr).orderBy('at', 'desc').get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+  async createBackup(uidStr, entry) {
+    // entry = { type:'auto'|'manual', at, payload }
+    // (le n° de version de format vit dans payload.version — utilisé par la
+    //  restauration ; pas de doublon au niveau du document.)
+    const ref = this._backupsCol(uidStr).doc();
+    await ref.set({
+      ...entry,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return ref.id;
+  },
+  async deleteBackup(uidStr, id) { await this._backupsCol(uidStr).doc(id).delete(); },
+  // Rotation : ne conserve que les `keep` plus récentes (par `at`).
+  async pruneBackups(uidStr, keep = 10) {
+    const snap = await this._backupsCol(uidStr).orderBy('at', 'desc').get();
+    const docs = snap.docs;
+    for (let i = keep; i < docs.length; i++) {
+      await docs[i].ref.delete();
+    }
+  },
+
+  // ============================================================
   //  Subscriptions Firestore temps réel (onSnapshot)
   //  Chaque fonction retourne une callback d'unsubscribe.
   //  Au premier snapshot, le callback `onChange` est appelé avec les

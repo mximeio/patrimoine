@@ -105,12 +105,13 @@ function SettingsView({ ctx }) {
         </div>
       </div>
 
+      <h3 className="settings-group-title">Données</h3>
+      <BackupsCard ctx={ctx} />
+      <DataActionsCard ctx={ctx} />
+
       <h3 className="settings-group-title">Mon compte</h3>
       <PasswordChangeCard ctx={ctx} />
       <SignOutCard ctx={ctx} />
-
-      <h3 className="settings-group-title">Données</h3>
-      <DataActionsCard ctx={ctx} />
     </div>
   );
 }
@@ -1271,9 +1272,19 @@ function DataActionsCard({ ctx }) {
         if (!confirm(
           "Attention — Import complet\n\n" +
           "Cela REMPLACE intégralement tes données actuelles (compte courant, épargne, portefeuilles, actifs physiques) par celles du fichier.\n\n" +
-          "Pense à exporter ton état actuel avant si tu veux le conserver.\n\n" +
+          "Une sauvegarde « avant import » de ton état actuel est créée automatiquement — tu pourras revenir en arrière.\n\n" +
           "Continuer ?"
         )) return;
+        // Filet de sécurité (v565) : sauvegarde « avant import » de l'état
+        // ACTUEL avant d'écraser — même principe que la restauration. Non
+        // bloquant : si elle échoue, on prévient et on poursuit l'import
+        // (l'utilisateur l'a explicitement demandé).
+        try {
+          await Adapter.createBackup(user.uid, {
+            type: 'pre-import', at: new Date().toISOString(), payload: buildBackupPayload(ctx),
+          });
+          await Adapter.pruneBackups(user.uid, BACKUP_KEEP);
+        } catch (e) { console.warn('Sauvegarde avant import non créée', e); }
         // Restauration des données perso depuis le fichier
         await restoreComplete(data);
         // Répartition des charges (doc PARTAGÉ) — traitée à part car elle
@@ -1306,6 +1317,7 @@ function DataActionsCard({ ctx }) {
 
   return (
     <div className="settings-card">
+      <h2>Export / Import</h2>
       <p className="muted">Tes données sont stockées dans Firebase Firestore.</p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
         <button className="btn btn-secondary" onClick={doExport}>

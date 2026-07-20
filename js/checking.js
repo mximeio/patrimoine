@@ -303,6 +303,32 @@ function CheckingView({ ctx, onBack }) {
     }
   }, []); // eslint-disable-line
 
+  // ⚠️ v570 — CES DEUX useEffect DOIVENT RESTER AU-DESSUS du early-return
+  // ci-dessous. Sinon, à l'ouverture d'un compte FRAÎCHEMENT créé (aucun
+  // mois), le 1er rendu sort tôt (Spinner) en sautant ces hooks ; puis
+  // l'auto-création du mois (effet ci-dessus) reprovoque un rendu qui, lui,
+  // les exécute → nombre de hooks différent d'un rendu à l'autre → crash
+  // React #310 (page blanche). Règle des hooks : aucun hook après un return.
+  //
+  // (Recherche) changement de mois « à chaud » si la vue est déjà montée.
+  useEffect(() => {
+    const onGoto = (e) => {
+      const d = e.detail || {};
+      if (d.accountId !== checking.id) return;
+      if (checking.months && checking.months[d.monthKey]) setCurrentMonth(d.monthKey);
+    };
+    window.addEventListener('patrimoine:goto-month', onGoto);
+    return () => window.removeEventListener('patrimoine:goto-month', onGoto);
+  }, [checking]); // eslint-disable-line
+  // (Recherche, phase 3) ouverture de la modale des opérations récurrentes.
+  useEffect(() => {
+    const apply = (p) => { if (p && p.accountId === checking.id) setShowRecurring(true); };
+    apply(consumeOpen('recurring'));
+    const onOpen = (e) => { if (e.detail && e.detail.type === 'recurring') apply(consumeOpen('recurring')); };
+    window.addEventListener('patrimoine:open', onOpen);
+    return () => window.removeEventListener('patrimoine:open', onOpen);
+  }, [checking.id]); // eslint-disable-line
+
   if (!hasMonths) {
     return (<div className="loading" style={{ minHeight: 200 }}><Spinner /></div>);
   }
@@ -349,31 +375,8 @@ function CheckingView({ ctx, onBack }) {
   // Le slot existe toujours dans le DOM (masqué sur desktop par le CSS).
   const titleSlot = document.getElementById('mobileTitleSlot');
 
-  // Recherche : changement de mois « à chaud ». La navigation par
-  // localStorage ne joue qu'au MONTAGE de la vue — si CheckingView est
-  // déjà montée (on est déjà sur l'onglet), ce signal bascule le mois
-  // pour que la localisation (scroll + flash) trouve sa ligne.
-  useEffect(() => {
-    const onGoto = (e) => {
-      const d = e.detail || {};
-      if (d.accountId !== checking.id) return;
-      if (checking.months && checking.months[d.monthKey]) setCurrentMonth(d.monthKey);
-    };
-    window.addEventListener('patrimoine:goto-month', onGoto);
-    return () => window.removeEventListener('patrimoine:goto-month', onGoto);
-  }, [checking]); // eslint-disable-line
-
-  // Recherche (phase 3) : ouverture de la modale des opérations récurrentes
-  // depuis un résultat (intention requestOpen, consommée au montage ou via
-  // événement si la vue est déjà montée). Le flash de la ligne dans la
-  // modale est géré par requestLocate, qui attend son apparition dans le DOM.
-  useEffect(() => {
-    const apply = (p) => { if (p && p.accountId === checking.id) setShowRecurring(true); };
-    apply(consumeOpen('recurring'));
-    const onOpen = (e) => { if (e.detail && e.detail.type === 'recurring') apply(consumeOpen('recurring')); };
-    window.addEventListener('patrimoine:open', onOpen);
-    return () => window.removeEventListener('patrimoine:open', onOpen);
-  }, [checking.id]); // eslint-disable-line
+  // (Les deux useEffect « Recherche » ont été remontés AU-DESSUS du
+  //  early-return — cf. commentaire v570 plus haut.)
 
   const createMonth = (k) => {
     if (checking.months[k]) { setCurrentMonth(k); return; }

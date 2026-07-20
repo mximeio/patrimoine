@@ -330,6 +330,18 @@ function App() {
     };
   }, [dataLoaded, user, profile, checkingAccounts, savings, portfolios, physical]);
 
+  // Auto-sauvegarde hebdomadaire (v552) : à la 1ʳᵉ ouverture de la
+  // semaine (fenêtre glissante de 7 jours), on pose un instantané perso
+  // en silence. Une seule tentative par session. Hors ligne, l'écriture
+  // Firestore est mise en file et se synchronise ensuite (pas d'échec).
+  const autoBackupTried = useRef(false);
+  useEffect(() => {
+    if (!dataLoaded || !user || !profile) return;
+    if (autoBackupTried.current) return;
+    autoBackupTried.current = true;
+    maybeAutoBackup(user, { profile, checkingAccounts, savings, portfolios, physical });
+  }, [dataLoaded, user, profile]);
+
   // Flush immédiat du snapshot en attente quand la page passe en
   // arrière-plan ou se ferme. La persistance offline de Firestore met
   // l'écriture en file (IndexedDB) même si le réseau n'a pas le temps
@@ -712,7 +724,11 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
   const indRef = useRef(null);
   // Mode compositeur (v506) : même mécanique translateX que la barre
   // mobile — la pastille glisse à 60fps même pendant le montage du module.
-  useSlideIndicator(railRef, indRef, '.module-tab-active', [currentModule, tabs.length], undefined, true);
+  // v569 : les libellés entrent dans les deps (via join). Sinon, activer/
+  // désactiver le multi-comptes change le texte de l'onglet (« Compte » ↔
+  // « Comptes courants ») sans changer le NOMBRE d'onglets → la pastille
+  // gardait l'ancienne largeur/position. Le join se met à jour → re-mesure.
+  useSlideIndicator(railRef, indRef, '.module-tab-active', [currentModule, tabs.map(t => t.label).join('|')], undefined, true);
 
   return (
     <header className="app-header">
@@ -825,7 +841,9 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
   // `mini` en followKey : pendant la rétractation/redéploiement, la goutte
   // suit la pill active image par image pour rester parfaitement collée à
   // l'animation de la capsule (au lieu de se recaler en retard).
-  useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.length, mini], mini, true);
+  // v569 : idem barre desktop — les libellés (short) entrent dans les deps
+  // pour re-mesurer la goutte quand un texte change de largeur (multi-comptes).
+  useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.map(t => t.short || t.label).join('|'), mini], mini, true);
 
   // Rétractation au scroll (pattern tab bar de Music sur iOS 26/27).
   // Le scroll vient du scroller interne .main-container sur mobile
