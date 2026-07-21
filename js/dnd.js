@@ -122,7 +122,16 @@ function updateTarget() {
   if (target.list === src.list && target.index === src.index) return; // la ligne saisie elle-même
 
   let zone = dropZone(dnd.lastY, row);
-  const canNest = !target.noNest && target.item
+  // v571 : l'imbrication n'est autorisée que si la CIBLE est déjà un
+  // composite. Ainsi, glisser une ligne simple sur une autre ligne simple
+  // ne crée plus de composite (source d'erreur signalée) → ça ne fait que
+  // réordonner (la zone « nest » retombe en haut/bas). On peut toujours
+  // AJOUTER une ligne à un composite existant (repli = fin ; déplié =
+  // insertion précise via les composantes). La création d'un composite
+  // passe désormais par le formulaire (interrupteur « Ligne composite »).
+  const targetIsComposite = itemHasChildren(target.item)
+    || (target.item && target.item.isComposite);
+  const canNest = !target.noNest && target.item && targetIsComposite
     && !itemHasChildren(src.item) && src.item !== target.item;
   if (zone === 'nest' && !canNest) {
     const rect = row.getBoundingClientRect();
@@ -162,7 +171,13 @@ function updateAutoScroll() {
 }
 
 function positionClone() {
-  if (dnd && dnd.cloneEl) dnd.cloneEl.style.top = (dnd.lastY - dnd.grabDy) + 'px';
+  // v572 : le clone suit le doigt dans LES DEUX axes (avant : seul `top`
+  // bougeait, `left` restait calé sur la colonne → glissement vertical
+  // uniquement). Suivi libre = sensation « je tiens la ligne », plus lisible.
+  if (dnd && dnd.cloneEl) {
+    dnd.cloneEl.style.top = (dnd.lastY - dnd.grabDy) + 'px';
+    dnd.cloneEl.style.left = (dnd.lastX - dnd.grabDx) + 'px';
+  }
 }
 
 function startDrag(clientX, clientY) {
@@ -180,10 +195,13 @@ function startDrag(clientX, clientY) {
   clone.style.cssText = `position:fixed; left:${rect.left}px; top:${rect.top}px; `
     + `width:${rect.width}px; height:${rect.height}px; margin:0; z-index:9999; `
     + `pointer-events:none; background:var(--surface); border-radius:10px; `
-    + `box-shadow:0 12px 28px rgba(15,23,42,.18); transform:scale(1.01); `
-    // v543 (option 1) : clone TRANSLUCIDE → on voit l'indicateur d'insertion
-    // et les lignes voisines à travers, au lieu d'un bloc blanc opaque.
-    + `opacity:0.82;`;
+    // v572/v573 (piste A) : carte « soulevée » qui suit le doigt dans les deux
+    // axes, avec ombre marquée + léger scale. v573 : on REMET un peu de
+    // transparence (0,85) — maintenant que le déplacement est libre, un clone
+    // translucide est plus léger à l'œil et laisse deviner le dessous, sans
+    // rouvrir l'effet « double » (l'origine est déjà très estompée, .dragging 0,15).
+    + `box-shadow:0 12px 28px rgba(15,23,42,.20); transform:scale(1.02); `
+    + `opacity:0.85;`;
   document.body.appendChild(clone);
   row.classList.add('dragging');
   // v547 : dès l'armement, on bloque le scroll natif pour tout le geste
@@ -193,6 +211,7 @@ function startDrag(clientX, clientY) {
   dnd = {
     source: ctx,
     cloneEl: clone,
+    grabDx: clientX - rect.left,
     grabDy: clientY - rect.top,
     scrollEl: findScrollParent(row),
     lastX: clientX,

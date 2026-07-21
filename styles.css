@@ -539,7 +539,7 @@ input[type="month"] {
 .charge-badge:active { cursor: grabbing; }
 .charge-badge--mini { width: 18px; height: 18px; font-size: 10px; }
 /* Indicateurs de glisser-déposer sur les lignes de charges */
-.charge-row.dragging { opacity: 0.45; }
+.charge-row.dragging { opacity: 0.15; } /* v572 : aligné sur les autres listes */
 .charge-row.drag-over-top { box-shadow: inset 0 2px 0 0 var(--accent); }
 .charge-row.drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--accent); }
 /* (ancienne pastille ronde, conservée pour compat) */
@@ -2510,9 +2510,11 @@ input[type="month"] {
 }
 
 /* Drag and drop */
+/* v572 : origine très estompée pendant le glisser (0,15) — le clone opaque
+   « soulevé » (dnd.js) devient la seule carte visible, fini le « double ». */
 .tx-row.dragging,
 .composite-comp-row.dragging,
-.recurring-row.dragging { opacity: 0.4; }
+.recurring-row.dragging { opacity: 0.15; }
 /* Indicateur d'insertion RENFORCÉ (v543, maquette Mockup-Drag-Lisibilite,
    option 2) : barre de 3px INSET (marges latérales) à coins arrondis + halo
    diffus — se lit nettement même à travers le clone translucide (v543). */
