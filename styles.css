@@ -909,7 +909,7 @@ input[type="month"] {
 
 .tx-list { display: flex; flex-direction: column; }
 .tx-row {
-  display: grid; grid-template-columns: 28px 24px 1fr 130px;
+  display: grid; grid-template-columns: 28px 24px 1fr var(--amt-w, 130px);
   gap: 10px; align-items: center;
   padding: 8px 14px;
   border-bottom: 1px solid var(--border);
@@ -1027,25 +1027,28 @@ input[type="month"] {
 /* Variante de la grille .tx-row quand le mode "dates" est actif :
    on insère une 3ème colonne pour la chip JJ/MM, sans casser le reste. */
 .tx-row.with-date {
-  grid-template-columns: 28px 24px 56px 1fr 130px;
+  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px);
 }
 .tx-row.composite-row.with-date {
-  grid-template-columns: 28px 24px 56px 1fr 130px;
+  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px);
 }
 
 /* Variante avec le crayon (.tx-edit) en dernière colonne (la suppression est
    passée dans la modale d'édition, plus de croix sur la ligne). */
 .tx-row.with-edit {
-  grid-template-columns: 28px 24px 1fr 130px 24px;
+  grid-template-columns: 28px 24px 1fr var(--amt-w, 130px) 24px;
 }
+/* v577 : ligne TR (popup) — pas de colonne de pointage. Le libellé (1fr)
+   récupère la place libérée par la case à cocher. */
+.tx-row.tr-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px; }
 .tx-row.with-edit.with-date {
-  grid-template-columns: 28px 24px 56px 1fr 130px 24px;
+  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px) 24px;
 }
 .tx-row.composite-row.with-edit {
-  grid-template-columns: 28px 24px 1fr 130px 24px;
+  grid-template-columns: 28px 24px 1fr var(--amt-w, 130px) 24px;
 }
 .tx-row.composite-row.with-edit.with-date {
-  grid-template-columns: 28px 24px 56px 1fr 130px 24px;
+  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px) 24px;
 }
 
 /* Étiquette "Le X" pour les récurrents (jour du mois 1-31), strictement
@@ -1337,7 +1340,7 @@ input[type="month"] {
   border-top: 1px solid var(--border); background: var(--surface);
 }
 .composite-comp-row {
-  display: grid; grid-template-columns: 22px 1fr 130px;
+  display: grid; grid-template-columns: 22px 1fr var(--amt-w, 130px);
   gap: 10px; align-items: center; padding: 8px 0;
   border-bottom: 1px dashed var(--border);
   position: relative;
@@ -1346,7 +1349,7 @@ input[type="month"] {
    ligne composite parente, afin que les montants des composantes s'alignent
    verticalement avec ceux des autres lignes. */
 .composite-comp-row.with-edit {
-  grid-template-columns: 22px 1fr 130px 24px;
+  grid-template-columns: 22px 1fr var(--amt-w, 130px) 24px;
 }
 .composite-comp-row:last-child { border-bottom: none; }
 .composite-comp-row input {
@@ -1529,7 +1532,7 @@ input[type="month"] {
 .field-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 
 .recurring-row {
-  display: grid; grid-template-columns: 28px 1fr 130px;
+  display: grid; grid-template-columns: 28px 1fr var(--amt-w, 130px);
   gap: 10px; align-items: center;
   padding: 8px 14px;
   border-bottom: 1px solid var(--border);
@@ -1537,21 +1540,21 @@ input[type="month"] {
 }
 /* Variante "mode dates" : DayChip ("Le 5") inséré entre l'icône et le libellé. */
 .recurring-row.with-date {
-  grid-template-columns: 28px 56px 1fr 130px;
+  grid-template-columns: 28px 56px 1fr var(--amt-w, 130px);
 }
 /* Variante avec le crayon (.tx-edit) en dernière colonne (delete passé en modale). */
 .recurring-row.with-edit {
-  grid-template-columns: 28px 1fr 130px 24px;
+  grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px;
 }
 .recurring-row.with-edit.with-date {
-  grid-template-columns: 28px 56px 1fr 130px 24px;
+  grid-template-columns: 28px 56px 1fr var(--amt-w, 130px) 24px;
 }
 /* Récurrent composite : colonne montant en `auto` (comme le composite du mois)
    pour ne pas tronquer le total signé (« − 1 329.97 »). */
-.recurring-row.composite-row { grid-template-columns: 28px 1fr 130px; }
-.recurring-row.composite-row.with-date { grid-template-columns: 28px 56px 1fr 130px; }
-.recurring-row.composite-row.with-edit { grid-template-columns: 28px 1fr 130px 24px; }
-.recurring-row.composite-row.with-edit.with-date { grid-template-columns: 28px 56px 1fr 130px 24px; }
+.recurring-row.composite-row { grid-template-columns: 28px 1fr var(--amt-w, 130px); }
+.recurring-row.composite-row.with-date { grid-template-columns: 28px 56px 1fr var(--amt-w, 130px); }
+.recurring-row.composite-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px; }
+.recurring-row.composite-row.with-edit.with-date { grid-template-columns: 28px 56px 1fr var(--amt-w, 130px) 24px; }
 .recurring-row:last-child { border-bottom: none; }
 .recurring-row:hover { background: var(--surface-alt); }
 .recurring-row input {
@@ -2748,32 +2751,33 @@ input[type="month"] {
   /* Plus de colonne « croix » (suppression passée en modale) → on récupère la
      place pour le montant (96→112 / 80→96), ce qui évite la coupure des
      montants signés à 4 chiffres (« + 3 149.96 »). */
-  .tx-row { grid-template-columns: 20px 20px 1fr 112px; gap: 6px; padding: 8px 10px; }
-  .tx-row.with-date { grid-template-columns: 20px 20px 44px 1fr 96px; }
-  .tx-row.composite-row.with-date { grid-template-columns: 20px 20px 44px 1fr 96px; }
+  .tx-row { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 10px; }
+  .tx-row.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px); }
+  .tx-row.composite-row.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px); }
   /* Variantes avec crayon (.tx-edit) en dernière colonne (22px). */
-  .tx-row.with-edit { grid-template-columns: 20px 20px 1fr 112px 22px; }
-  .tx-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr 96px 22px; }
-  .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr 112px 22px; }
-  .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr 96px 22px; }
+  .tx-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px) 22px; }
+  .tx-row.tr-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; } /* v577 : TR sans colonne de pointage (mobile) */
+  .tx-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px) 22px; }
+  .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px) 22px; }
+  .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px) 22px; }
   /* Chip date plus compacte sur mobile pour économiser l'espace. */
   .tx-date-chip { min-width: 44px; width: 44px; }
   .tx-icon { width: 20px; height: 20px; }
   /* Récurrents (modales Entrées/Sorties dans le menu ⋯) : mêmes colonnes et paddings que tx-row */
-  .recurring-row { grid-template-columns: 20px 1fr 112px; gap: 6px; padding: 8px 10px; }
-  .recurring-row.with-date { grid-template-columns: 20px 44px 1fr 96px; }
-  .recurring-row.with-edit { grid-template-columns: 20px 1fr 112px 22px; }
-  .recurring-row.with-edit.with-date { grid-template-columns: 20px 44px 1fr 96px 22px; }
+  .recurring-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 10px; }
+  .recurring-row.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px); }
+  .recurring-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; }
+  .recurring-row.with-edit.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px) 22px; }
   /* Récurrent composite : colonne montant `auto` (cf. desktop). */
-  .recurring-row.composite-row { grid-template-columns: 20px 1fr 112px; }
-  .recurring-row.composite-row.with-date { grid-template-columns: 20px 44px 1fr 96px; }
-  .recurring-row.composite-row.with-edit { grid-template-columns: 20px 1fr 112px 22px; }
-  .recurring-row.composite-row.with-edit.with-date { grid-template-columns: 20px 44px 1fr 96px 22px; }
+  .recurring-row.composite-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); }
+  .recurring-row.composite-row.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px); }
+  .recurring-row.composite-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; }
+  .recurring-row.composite-row.with-edit.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px) 22px; }
   /* (la règle font-size: 13px qui était ici causait le zoom iOS sur les récurrents — retirée) */
   /* Composantes : aligné strictement avec .tx-row mobile (padding 0 horizontal car composite-comps gère le bord droit) */
-  .composite-comp-row { grid-template-columns: 20px 1fr 112px; gap: 6px; padding: 8px 0; }
+  .composite-comp-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 0; }
   /* Variante with-edit mobile : colonne fantôme 22px (matche le crayon parent) */
-  .composite-comp-row.with-edit { grid-template-columns: 20px 1fr 112px 22px; }
+  .composite-comp-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; }
   .composite-comps { padding: 0 10px 0 28px; }
   .composite-amount-wrap { gap: 2px; }
   .composite-chevron { width: 20px; height: 20px; }
@@ -3059,10 +3063,11 @@ input[type="month"] {
    récupère la place et les montants se calent à droite. Les colonnes
    fantômes des composantes suivent (alignement vertical conservé). */
 .frozen-month .tx-row.with-edit,
-.frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 28px 24px 1fr 130px; }
+.frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 28px 24px 1fr var(--amt-w, 130px); }
+.frozen-month .tx-row.tr-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px); } /* v577 : TR figé sans pointage ni crayon */
 .frozen-month .tx-row.with-edit.with-date,
-.frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 28px 24px 56px 1fr 130px; }
-.frozen-month .composite-comp-row.with-edit { grid-template-columns: 22px 1fr 130px; }
+.frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px); }
+.frozen-month .composite-comp-row.with-edit { grid-template-columns: 22px 1fr var(--amt-w, 130px); }
 .frozen-month .composite-comp-row.with-edit > span[aria-hidden] { display: none; }
 /* Déclinaison MOBILE : mêmes gabarits compacts que les lignes sans crayon
    du media ≤ 640px (112/96px de montant, icônes 20px) — sans cette
@@ -3070,17 +3075,23 @@ input[type="month"] {
    les colonnes compactes par spécificité. */
 @media (max-width: 640px) {
   .frozen-month .tx-row.with-edit,
-  .frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr 112px; }
+  .frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px); }
+  .frozen-month .tx-row.tr-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px); } /* v577 : TR figé (mobile) */
   .frozen-month .tx-row.with-edit.with-date,
-  .frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr 96px; }
-  .frozen-month .composite-comp-row.with-edit { grid-template-columns: 20px 1fr 112px; }
+  .frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px); }
+  .frozen-month .composite-comp-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px); }
 }
-/* Cases de pointage GRISÉES en mois figé : même forme, mais l'affordance
-   « désactivé » est explicite — coche grise au lieu d'indigo, bord adouci
-   (rendu des checkboxes disabled natives). */
+/* Cases de pointage ATTÉNUÉES en mois figé (v576) : même coche que l'active
+   (carré plein indigo + coche blanche), mais l'indigo est passé à 50 %
+   d'opacité → se lit « pointé mais verrouillé », sans le gris qui tranchait
+   avec la charte. Le curseur default + le bord adouci signalent le verrou. */
 .frozen-month .tx-check { cursor: default; border-color: var(--border); }
 .frozen-month .tx-check.checked {
-  background: #cbd5e1; border-color: #cbd5e1; color: white;
+  /* v578 : bordure TRANSPARENTE (et non indigo 50 %) — sinon la bordure
+     translucide se superpose au fond translucide et l'anneau paraît plus
+     foncé. Transparente = le fond 50 % s'affiche uniformément sur toute
+     la case, sans liseré. */
+  background: rgba(79, 70, 229, 0.5); border-color: transparent; color: white;
 }
 .frozen-month .tx-date-chip { cursor: default; }
 .frozen-month .tx-icon { cursor: default; }

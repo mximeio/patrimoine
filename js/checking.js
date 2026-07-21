@@ -269,13 +269,14 @@ function CheckingView({ ctx, onBack }) {
   const [showRecurring, setShowRecurring] = useState(false);
   const [showReglages, setShowReglages] = useState(false);
   const [showCharges, setShowCharges] = useState(false);
+  const [showTrManage, setShowTrManage] = useState(false); // v574 : popup de gestion des TR (remplace la liste toujours affichée)
   const [reglagesDirty, setReglagesDirty] = useState(false);
-  // Signaux d'ouverture de la modale OperationForm depuis le
-  // kebab. Incrémentés à chaque clic ; OpsSection / TrSection écoutent
-  // le changement via useEffect et ouvrent leur modale interne.
-  // Évite d'avoir à remonter tout le state showForm + editing.
+  // Signal d'ouverture de la modale OperationForm depuis le kebab.
+  // Incrémenté à chaque clic ; OpsSection écoute le changement via
+  // useEffect et ouvre sa modale interne. Évite de remonter showForm+editing.
+  // (v574 : l'ancien `trCreateSignal` pour TrSection était du code mort —
+  //  jamais incrémenté — supprimé ; les TR se gèrent via la popup.)
   const [opCreateSignal, setOpCreateSignal] = useState(0);
-  const [trCreateSignal, setTrCreateSignal] = useState(0);
   const closeReglages = () => {
     // La confirmation « modifications non enregistrées » est portée par le
     // composant Modal via la prop dirty={reglagesDirty} (v535) : le calcul
@@ -492,15 +493,24 @@ function CheckingView({ ctx, onBack }) {
               {/* Mois figé : pas de création d'opération. Figer/Défiger et
                   Supprimer partagent le même groupe (les deux actions
                   « cycle de vie » du mois) — décision maquette v485. */}
+              {/* Groupe 1 « mouvements du mois » : Nouvelle opération (masquée
+                  si figé) + Tickets resto (toujours visible → consultation même
+                  en figé). Séparateur affiché tant que le groupe a au moins un
+                  item. v574. */}
               {!frozen && (
-                <>
-                  <button className="dropdown-item" onClick={() => setOpCreateSignal(n => n + 1)}>
-                    <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
-                    Nouvelle opération
-                  </button>
-                  <div className="dropdown-separator" />
-                </>
+                <button className="dropdown-item" onClick={() => setOpCreateSignal(n => n + 1)}>
+                  <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
+                  Nouvelle opération
+                </button>
               )}
+              {trEnabled && (
+                <button className="dropdown-item" onClick={() => setShowTrManage(true)}>
+                  <span style={{ color: 'var(--warning)', display: 'inline-flex' }}><Icon name="utensils" size={14} /></span>
+                  Tickets resto
+                  <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 800, color: '#b45309', background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 999, padding: '1px 7px' }}>{(m.tr || []).length}</span>
+                </button>
+              )}
+              {(!frozen || trEnabled) && <div className="dropdown-separator" />}
               <button className="dropdown-item" onClick={() => setShowRecurring(true)}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="arrowLeftRight" size={14} /></span>
                 Opérations récurrentes
@@ -672,20 +682,47 @@ function CheckingView({ ctx, onBack }) {
         })()}
       />
 
-      {trEnabled && (
-        <TrSection
-          items={m.tr || []}
-          trStats={{ total: stats.trTotal, userShare: stats.trUserShare, employerShare: stats.trEmployerShare }}
-          onChange={(newTr) => updateMonth({ ...m, tr: newTr })}
-          mKey={curKey}
-          datesMode={checkingDatesEnabled(profile)}
-          noDrag={frozen}
-          openCreateSignal={trCreateSignal}
-          onAddOperation={(it) => updateMonth({ ...m, operations: [...(m.operations || []), it] })}
-          onMoveToOps={(id, it) => updateMonth({ ...m, tr: (m.tr || []).filter(t => t.id !== id), operations: [...(m.operations || []), it] })}
-        />
-      )}
+      {/* v574 : la liste TR n'est plus rendue ici en permanence — elle vit
+          dans la popup de gestion (menu ⋯ → « Tickets resto payés… »). */}
       </div>
+
+      {showTrManage && trEnabled && (
+        <Modal title={`Tickets resto payés — ${monthLabel(curKey)}`} onClose={() => setShowTrManage(false)} noDirtyGuard>
+          {/* Mois figé : consultation seule. On réutilise le MÊME garde que le
+              corps (wrapper .frozen-month + capture) → boutons d'ajout masqués
+              (CSS), crayons interceptés (toast) ; liste + tuiles consultables. */}
+          <div
+            className={frozen ? 'frozen-month' : undefined}
+            onClickCapture={frozen ? (e) => {
+              if (e.target.closest('.composite-chevron')) return;
+              e.preventDefault();
+              e.stopPropagation();
+              showToast('Mois figé — défige-le via le menu ⋯');
+            } : undefined}
+          >
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <div style={{ flex: 1, background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 10, padding: '9px 12px' }}>
+                <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#b45309', fontWeight: 600 }}>Total du mois</div>
+                <div className="num" style={{ fontSize: 17, fontWeight: 600, color: '#b45309', marginTop: 2 }}>{eur(stats.trTotal)}</div>
+              </div>
+              <div style={{ flex: 1, background: 'var(--surface-alt, #f8fafc)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px' }}>
+                <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', fontWeight: 600 }}>De ma poche</div>
+                <div className="num" style={{ fontSize: 17, fontWeight: 600, marginTop: 2 }}>{eur(stats.trUserShare)}</div>
+              </div>
+            </div>
+            <TrSection
+              items={m.tr || []}
+              trStats={{ total: stats.trTotal, userShare: stats.trUserShare, employerShare: stats.trEmployerShare }}
+              onChange={(newTr) => updateMonth({ ...m, tr: newTr })}
+              mKey={curKey}
+              datesMode={checkingDatesEnabled(profile)}
+              noDrag={frozen}
+              onAddOperation={(it) => updateMonth({ ...m, operations: [...(m.operations || []), it] })}
+              onMoveToOps={(id, it) => updateMonth({ ...m, tr: (m.tr || []).filter(t => t.id !== id), operations: [...(m.operations || []), it] })}
+            />
+          </div>
+        </Modal>
+      )}
 
       {showRecurring && (
         <Modal title="Opérations récurrentes" onClose={() => setShowRecurring(false)} size="lg">
@@ -1388,6 +1425,44 @@ function getCheckingOpDisplay(op) {
 //  modifier le type, le libellé, le montant, ou activer le composite.
 //  Le pointage reste cliquable inline (case ✓).
 // ============================================================
+// v579 : largeur de la colonne « montant » calée sur le PLUS GROS montant
+// RÉELLEMENT présent dans la liste, au lieu d'un 130px fixe. Renvoie une valeur
+// CSS posée en variable --amt-w sur le conteneur .tx-list ; les grilles
+// .tx-row / .composite-comp-row l'utilisent via var(--amt-w, 130px).
+//
+// On MESURE la largeur pixel réelle de chaque montant formaté (signe + nombre +
+// « €ᵉ») avec un canvas réglé sur la police EXACTE des lignes affichées
+// (500 14px Inter — les montants readonly restent à 14px, desktop comme mobile,
+// cf. styles.css). L'ancienne estimation en `ch` (largeur d'un chiffre) était
+// trop généreuse : elle comptait signe, espaces, point et € comme des chiffres
+// pleins, puis ajoutait +22px → la colonne ressortait bien plus large que le
+// montant, laissant un vide à gauche du nombre (aligné à droite). Ici on ajoute
+// seulement le padding de l'input (6+6) + le gap du wrap (2) + une petite marge.
+const _amtCanvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
+const _amtCtx = _amtCanvas ? _amtCanvas.getContext('2d') : null;
+if (_amtCtx) _amtCtx.font = '500 14px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+function amountColVar(items) {
+  let maxW = 0;    // largeur texte max mesurée (px)
+  let maxLen = 3;  // repli si canvas indisponible
+  const consider = (n) => {
+    const s = fmtSigned('out', n || 0) + ' €';
+    if (s.length > maxLen) maxLen = s.length;
+    if (_amtCtx) {
+      const w = _amtCtx.measureText(s).width;
+      if (w > maxW) maxW = w;
+    }
+  };
+  (items || []).forEach((it) => {
+    consider(it.amount);
+    if (Array.isArray(it.components)) it.components.forEach((c) => consider(c.amount));
+  });
+  // padding input (6+6) + gap wrap (2) + marge de sécurité (tabular-nums est un
+  // poil plus large que la mesure canvas proportionnelle) ; bornes min/max.
+  const px = _amtCtx ? Math.ceil(maxW) + 16 : maxLen * 8 + 14;
+  return `clamp(64px, ${px}px, 200px)`;
+}
+
 function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmount = 0, openCreateSignal = 0, onAddTr, onMoveToTr, noDrag = false, frozen = false, hidePointed = false, onHidePointedChange }) {
   const [expanded, setExpanded] = useState({});
 
@@ -1588,7 +1663,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
           </button>
         )}
       </div>
-      <div className="tx-list">
+      <div className="tx-list" style={{ '--amt-w': amountColVar(items) }}>
         {(datesMode ? sortItemsBySortKey(items, (it) => it.date || '') : items)
           .filter(item => !hideActive || !item.pointed || fading.has(item.id))
           .map((item) => {
@@ -2241,13 +2316,10 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
 
   return (
     <div className="section-block">
-      <div className="section-header">
-        <div className="section-title">
-          <span className="section-icon tr-utensils"><Icon name="utensils" size={14} /></span>
-          Tickets resto payés ce mois
-        </div>
-      </div>
-      <div className="tx-list">
+      {/* v576 : pas d'en-tête interne — TrSection ne vit plus que dans la popup
+          « Tickets resto payés — {mois} », dont le titre suffit (même principe
+          que la modale des opérations récurrentes). */}
+      <div className="tx-list" style={{ '--amt-w': amountColVar(items) }}>
         {(datesMode ? sortItemsBySortKey(items, (it) => it.date || '') : items).map((item) => {
           const idx = items.findIndex(x => x.id === item.id);
           return (
@@ -2306,11 +2378,11 @@ function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMo
   const handleRef = dndOff ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
-    <div ref={rowRef} data-locate={`tr-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''}`}>
+    <div ref={rowRef} data-locate={`tr-${item.id}`} className={`tx-row tr-row ${onEdit ? 'with-edit' : ''}`}>
       <span ref={handleRef} className={`tx-icon tr ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}><Icon name="utensils" size={12} /></span>
-      {/* Pas de tx-check sur les TR (pas de pointage), mais on garde une
-          cellule vide de même largeur pour préserver le grid de .tx-row. */}
-      <div style={{ width: 18 }} />
+      {/* v577 : plus de cellule fantôme « case à cocher ». La classe .tr-row
+          (CSS) retire la colonne de pointage de la grille — inutile hors des
+          entrées/sorties (les TR ne se pointent pas), et TR vit dans sa popup. */}
       <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
         <span className="op-label">
           {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}

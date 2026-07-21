@@ -398,7 +398,7 @@ function RecurringList({ items, onChange, trEnabled, datesMode }) {
 
   return (
     <>
-      <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: 'hidden', marginTop: 8 }}>
+      <div style={{ '--amt-w': amountColVar(items), border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: 'hidden', marginTop: 8 }}>
         {/* En mode dates : tri par dayOfMonth, sans muter le tableau. */}
         {(datesMode ? sortItemsBySortKey(items, (it) => it.dayOfMonth) : items).map((item) => {
           const idx = items.findIndex(x => x.id === item.id);
