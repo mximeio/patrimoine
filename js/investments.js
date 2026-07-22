@@ -39,7 +39,7 @@ function InvestmentsView({ ctx }) {
       await Adapter.createPortfolio(user.uid, name);
       await refreshPortfolios();
       setShowCreate(false);
-      showToast('Portefeuille créé', 'success');
+      showToast('Enveloppe créée', 'success');
     } catch (e) {
       console.error(e);
       showToast('Erreur de création', 'error');
@@ -53,15 +53,15 @@ function InvestmentsView({ ctx }) {
         <div className="section-block">
           <EmptyState
             icon="chart"
-            title="Aucun portefeuille"
-            hint="Crée ton premier portefeuille pour suivre tes investissements."
+            title="Aucune enveloppe"
+            hint="Crée ta première enveloppe pour suivre tes investissements."
           />
           <div className="section-footer">
-            <button className="btn-add" onClick={() => setShowCreate(true)}>+ Créer un portefeuille</button>
+            <button className="btn-add" onClick={() => setShowCreate(true)}>+ Créer une enveloppe</button>
           </div>
         </div>
         {showCreate && (
-          <Modal title="Nouveau portefeuille" onClose={() => setShowCreate(false)}>
+          <Modal title="Nouvelle enveloppe" onClose={() => setShowCreate(false)}>
             <NewPortfolioForm onSubmit={handleCreate} />
           </Modal>
         )}
@@ -178,7 +178,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-card-icon"><Icon name="layers" size={14} /></div>
-          <div className="stat-card-label">Portefeuilles</div>
+          <div className="stat-card-label">Enveloppes</div>
           <div className="stat-card-value num">{portfolios.length}</div>
           <div
             className="stat-card-sub"
@@ -214,7 +214,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
             style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
             title={oldestNamesFull || undefined}
           >
-            {!oldestUpdate ? 'Aucune valorisation' : allSameDate ? 'Tous les portefeuilles' : oldestNames}
+            {!oldestUpdate ? 'Aucune valorisation' : allSameDate ? 'Toutes les enveloppes' : oldestNames}
           </div>
         </div>
       </div>
@@ -224,7 +224,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
         <div className="section-header">
           <div className="section-title">
             <span className="section-icon invest"><Icon name="layers" size={14} /></span>
-            Mes portefeuilles
+            Mes enveloppes
           </div>
         </div>
         <div>
@@ -239,12 +239,12 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
           ))}
         </div>
         <div className="section-footer">
-          <button className="btn-add" onClick={() => setShowCreate(true)}>+ Ajouter un portefeuille</button>
+          <button className="btn-add" onClick={() => setShowCreate(true)}>+ Ajouter une enveloppe</button>
         </div>
       </div>
 
       {showCreate && (
-        <Modal title="Nouveau portefeuille" onClose={() => setShowCreate(false)}>
+        <Modal title="Nouvelle enveloppe" onClose={() => setShowCreate(false)}>
           <NewPortfolioForm onSubmit={onCreate} />
         </Modal>
       )}
@@ -304,9 +304,9 @@ function NewPortfolioForm({ onSubmit }) {
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <label className="label">Nom du portefeuille</label>
+        <label className="label">Nom de l'enveloppe</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="ex: PEA (XTB)" required />
-        <div className="field-hint">Tu pourras ajouter et configurer les supports une fois le portefeuille créé.</div>
+        <div className="field-hint">Tu pourras ajouter et configurer les supports une fois l'enveloppe créée.</div>
       </div>
       <button type="submit" className="btn btn-accent btn-lg" disabled={busy}>{busy ? '…' : 'Créer'}</button>
     </form>
@@ -353,17 +353,17 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
     try {
       await Adapter.renamePortfolio(user.uid, portfolio.id, newName);
       await refreshPortfolios();
-      showToast('Portefeuille renommé');
+      showToast('Enveloppe renommée');
     } catch (e) { console.error(e); showToast('Erreur de renommage', 'error'); }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Supprimer le portefeuille « ${portfolio.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return;
+    if (!confirm(`Supprimer l'enveloppe « ${portfolio.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return;
     if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return;
     try {
       await Adapter.deletePortfolio(user.uid, portfolio.id);
       await refreshPortfolios();
-      showToast('Portefeuille supprimé');
+      showToast('Enveloppe supprimée');
       onBack();
     } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); }
   };
@@ -601,13 +601,13 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <label className="label">Nom du portefeuille</label>
+        <label className="label">Nom de l'enveloppe</label>
         <input
           type="text"
           className="input"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          aria-label="Nom du portefeuille"
+          aria-label="Nom de l'enveloppe"
         />
       </div>
 
@@ -622,7 +622,7 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
       <div style={{ height: 1, background: COLORS.border, margin: '6px 0 0' }} />
       <div style={{ marginTop: 6, padding: 12, background: 'var(--danger-light)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.danger }}>Supprimer ce portefeuille</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.danger }}>Supprimer cette enveloppe</div>
           <div style={{ fontSize: 12, color: COLORS.danger, opacity: 0.85, marginTop: 2 }}>
             Toutes les opérations seront perdues à jamais. Action irréversible.
           </div>
@@ -931,7 +931,7 @@ function AddOperationForm({ data, initial, onSubmit, onDelete }) {
       {/* Message d'erreur quand pas de support distribuant */}
       {dividendNoEtf && (
         <div style={{ padding: 12, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, fontSize: 13, color: '#9a3412' }}>
-          Aucun support distribuant configuré dans ce portefeuille. Pour saisir un dividende, ouvre <strong>Réglages</strong> et bascule au moins un support en "Distribuant".
+          Aucun support distribuant configuré dans cette enveloppe. Pour saisir un dividende, ouvre <strong>Réglages</strong> et bascule au moins un support en "Distribuant".
         </div>
       )}
 

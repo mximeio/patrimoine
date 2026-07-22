@@ -293,8 +293,7 @@ const Adapter = {
 
   _userDoc(uid) { return fbDb.collection('users').doc(uid); },
   _profileRef(uid) { return this._userDoc(uid).collection('profile').doc('main'); },
-  _checkingRef(uid) { return this._userDoc(uid).collection('checking').doc('main'); },             // ancien format (mono-compte)
-  _checkingAccountsCol(uid) { return this._userDoc(uid).collection('checkingAccounts'); },          // nouveau format (multi-comptes)
+  _checkingAccountsCol(uid) { return this._userDoc(uid).collection('checkingAccounts'); },          // format multi-comptes (l'ancien `checking/main` a été retiré en v583)
   _savingsCol(uid) { return this._userDoc(uid).collection('savings'); },
   _portfoliosCol(uid) { return this._userDoc(uid).collection('portfolios'); },
   _physicalCol(uid) { return this._userDoc(uid).collection('physical'); },
@@ -333,9 +332,10 @@ const Adapter = {
   //  - Pas de `orderBy('createdAt')` : updateCheckingAccount fait un set complet
   //    (sans merge, nécessaire pour la suppression des mois) qui efface createdAt.
   //    Firestore exclurait silencieusement le doc d'un query ordonné par ce champ.
-  //  - ID FIXE 'main' pour la migration : si appels concurrents, ils écrivent
+  //  - ID FIXE 'main' pour l'auto-création : si appels concurrents, ils écrivent
   //    sur le même doc (idempotent), pas de doublons.
-  //  - L'ancien doc `checking/main` reste en place après migration (rollback possible).
+  //  (v583 : l'ancienne migration depuis `checking/main` a été retirée — plus
+  //   aucun doc legacy en base. Cold boot sans compte → seed DEFAULT_CHECKING.)
   // ============================================================
   async listCheckingAccounts(uidStr) {
     const col = this._checkingAccountsCol(uidStr);
@@ -667,19 +667,20 @@ const Adapter = {
         onChange([]);
         return;
       }
-      // Premier snapshot vide → migration legacy ('checking' single → 'checkingAccounts' multi)
+      // Premier snapshot vide → cold boot d'un utilisateur sans compte courant :
+      // auto-création du « Compte principal » par défaut. (v583 : l'ancienne
+      // migration depuis `checking/main` a été retirée — plus aucun doc legacy
+      // n'existe, la lecture retournait toujours "absent" ; on sème donc
+      // directement depuis DEFAULT_CHECKING, comportement identique.)
       try {
-        const legacy = await this._checkingRef(uidStr).get();
-        const seedData = legacy.exists
-          ? { name: 'Compte principal', ...legacy.data() }
-          : { name: 'Compte principal', ...DEFAULT_CHECKING };
         await this._checkingAccountsCol(uidStr).doc('main').set({
-          ...seedData,
+          name: 'Compte principal',
+          ...DEFAULT_CHECKING,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
         seenAnyAccount = true; // le set déclenchera un autre snapshot
-      } catch (e) { console.warn('[subscribeCheckingAccounts] migration failed', e); }
+      } catch (e) { console.warn('[subscribeCheckingAccounts] auto-create failed', e); }
     }, (err) => console.error('[subscribeCheckingAccounts]', err));
   },
 

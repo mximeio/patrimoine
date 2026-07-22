@@ -1120,7 +1120,7 @@ function DataActionsCard({ ctx }) {
     const existingPf = await Adapter.listPortfolios(user.uid);
     for (const p of existingPf) await Adapter.deletePortfolio(user.uid, p.id);
     for (const p of (data.portfolios || [])) {
-      await Adapter.createPortfolio(user.uid, p.name || 'Portefeuille', p.data || {});
+      await Adapter.createPortfolio(user.uid, p.name || 'Enveloppe', p.data || {});
     }
     // Actifs physiques : on remplace l'existant
     const existingPh = await Adapter.listPhysical(user.uid);
@@ -1271,7 +1271,7 @@ function DataActionsCard({ ctx }) {
         }
         if (!confirm(
           "Attention — Import complet\n\n" +
-          "Cela REMPLACE intégralement tes données actuelles (compte courant, épargne, portefeuilles, actifs physiques) par celles du fichier.\n\n" +
+          "Cela REMPLACE intégralement tes données actuelles (compte courant, épargne, enveloppes, actifs physiques) par celles du fichier.\n\n" +
           "Une sauvegarde « avant import » de ton état actuel est créée automatiquement — tu pourras revenir en arrière.\n\n" +
           "Continuer ?"
         )) return;

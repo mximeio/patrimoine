@@ -730,6 +730,9 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
   // gardait l'ancienne largeur/position. Le join se met à jour → re-mesure.
   useSlideIndicator(railRef, indRef, '.module-tab-active', [currentModule, tabs.map(t => t.label).join('|')], undefined, true);
 
+  // v584 : initiale de l'avatar (identité du menu ⋯), même logique que la feuille mobile.
+  const initial = (user?.email || '?').charAt(0).toUpperCase();
+
   return (
     <header className="app-header">
       <div className="app-bar-inner">
@@ -761,6 +764,16 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
           {/* Point ambre réseau (v523) : superposé au coin du « ⋯ »,
               visible tant que l'app est hors ligne. */}
           <Dropdown trigger={<button className="btn-icon" style={{ position: 'relative' }} aria-label="Menu">⋯{!online && <span className="net-dot" />}</button>}>
+            {/* v584 : bloc identité (avatar + email) aligné à gauche — pendant
+                desktop de .sheet-id de la feuille mobile. */}
+            <div className="dropdown-id">
+              <div className="dropdown-avatar">{initial}</div>
+              <div className="dropdown-id-txt">
+                <div className="dropdown-id-name">Patrimoine</div>
+                <div className="dropdown-id-mail">{user.email}</div>
+              </div>
+            </div>
+            <div className="dropdown-separator" />
             {/* Tag hors-ligne (v549) : explique le point ambre du « ⋯ ». */}
             {!online && (
               <div className="offline-tag offline-tag--menu"><span className="offline-tag-dot" /> Hors ligne — modifications en attente</div>
@@ -777,6 +790,8 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
               <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="logout" /></span>
               Déconnexion
             </button>
+            {/* v584 : version de build, style fin — pendant desktop de .sheet-version. */}
+            <div className="dropdown-version">Patrimoine {window.APP_BUILD || ''} · {window.FIREBASE_ENV}</div>
           </Dropdown>
         </div>
       </div>

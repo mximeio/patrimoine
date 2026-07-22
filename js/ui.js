@@ -207,7 +207,14 @@ function Dropdown({ trigger, children, align = 'right', portal = false }) {
       ref={menuRef}
       className="dropdown-menu"
       style={portal ? { position: 'fixed', top: pos?.top ?? 0, right: pos?.right ?? 0 } : { [align]: 0 }}
-      onClick={() => setOpen(false)}
+      onClick={(e) => {
+        // v585 : ne fermer QUE si le clic vise un item d'action (.dropdown-item)
+        // actif. Avant, l'onClick posé sur tout le conteneur fermait le menu au
+        // moindre clic — y compris sur les zones non cliquables (identité,
+        // ligne version, séparateurs, tag hors-ligne) et les items désactivés.
+        const item = e.target.closest('.dropdown-item');
+        if (item && !item.disabled) setOpen(false);
+      }}
     >
       {children}
     </div>

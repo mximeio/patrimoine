@@ -18,6 +18,28 @@ function searchAsNumber(q) {
   return parseFloat(trimmed.replace(',', '.'));
 }
 
+// v582 : rend le sous-titre d'un résultat. Si l'item est dans un mois figé,
+// insère un cadenas informatif JUSTE AVANT le libellé du mois (donc au bon
+// endroit en mono comme en multi-comptes, puisqu'on se cale sur le libellé
+// et non sur le début de la ligne). Garde-fou : si le libellé du mois n'est
+// pas retrouvé dans le sous-titre, on rend le texte tel quel (aucun cadenas,
+// texte intact).
+function renderSearchSub(item) {
+  if (item.frozen && item.monthLbl && typeof item.sub === 'string') {
+    const idx = item.sub.indexOf(item.monthLbl);
+    if (idx !== -1) {
+      return (
+        <>
+          {item.sub.slice(0, idx)}
+          <span className="sub-lock" title="Mois figé"><Icon name="lock" size={11} /></span>
+          {item.sub.slice(idx)}
+        </>
+      );
+    }
+  }
+  return item.sub;
+}
+
 // ============================================================
 //  Collecte des items recherchables depuis le contexte global
 // ============================================================
@@ -101,6 +123,7 @@ function collectSearchItems(ctx) {
           module: 'checking',
           title: op.label,
           sub: `${accPrefix} · ${kindLabel}${op.pointed ? ' pointée' : ''}`,
+          frozen: !!month.frozen, monthLbl,
           amount: op.amount, amountSign: sign, amountColor: color,
           target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `op-${op.id}` },
           keywords: op.label,
@@ -112,6 +135,7 @@ function collectSearchItems(ctx) {
             module: 'checking',
             title: c.label,
             sub: `${accPrefix} · Composante de "${op.label || 'composite'}"`,
+            frozen: !!month.frozen, monthLbl,
             amount: c.amount, amountSign: sign, amountColor: color,
             // Une composante se localise sur la ligne de son opération parente
             target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `op-${op.id}` },
@@ -126,6 +150,7 @@ function collectSearchItems(ctx) {
           module: 'checking',
           title: tr.label,
           sub: `${accPrefix} · Paiement TR`,
+          frozen: !!month.frozen, monthLbl,
           amount: tr.amount, amountSign: '−', amountColor: 'neg',
           target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `tr-${tr.id}` },
           keywords: tr.label,
@@ -174,7 +199,7 @@ function collectSearchItems(ctx) {
     if (p.name) items.push({
       module: 'investments',
       title: p.name,
-      sub: `Portefeuille · ${(p.data?.etfs || []).length} support${(p.data?.etfs || []).length > 1 ? 's' : ''}`,
+      sub: `Enveloppe · ${(p.data?.etfs || []).length} support${(p.data?.etfs || []).length > 1 ? 's' : ''}`,
       amount: null,
       target: { module: 'investments', portfolioId: p.id, locate: `pf-${p.id}` },
       keywords: p.name,
@@ -186,7 +211,7 @@ function collectSearchItems(ctx) {
       items.push({
         module: 'investments',
         title: label,
-        sub: `${p.name || 'Portefeuille'} · ${kindLbl}`,
+        sub: `${p.name || 'Enveloppe'} · ${kindLbl}`,
         amount: p.data?.currentValues?.[e.id] || 0,
         // Phase 2 : ouvre la sous-page du portefeuille et flashe le support.
         target: { module: 'investments', portfolioId: p.id, locate: `etf-${e.id}`, openDetail: true },
@@ -427,7 +452,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
             <div className="search-empty-title">Recherche cross-application</div>
             <div className="search-empty-hint">
               Tape un libellé, un nom de compte ou un montant.<br />
-              Tous les mois, comptes, portefeuilles, supports et actifs sont parcourus.
+              Tous les mois, comptes, enveloppes, supports et actifs sont parcourus.
             </div>
           </div>
         )}
@@ -469,7 +494,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                         </div>
                         <div className="search-result-main">
                           <div className="search-result-title">{highlightMatch(item.title, query)}</div>
-                          <div className="search-result-sub">{item.sub}</div>
+                          <div className="search-result-sub">{renderSearchSub(item)}</div>
                         </div>
                         {item.amount != null && (
                           <div className={`search-result-right ${item.amountColor || ''}`}>

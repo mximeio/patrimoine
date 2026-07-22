@@ -64,7 +64,7 @@ function computeRubriqueTotals(d) {
   }));
   const investmentsDetail = !on.investments ? [] : (d.portfolios || []).map(p => {
     const ps = computePortfolioStats(p.data || { etfs: [], operations: [], currentValues: {} });
-    return { id: p.id, name: p.name || 'Portefeuille', value: r2(ps.totalCurrent + ps.cashRemaining) };
+    return { id: p.id, name: p.name || 'Enveloppe', value: r2(ps.totalCurrent + ps.cashRemaining) };
   });
   const physicalDetail = !on.physical ? [] : (d.physical || []).map(a => ({
     id: a.id, name: a.name || 'Actif', value: r2(physicalCurrentValue(a)),
@@ -246,7 +246,7 @@ async function restorePersonalData(ctx, data) {
   const existingPf = await Adapter.listPortfolios(user.uid);
   for (const p of existingPf) await Adapter.deletePortfolio(user.uid, p.id);
   for (const p of (data.portfolios || [])) {
-    await Adapter.createPortfolio(user.uid, p.name || 'Portefeuille', p.data || {});
+    await Adapter.createPortfolio(user.uid, p.name || 'Enveloppe', p.data || {});
   }
   // --- Actifs physiques : remplacement complet ---
   const existingPh = await Adapter.listPhysical(user.uid);
