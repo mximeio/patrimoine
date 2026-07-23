@@ -189,124 +189,202 @@ function PasswordChangeCard({ ctx }) {
 //  (composants partagés, utilisés depuis investments.js via la modale
 //   "Configurer les supports" du menu ⋯)
 // ============================================================
-function EtfsList({ data, onUpdate }) {
-  const [focusedId, setFocusedId] = useState(null);
+// v586 : édition d'un support via une MODALE (motif « Modifier une opération »)
+// au lieu d'une ligne inline. La liste affiche des lignes compactes cliquables
+// (couleur + nom + cible + crayon) ; le clic ouvre SupportForm. Nouveaux champs
+// optionnels par support : fullName (nom exact), isin, target (cible en %).
+function EtfsList({ data, onUpdate, onPersist }) {
+  const [editing, setEditing] = useState(null); // etf en cours d'édition, ou {__new:true}, ou null
+  const [editDirty, setEditDirty] = useState(false); // modifs non enregistrées dans la modale support
 
-  const updateField = (id, field, value) => {
-    onUpdate({ ...data, etfs: data.etfs.map(e => e.id === id ? { ...e, [field]: value } : e) });
+  // Applique un support (création ou modification). On met à jour le brouillon
+  // (onUpdate → affichage immédiat) ET on persiste directement en base
+  // (onPersist → Firestore), comme le fait déjà l'édition d'une opération.
+  // La modale support se ferme, on reste dans les Réglages.
+  const upsert = (etf) => {
+    const clean = { ...etf }; delete clean.__new;
+    const list = data.etfs || [];
+    const exists = list.some(e => e.id === clean.id);
+    const nextEtfs = exists ? list.map(e => (e.id === clean.id ? clean : e)) : [...list, clean];
+    const cv = { ...data.currentValues };
+    if (!exists && cv[clean.id] == null) cv[clean.id] = 0;
+    const newData = { ...data, etfs: nextEtfs, currentValues: cv };
+    onUpdate(newData);
+    if (onPersist) onPersist(newData);
+    setEditing(null);
   };
 
-  const deleteEtf = (id) => {
+  const removeEtf = (id) => {
     if ((data.operations || []).some(o => o.etf === id)) { alert('Impossible : support utilisé dans des opérations'); return; }
-    const e = (data.etfs || []).find(x => x.id === id);
-    if (!confirm(`Supprimer ${e ? supportName(e) : 'ce support'} ?`)) return;
     const cv = { ...data.currentValues }; delete cv[id];
-    onUpdate({ ...data, etfs: data.etfs.filter(e => e.id !== id), currentValues: cv });
+    const newData = { ...data, etfs: (data.etfs || []).filter(e => e.id !== id), currentValues: cv };
+    onUpdate(newData);
+    if (onPersist) onPersist(newData);
+    setEditing(null);
   };
 
-  const addEtf = () => {
-    // id interne stable (uid) : découplé du ticker, jamais réaffecté.
-    const newId = uid();
-    // Couleur par défaut : la première de PORTFOLIO_PALETTE non utilisée ;
-    // si toutes prises, on cycle via le nombre de supports existants.
+  const openCreate = () => {
+    // Couleur par défaut : 1re de PORTFOLIO_PALETTE non utilisée, sinon cyclage.
     const usedColors = new Set((data.etfs || []).map(e => e.color));
     const nextColor = PORTFOLIO_PALETTE.find(c => !usedColors.has(c))
                    || PORTFOLIO_PALETTE[(data.etfs || []).length % PORTFOLIO_PALETTE.length];
-    onUpdate({
-      ...data,
-      etfs: [...(data.etfs || []), { id: newId, ticker: '', label: '', color: nextColor, kind: 'capitalizing' }],
-      currentValues: { ...data.currentValues, [newId]: 0 },
-    });
-    setFocusedId(newId);
+    setEditing({ id: uid(), ticker: '', label: '', fullName: '', isin: '', color: nextColor, kind: 'capitalizing', target: null, __new: true });
   };
+
+  const etfs = data.etfs || [];
+  const targeted = etfs.filter(e => e.target != null && e.target !== '');
+  const totalTarget = r2(targeted.reduce((s, e) => s + (parseFloat(e.target) || 0), 0));
 
   return (
     <>
       <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: 'hidden' }}>
-        {(data.etfs || []).map(e => (
-          <EtfRow
-            key={e.id}
-            etf={e}
-            shouldFocus={focusedId === e.id}
-            onFocused={() => setFocusedId(null)}
-            onUpdate={(field, value) => updateField(e.id, field, value)}
-            onDelete={() => deleteEtf(e.id)}
-          />
-        ))}
-        {(data.etfs || []).length === 0 && (
+        {etfs.map(e => {
+          const hasBoth = (e.ticker || '').trim() && (e.label || '').trim();
+          return (
+            <div key={e.id} className="support-edit-row">
+              <span className="support-edit-dot" style={{ background: e.color || COLORS.muted }} />
+              <span className="support-edit-name">
+                {supportName(e)}{hasBoth ? <span className="support-edit-lbl"> — {e.label}</span> : null}
+              </span>
+              {e.target != null && e.target !== ''
+                ? <span className="support-edit-cible">cible {e.target} %</span>
+                : <span className="support-edit-cible none">pas de cible</span>}
+              <button type="button" className="tx-edit" onClick={() => setEditing(e)} aria-label="Modifier le support"><Icon name="pencil" size={14} /></button>
+            </div>
+          );
+        })}
+        {etfs.length === 0 && (
           <div className="empty-state" style={{ padding: 14 }}>Aucun support.</div>
         )}
       </div>
-      <button type="button" className="btn-add" style={{ marginTop: 10 }} onClick={addEtf}>+ Ajouter un support</button>
+
+      {targeted.length > 0 && (
+        <div className={`target-sum ${Math.round(totalTarget) === 100 ? 'ok' : 'warn'}`}>
+          <span>Total des cibles</span>
+          <b>{totalTarget} %{Math.round(totalTarget) === 100 ? '' : ' · à ajuster'}</b>
+        </div>
+      )}
+
+      <button type="button" className="btn-add" style={{ marginTop: 10 }} onClick={openCreate}>+ Ajouter un support</button>
+
+      {editing && (
+        <Modal
+          title={editing.__new ? 'Nouveau support' : 'Modifier le support'}
+          onClose={() => setEditing(null)}
+          dirty={editDirty}
+        >
+          <SupportForm
+            etf={editing}
+            onSubmit={upsert}
+            onDelete={editing.__new ? null : () => removeEtf(editing.id)}
+            onDirtyChange={setEditDirty}
+          />
+        </Modal>
+      )}
     </>
   );
 }
 
-function EtfRow({ etf, shouldFocus, onFocused, onUpdate, onDelete }) {
-  const [tickerLocal, setTickerLocal] = useState(etf.ticker || '');
-  const labelRef = useRef(null);
+// Formulaire d'un support dans une modale. Coquille + boutons alignés sur
+// « Modifier une opération » (form-actions : Modifier/Ajouter + Supprimer).
+function SupportForm({ etf, onSubmit, onDelete, onDirtyChange }) {
+  const [kind, setKind] = useState(etf.kind === 'distributing' ? 'distributing' : 'capitalizing');
+  const [ticker, setTicker] = useState(etf.ticker || '');
+  const [label, setLabel] = useState(etf.label || '');
+  const [fullName, setFullName] = useState(etf.fullName || '');
+  const [isin, setIsin] = useState(etf.isin || '');
+  const [color, setColor] = useState(etf.color || PORTFOLIO_PALETTE[0]);
+  const [target, setTarget] = useState(etf.target != null && etf.target !== '' ? String(etf.target) : '');
+  const isEdit = !etf.__new;
 
-  useEffect(() => { setTickerLocal(etf.ticker || ''); }, [etf.ticker]);
-
+  // Modifications non enregistrées → alimente la prop `dirty` de la Modale
+  // (confirmation avant fermeture, comme le reste de l'app). On compare chaque
+  // champ à sa valeur d'origine.
   useEffect(() => {
-    if (shouldFocus && labelRef.current) {
-      labelRef.current.focus();
-      onFocused();
-    }
-  }, [shouldFocus]);
+    if (!onDirtyChange) return;
+    const norm = (s) => (s || '').trim();
+    const origTarget = etf.target != null && etf.target !== '' ? String(etf.target) : '';
+    const dirty =
+      kind !== (etf.kind === 'distributing' ? 'distributing' : 'capitalizing')
+      || norm(ticker) !== norm(etf.ticker)
+      || norm(label) !== norm(etf.label)
+      || norm(fullName) !== norm(etf.fullName)
+      || norm(isin) !== norm(etf.isin)
+      || color !== (etf.color || PORTFOLIO_PALETTE[0])
+      || (target || '').trim() !== origTarget;
+    onDirtyChange(dirty);
+  }, [kind, ticker, label, fullName, isin, color, target]); // eslint-disable-line
 
-  const commitTicker = () => {
-    // Mise en majuscules au commit (pas à la frappe : sinon React réécrit la
-    // valeur transformée et le curseur saute à la fin). Ticker désormais
-    // OPTIONNEL et libre — plus aucune cascade de renommage (l'id interne
-    // reste stable), donc on écrit simplement le champ `ticker`.
-    const next = (tickerLocal || '').trim().toUpperCase();
-    if (next !== (etf.ticker || '')) onUpdate('ticker', next);
-    setTickerLocal(next);
+  const submit = () => {
+    const tk = (ticker || '').trim().toUpperCase();
+    const lb = (label || '').trim();
+    if (!tk && !lb) { alert('Renseigne au moins un ticker ou un nom court.'); return; }
+    const tRaw = (target || '').trim().replace(',', '.');
+    const t = tRaw === '' ? null : r2(parseFloat(tRaw));
+    onSubmit({
+      ...etf,
+      ticker: tk,
+      label: lb,
+      fullName: (fullName || '').trim(),
+      isin: (isin || '').trim().toUpperCase(),
+      color,
+      kind,
+      target: (t == null || isNaN(t)) ? null : t,
+    });
   };
 
   return (
-    <div className="etf-row">
-      <input
-        type="text"
-        className="etf-ticker-input"
-        value={tickerLocal}
-        onChange={(e) => setTickerLocal(e.target.value)}
-        onBlur={commitTicker}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.target.blur();
-          if (e.key === 'Escape') { setTickerLocal(etf.ticker || ''); e.target.blur(); }
-        }}
-        maxLength={10}
-        placeholder="Ticker"
-      />
-      <input
-        ref={labelRef}
-        type="text"
-        value={etf.label || ''}
-        onChange={(e) => onUpdate('label', e.target.value)}
-        placeholder="Nom du support"
-      />
-      <div className="kind-toggle" role="group" aria-label="Type de support">
-        <button
-          type="button"
-          className={(etf.kind || 'capitalizing') === 'capitalizing' ? 'active cap' : ''}
-          onClick={() => onUpdate('kind', 'capitalizing')}
-          title="Capitalisant : pas de dividende, performance via cours uniquement"
-        >Cap.</button>
-        <button
-          type="button"
-          className={etf.kind === 'distributing' ? 'active dist' : ''}
-          onClick={() => onUpdate('kind', 'distributing')}
-          title="Distribuant : verse des dividendes, autorise la saisie d'opérations Dividende"
-        >Dist.</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="support-type-row">
+        <div className="support-color-cell">
+          <label className="label">Couleur</label>
+          <input type="color" className="support-color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Couleur du support" />
+        </div>
+        <div className="support-type-cell">
+          <label className="label">Type</label>
+          <div className="support-type-seg" role="group" aria-label="Type de support">
+            <button type="button" className={kind === 'capitalizing' ? 'active' : ''} onClick={() => setKind('capitalizing')}>Capitalisant</button>
+            <button type="button" className={kind === 'distributing' ? 'active' : ''} onClick={() => setKind('distributing')}>Distribuant</button>
+          </div>
+        </div>
       </div>
-      <input
-        type="color"
-        value={etf.color}
-        onChange={(e) => onUpdate('color', e.target.value)}
-      />
-      <button type="button" className="tx-delete" style={{ opacity: 1 }} onClick={onDelete}>×</button>
+      <div>
+        <label className="label">Ticker</label>
+        <input className="input" value={ticker} onChange={(e) => setTicker(e.target.value)} maxLength={10} placeholder="ex: WPEA" />
+      </div>
+      <div>
+        <label className="label">Nom court (affiché sur les lignes)</label>
+        <input className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="ex: MSCI World" />
+      </div>
+      <div>
+        <label className="label">Nom complet</label>
+        <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="ex: iShares MSCI World Swap PEA" />
+      </div>
+      <div className="support-isin-row">
+        <div>
+          <label className="label">ISIN</label>
+          <input className="input" value={isin} onChange={(e) => setIsin(e.target.value)} maxLength={12} placeholder="ex: IE00…" />
+        </div>
+        <div>
+          <label className="label">Cible (%)</label>
+          <input
+            className="input support-target-input"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            onFocus={(e) => { const t = e.target; setTimeout(() => { try { t.select(); } catch (_) {} }, 0); }}
+            inputMode="decimal"
+            placeholder="—"
+          />
+        </div>
+      </div>
+      <div className="form-actions">
+        <button type="button" className="btn btn-accent btn-lg" onClick={submit}>{isEdit ? 'Modifier' : 'Ajouter'}</button>
+        {isEdit && onDelete && (
+          <button type="button" className="btn-delete-line" onClick={onDelete}>
+            <Icon name="trash" size={14} /> Supprimer
+          </button>
+        )}
+      </div>
     </div>
   );
 }

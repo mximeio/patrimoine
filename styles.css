@@ -114,6 +114,24 @@ input[type="month"] {
   outline: none;
 }
 .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+/* v600 : champ Note — le liseré indigo au focus est porté par le CONTENEUR
+   (focus-within), qui rogne (overflow:hidden) la barre de défilement dans les
+   coins arrondis → liseré propre sur les 4 côtés, même quand le texte défile
+   (avant, la barre du textarea « cassait » le liseré à droite). */
+.note-field {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.note-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.note-field textarea {
+  display: block; width: 100%;
+  border: 0; outline: none; background: transparent;
+  color: var(--text); font-size: 14px; font-family: inherit; line-height: 1.4;
+  padding: 10px 14px;
+}
 .label {
   display: block; font-size: 12px; font-weight: 500;
   color: var(--text-muted); margin-bottom: 6px;
@@ -1543,6 +1561,59 @@ input[type="month"] {
   border: 1px solid var(--border);
   border-radius: 6px; cursor: pointer; padding: 2px;
 }
+
+/* v586 — Édition des supports : liste compacte cliquable + modale SupportForm */
+.support-edit-row {
+  display: grid; grid-template-columns: 18px 1fr auto 24px;
+  align-items: center; gap: 10px;
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.support-edit-row:last-child { border-bottom: none; }
+.support-edit-row:hover { background: var(--surface-alt); }
+.support-edit-dot { width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0; }
+.support-edit-name { font-size: 14px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.support-edit-lbl { font-weight: 400; color: var(--text-muted); font-size: 11.5px; }
+.support-edit-cible { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.support-edit-cible.none { color: var(--text-subtle); font-style: italic; }
+
+/* Contrôle souple « Total des cibles » sous la liste */
+.target-sum {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; padding: 8px 12px; border-radius: 9px; font-size: 12.5px;
+}
+.target-sum.ok   { background: var(--success-light); color: #047857; }
+.target-sum.warn { background: var(--warning-light); color: #b45309; }
+.target-sum b { font-variant-numeric: tabular-nums; }
+
+/* Modale support : segmented control « type » façon onglets desktop (pilule accent) */
+.support-type-seg { display: flex; background: #eef1f5; border-radius: 11px; padding: 3px; gap: 3px; }
+.support-type-seg button {
+  flex: 1; padding: 10px 12px; border: none; background: transparent;
+  color: var(--text-muted); font-size: 13px; font-weight: 600;
+  border-radius: 8px; cursor: pointer; font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.support-type-seg button.active { background: var(--accent); color: #fff; }
+.support-tick-row { display: grid; grid-template-columns: 1fr 56px; gap: 12px; align-items: end; }
+.support-isin-row { display: grid; grid-template-columns: 1fr 110px; gap: 12px; align-items: end; }
+.support-color {
+  width: 56px; height: 44px; border: 1px solid var(--border);
+  border-radius: var(--radius-md); cursor: pointer; padding: 3px; background: var(--surface);
+}
+.support-target-input { text-align: right; font-variant-numeric: tabular-nums; }
+/* v593 : modale support — couleur (à gauche) + toggle Type (à droite) sur une ligne */
+.support-type-row { display: flex; gap: 12px; align-items: flex-end; }
+.support-type-cell { flex: 1; min-width: 0; }
+.support-color-cell { flex: 0 0 auto; }
+
+/* v593 : sur une ligne de support, nom complet si la place le permet (desktop
+   + smartphone paysage), nom court sinon (smartphone portrait). Pur CSS. */
+.support-name-short { display: none; }
+@media (max-width: 640px) and (orientation: portrait) {
+  .support-name-full { display: none; }
+  .support-name-short { display: inline; }
+}
 .settings-card-head {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; margin-bottom: 12px;
@@ -2719,6 +2790,28 @@ input[type="month"] {
 .support-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .support-gain { font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 400; margin-top: 2px; }
 
+/* v592 : pastille d'info (icône cible) + bulle survol/tap */
+.infotip { position: relative; display: inline-flex; align-items: center; cursor: pointer; vertical-align: -2px; }
+.infotip-ico { display: inline-flex; color: var(--text-subtle); }
+.infotip:hover .infotip-ico, .infotip:focus-visible .infotip-ico { color: var(--text-muted); }
+/* v593/v595 : tooltip BLANC (aligné sur CustomTooltip). Rendu en position
+   FIXE dans document.body (via portal) pour ne pas être rogné par un parent
+   overflow:hidden (ex. .support-sub en portrait). left/top posés en inline
+   (coordonnées de l'icône), transform pour le placer au-dessus. */
+.infotip-pop {
+  position: fixed; transform: translateY(calc(-100% - 8px));
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  font-size: 12.5px; font-weight: 500; line-height: 1.35;
+  padding: 7px 10px; border-radius: var(--radius-md); width: max-content; max-width: 220px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12); z-index: 1200; white-space: nowrap;
+  overscroll-behavior: contain; /* v602 : le défilement en butée de la bulle ne s'étend pas à la page (qui, en défilant, la fermerait) */
+}
+/* v596 : variante multi-ligne pour un commentaire (texte long) */
+.infotip-pop.infotip-pop--wrap { white-space: normal; max-width: min(420px, calc(100vw - 16px)); line-height: 1.4; }
+/* v596 : bulle commentaire sur une ligne d'opération — toujours visible
+   (le libellé tronque avant elle), centrée verticalement. */
+.op-note { flex-shrink: 0; align-self: center; }
+
 /* Badge "Distribuant" / "Capitalisant" affiché sur un support */
 .kind-badge {
   display: inline-flex; align-items: center;
@@ -2756,6 +2849,7 @@ input[type="month"] {
   /* Anti-zoom auto iOS Safari : tout input < 16px déclenche un zoom au focus.
      On force 16px sur tous les inputs / textarea / select sur mobile. */
   .input,
+  .note-field textarea,
   .tx-label, .tx-amount,
   .recurring-row input,
   .composite-comp-row input,

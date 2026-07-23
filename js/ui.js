@@ -228,6 +228,116 @@ function Dropdown({ trigger, children, align = 'right', portal = false }) {
   );
 }
 
+// v592 : petite pastille d'info (icône) avec bulle au SURVOL (desktop) et au
+// TAP (mobile, fermeture au clic extérieur). Générique — sert l'icône cible des
+// supports, réutilisable ailleurs (ex. commentaire d'opération).
+function InfoTip({ iconName = 'target', size = 13, label, className = '', popClassName = '' }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const ref = useRef(null);
+  const popRef = useRef(null); // v601 : nœud de la bulle (pour ne pas la fermer quand on interagit dedans)
+  const closeTimer = useRef(null); // v602 : fermeture différée pour laisser passer la souris icône → bulle
+  const hoverable = () => !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
+  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 140); };
+  // v603 : sur mobile, un TAP dans la bulle la ferme (utile quand elle occupe
+  // tout l'écran, sans « dehors » à taper) ; un SWIPE (déplacement > 8px) ne
+  // ferme pas → il fait défiler une note longue. On distingue les deux ici.
+  const touch = useRef({ x: 0, y: 0, moved: false });
+  const onPopTouchStart = (e) => { const t = e.touches[0]; touch.current = { x: t.clientX, y: t.clientY, moved: false }; };
+  const onPopTouchMove = (e) => { const t = e.touches[0]; if (Math.abs(t.clientX - touch.current.x) > 8 || Math.abs(t.clientY - touch.current.y) > 8) touch.current.moved = true; };
+  const onPopTouchEnd = () => { if (!touch.current.moved) setOpen(false); };
+  // Le popover est rendu dans document.body (position fixe) pour ne PAS être
+  // rogné par un parent en overflow:hidden (ex. .support-sub qui tronque le
+  // texte en portrait mobile). On mémorise la position de l'icône à l'ouverture.
+  const openTip = () => {
+    const el = ref.current;
+    if (el) { const r = el.getBoundingClientRect(); setPos({ left: r.left, top: r.top, bottom: r.bottom }); }
+    setOpen(true);
+  };
+  useEffect(() => {
+    if (!open) return;
+    // v601 : on ne ferme PAS si l'événement vient de l'icône ou de l'INTÉRIEUR
+    // de la bulle — sinon faire défiler une note longue (scroll/touch dans la
+    // bulle) la refermait aussitôt sur mobile.
+    const inTip = (t) => (ref.current && ref.current.contains(t)) || (popRef.current && popRef.current.contains(t));
+    const onDoc = (e) => { if (inTip(e.target)) return; setOpen(false); };
+    const onMove = (e) => { if (e && inTip(e.target)) return; setOpen(false); }; // ferme au scroll de PAGE / resize, pas au scroll interne
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('touchstart', onDoc, { passive: true });
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('touchstart', onDoc);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+      cancelClose();
+    };
+  }, [open]);
+  return (
+    <span
+      ref={ref}
+      className={`infotip ${className}`}
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      title="" /* v599 : neutralise l'info-bulle système héritée du parent (ex. le title du libellé d'opération) — la bulle blanche suffit */
+      onMouseEnter={() => { if (hoverable()) { cancelClose(); openTip(); } }}
+      onMouseLeave={() => { if (hoverable()) scheduleClose(); }}
+      onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openTip(); }}
+    >
+      <span className="infotip-ico"><Icon name={iconName} size={size} /></span>
+      {open && pos && ReactDOM.createPortal(
+        <span
+          className={`infotip-pop ${popClassName}`}
+          role="tooltip"
+          style={{ left: pos.left, top: pos.top }}
+          onMouseEnter={() => { if (hoverable()) cancelClose(); }}
+          onMouseLeave={() => { if (hoverable()) scheduleClose(); }}
+          onTouchStart={onPopTouchStart}
+          onTouchMove={onPopTouchMove}
+          onTouchEnd={onPopTouchEnd}
+          // v597/598 : au montage, on mesure la bulle et on la recadre dans le
+          // viewport (marge 8px). Horizontal : `left` ramené à l'écran (sinon
+          // un commentaire long débordait à droite). Vertical : la bulle est
+          // ancrée AU-DESSUS de l'icône (transform CSS) ; si elle est trop
+          // haute pour tenir au-dessus, on bascule EN DESSOUS ; si elle ne tient
+          // nulle part, on l'épingle en haut avec défilement interne (sinon le
+          // texte était coupé en haut de l'écran, desktop comme mobile).
+          ref={(node) => {
+            popRef.current = node; // v601 : mémorise le nœud pour le test inTip
+            if (!node) return;
+            const r = node.getBoundingClientRect();
+            const m = 8;
+            // Horizontal
+            const maxLeft = window.innerWidth - r.width - m;
+            node.style.left = Math.max(m, Math.min(pos.left, maxLeft)) + 'px';
+            // Vertical
+            const h = r.height;
+            const spaceAbove = pos.top - m;
+            const spaceBelow = window.innerHeight - pos.bottom - m;
+            if (h <= spaceAbove) {
+              // Tient au-dessus : on garde le placement par défaut (transform CSS).
+            } else if (h <= spaceBelow) {
+              // Bascule en dessous de l'icône.
+              node.style.transform = 'none';
+              node.style.top = (pos.bottom + m) + 'px';
+            } else {
+              // Trop haute partout : épinglée en haut, hauteur bornée + scroll.
+              node.style.transform = 'none';
+              node.style.top = m + 'px';
+              node.style.maxHeight = (window.innerHeight - 2 * m) + 'px';
+              node.style.overflowY = 'auto';
+            }
+          }}
+        >{label}</span>,
+        document.body
+      )}
+    </span>
+  );
+}
+
 function Icon({ name, size = 16, color }) {
   const props = {
     width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
@@ -237,6 +347,7 @@ function Icon({ name, size = 16, color }) {
   const paths = {
     list: <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>,
     pencil: <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>,
+    comment: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>,
     lock: <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
     unlock: <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>,
     chevronDown: <polyline points="6 9 12 15 18 9"/>,

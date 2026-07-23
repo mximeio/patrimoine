@@ -126,7 +126,7 @@ function collectSearchItems(ctx) {
           frozen: !!month.frozen, monthLbl,
           amount: op.amount, amountSign: sign, amountColor: color,
           target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `op-${op.id}` },
-          keywords: op.label,
+          keywords: [op.label, op.note].filter(Boolean).join(' '),
           monthKey: mKey,
         });
         for (const c of (op.components || [])) {
@@ -153,7 +153,7 @@ function collectSearchItems(ctx) {
           frozen: !!month.frozen, monthLbl,
           amount: tr.amount, amountSign: '−', amountColor: 'neg',
           target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `tr-${tr.id}` },
-          keywords: tr.label,
+          keywords: [tr.label, tr.note].filter(Boolean).join(' '),
           monthKey: mKey,
         });
       }

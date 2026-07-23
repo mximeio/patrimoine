@@ -1561,6 +1561,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
     if (data.type === 'tr') {
       const trItem = { id: editing ? editing.id : uid(), label: data.label, amount: data.amount };
       if (data.date) trItem.date = data.date;
+      if (data.note) trItem.note = data.note; // v596 : commentaire optionnel
       if (editing) {
         // Déplacement opération → TR : retrait des opérations + ajout aux TR,
         // en une seule mise à jour (atomique) côté parent.
@@ -1584,6 +1585,9 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
         // Si le type change, on conserve pointed. Bascule composite/simple :
         // on réinitialise composants en cohérence.
         const next = { ...it, type: data.type, label: data.label };
+        // v596 : commentaire optionnel — on l'écrit, ou on le retire si vidé.
+        if (data.note) next.note = data.note;
+        else delete next.note;
         // Date : soit on l'écrit, soit on la retire si vide (et datesMode actif)
         if (data.date) next.date = data.date;
         else delete next.date;
@@ -1608,6 +1612,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
       // Création : nouvel item en fin de liste.
       const base = { id: uid(), label: data.label, pointed: false, type: data.type };
       if (data.date) base.date = data.date;
+      if (data.note) base.note = data.note; // v596 : commentaire optionnel
       const comps = data.components || [];
       const oneComp = data.isComposite && comps.length === 1;
       // v542 : un « composite » à une seule ligne créé au formulaire → on
@@ -1784,6 +1789,16 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
     }
     return [{ id: uid(), label: '', amount: '' }];
   });
+  const [note, setNote] = useState(initial?.note || ''); // v596 : note optionnelle
+  // v599 : la zone de note grandit avec le texte (jusqu'à 40 % de la hauteur
+  // d'écran, puis défilement interne) au lieu d'une petite fenêtre fixe.
+  const noteRef = useRef(null);
+  useEffect(() => {
+    const el = noteRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, Math.round(window.innerHeight * 0.4)) + 'px';
+  }, [note]);
 
   // Détection de modification pour la confirmation de fermeture du Modal : couvre
   // aussi les changements non captés par input/change (sélecteur de type, date,
@@ -1794,7 +1809,7 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
   useEffect(() => {
     if (!mountedRef.current) { mountedRef.current = true; return; }
     if (markDirty) markDirty();
-  }, [type, label, amount, date, isComposite, components]);
+  }, [type, label, amount, date, isComposite, components, note]);
 
   const compTotal = r2(components.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0));
   const hasTRInComponents = components.some(c => c.isTRRefund);
@@ -1817,7 +1832,7 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
       // par la section parente (jamais composite).
       const a = parseFloat(amount);
       const safeAmount = Number.isFinite(a) ? r2(a) : 0;
-      onSubmit({ type: 'tr', label: (label || '').trim(), isComposite: false, amount: safeAmount, date: cleanDate });
+      onSubmit({ type: 'tr', label: (label || '').trim(), isComposite: false, amount: safeAmount, date: cleanDate, note: (note || '').trim() });
       return;
     }
     if (isComposite) {
@@ -1825,13 +1840,13 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
         .filter(c => (c.label || '').trim() || (parseFloat(c.amount) || 0) !== 0 || c.isTRRefund)
         .map(c => ({ id: c.id || uid(), label: (c.label || '').trim(), amount: r2(parseFloat(c.amount) || 0), ...(c.isTRRefund ? { isTRRefund: true } : {}) }));
       if (cleanComps.length === 0) return;
-      onSubmit({ type, label: (label || '').trim(), isComposite: true, components: cleanComps, date: cleanDate });
+      onSubmit({ type, label: (label || '').trim(), isComposite: true, components: cleanComps, date: cleanDate, note: (note || '').trim() });
     } else {
       // Montant vide → 0 (au lieu de bloquer silencieusement le submit).
       // Permet de créer une ligne uniquement avec un libellé.
       const a = parseFloat(amount);
       const safeAmount = Number.isFinite(a) ? r2(a) : 0;
-      onSubmit({ type, label: (label || '').trim(), isComposite: false, amount: safeAmount, date: cleanDate });
+      onSubmit({ type, label: (label || '').trim(), isComposite: false, amount: safeAmount, date: cleanDate, note: (note || '').trim() });
     }
   };
 
@@ -2011,6 +2026,20 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
         </div>
       )}
 
+      <div>
+        <label className="label">Note (optionnel)</label>
+        <div className="note-field">
+          <textarea
+            ref={noteRef}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="Une note sur cette opération…"
+            style={{ resize: 'none', minHeight: 56, maxHeight: '40vh', overflowY: 'auto' }}
+          />
+        </div>
+      </div>
+
       <div className="form-actions">
         <button type="submit" className="btn btn-accent btn-lg">{isEdit ? 'Modifier' : 'Ajouter'}</button>
         {isEdit && onDelete && (
@@ -2050,6 +2079,7 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
         <span className="op-label">
           {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
         </span>
+        {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
         {datesMode && item.date && (
           <span className="op-date">{fmtDateNumeric(item.date)}</span>
         )}
@@ -2171,6 +2201,7 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
             </span>
             <button className="composite-chevron" onClick={onToggle} title={expanded ? 'Replier' : 'Déplier les composantes'}><Icon name="chevronDown" size={12} /></button>
           </span>
+          {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
           <span className="composite-tag" title="Ligne composite">Composite</span>
           {datesMode && item.date && (
             <span className="op-date">{fmtDateNumeric(item.date)}</span>
@@ -2286,6 +2317,7 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
     if (data.type === 'tr') {
       const trItem = { id: editing ? editing.id : uid(), label: data.label, amount: data.amount };
       if (cleanDate) trItem.date = cleanDate;
+      if (data.note) trItem.note = data.note; // v596 : commentaire optionnel
       if (editing) {
         onChange(items.map(it => it.id === editing.id ? trItem : it));
       } else {
@@ -2294,6 +2326,7 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
     } else {
       const opItem = { id: editing ? editing.id : uid(), label: data.label, pointed: false, type: data.type };
       if (cleanDate) opItem.date = cleanDate;
+      if (data.note) opItem.note = data.note; // v596 : commentaire optionnel
       if (data.isComposite) {
         opItem.isComposite = true;
         opItem.components = data.components;
@@ -2387,6 +2420,7 @@ function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMo
         <span className="op-label">
           {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
         </span>
+        {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
         {datesMode && item.date && (
           <span className="op-date">{fmtDateNumeric(item.date)}</span>
         )}

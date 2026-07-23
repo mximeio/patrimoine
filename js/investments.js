@@ -556,6 +556,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
             data={data}
             portfolioName={portfolio.name}
             onDirtyChange={setConfigureDirty}
+            onPersistData={handleUpdateData}
             onSubmit={(draftData, draftName) => {
               handleUpdateData(draftData);
               if (draftName && draftName !== portfolio.name) handleRename(draftName);
@@ -578,17 +579,22 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
 // Épargne) : nom + supports édités sur une copie locale, commit uniquement au
 // clic sur « Enregistrer ». La fermeture avec modifications non enregistrées
 // déclenche une confirmation (via onDirtyChange côté parent).
-function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, onDelete }) {
+function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, onDelete, onPersistData }) {
   const [draft, setDraft] = useState(data);
   const [name, setName] = useState(portfolioName || '');
 
   useEffect(() => {
     if (!onDirtyChange) return;
+    // v590 : les supports persistent immédiatement (onPersistData) → le
+    // brouillon est TOUJOURS déjà sauvé en base. Sur cet écran, seul le NOM de
+    // l'enveloppe peut être « non enregistré ». On ne compare donc plus
+    // brouillon/donnée pour les supports : cette comparaison donnait un faux
+    // positif après édition d'un support (la relecture Firestore re-normalise
+    // l'objet → JSON différent alors que tout est sauvé).
     const trimmed = (name || '').trim();
     const nameDirty = !!(trimmed && trimmed !== portfolioName);
-    const dataDirty = JSON.stringify(draft) !== JSON.stringify(data);
-    onDirtyChange(nameDirty || dataDirty);
-  }, [draft, name]); // eslint-disable-line
+    onDirtyChange(nameDirty);
+  }, [name]); // eslint-disable-line
 
   const submit = (e) => {
     e.preventDefault();
@@ -613,7 +619,7 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
 
       <div>
         <h3 className="settings-group-title">Supports</h3>
-        <EtfsList data={draft} onUpdate={setDraft} />
+        <EtfsList data={draft} onUpdate={setDraft} onPersist={onPersistData} />
       </div>
 
       <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
@@ -643,6 +649,14 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
 function SupportRow({ position, lastDate }) {
   const isUp = position.gain >= 0;
   const isDist = position.kind === 'distributing';
+  // v592 : cible de répartition (optionnelle) → icône cible grise + bulle
+  // (survol desktop / tap mobile) affichant la cible et l'écart en points.
+  const hasTarget = position.target != null && position.target !== '';
+  const targetTip = hasTarget ? `Cible ${position.target} %` : '';
+  // v593 : nom complet (nom exact) si la place le permet, nom court sinon —
+  // décidé en CSS (media-query) : desktop + paysage = complet ; portrait = court.
+  const shortLabel = (position.ticker || '').trim() && (position.label || '').trim() ? position.label : '';
+  const fullLabel = (position.fullName || '').trim();
   return (
     <div className="support-row" data-locate={`etf-${position.id}`}>
       <span className="support-icon" style={{ background: (position.color || COLORS.muted) + '26', color: position.color || COLORS.muted }}>
@@ -651,13 +665,22 @@ function SupportRow({ position, lastDate }) {
       <div className="support-main">
         <div className="support-name">
           {supportName(position)}
-          {(position.ticker || '').trim() && (position.label || '').trim() && <span style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }}> — {position.label}</span>}
+          {fullLabel ? (
+            <>
+              <span className="support-name-full" style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }}> — {fullLabel}</span>
+              {shortLabel && <span className="support-name-short" style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }}> — {shortLabel}</span>}
+            </>
+          ) : (
+            shortLabel && <span style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }}> — {shortLabel}</span>
+          )}
           {isDist && (
             <span className="kind-badge dist" style={{ marginLeft: 6 }}>Distribuant</span>
           )}
         </div>
         <div className="support-sub">
-          {position.weight.toFixed(1)} %{lastDate ? ` · ${fmtDateNumeric(lastDate)}` : ''}
+          {position.weight.toFixed(1)} %
+          {hasTarget && <>{' '}<InfoTip iconName="target" label={targetTip} /></>}
+          {lastDate ? ` · ${fmtDateNumeric(lastDate)}` : ''}
           {isDist && position.dividendsReceived > 0 && (
             <span style={{ color: COLORS.info, marginLeft: 6 }}>· +{fmt(position.dividendsReceived)} € de div.</span>
           )}
