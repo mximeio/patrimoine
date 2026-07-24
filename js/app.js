@@ -605,6 +605,10 @@ function App() {
             if (target.openDetail && target.savingId) requestOpen('saving', { id: target.savingId });
             if (target.openDetail && target.portfolioId) requestOpen('portfolio', { id: target.portfolioId });
             if (target.openRecurring && target.checkingAccountId) requestOpen('recurring', { accountId: target.checkingAccountId });
+            // v606 : un résultat TR se localise dans la modale « Tickets resto
+            // payés — {mois} » (les TR ne vivent plus qu'à cet endroit) → on
+            // l'ouvre, comme les livrets/portefeuilles ouvrent leur sous-page.
+            if (target.openTr && target.checkingAccountId) requestOpen('tr', { accountId: target.checkingAccountId, monthKey: target.monthKey });
             // v605 : résultat pointant sur une opération POINTÉE d'un mois où
             // « masquer les pointées » est actif → la ligne n'est pas rendue,
             // le flash échouerait en silence. On rouvre alors la vue complète

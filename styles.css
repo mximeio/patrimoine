@@ -2338,8 +2338,9 @@ input[type="month"] {
 .search-result-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .search-result-title {
   font-size: 14px; font-weight: 500; color: var(--text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 8px; min-width: 0;
 }
+.search-result-title-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-result-title mark {
   background: #fef3c7; color: var(--text);
   padding: 0 2px; border-radius: 2px;
@@ -2363,6 +2364,9 @@ input[type="month"] {
 }
 .search-result-right.pos { color: var(--success); }
 .search-result-right.neg { color: var(--danger); }
+/* v607 : icône note à côté du nom (cohérent avec les lignes du compte courant) —
+   le nom tronque avant elle, l'icône reste visible. */
+.search-note { flex-shrink: 0; color: var(--text-muted); }
 .search-empty {
   padding: 48px 24px;
   text-align: center;
@@ -2802,7 +2806,7 @@ input[type="month"] {
   background: var(--surface); color: var(--text); border: 1px solid var(--border);
   font-size: 12.5px; font-weight: 500; line-height: 1.35;
   padding: 7px 10px; border-radius: var(--radius-md); width: max-content; max-width: 220px;
-  box-shadow: 0 8px 24px rgba(15,23,42,0.12); z-index: 1200; white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12); z-index: 3200; white-space: nowrap;
   overscroll-behavior: contain; /* v602 : le défilement en butée de la bulle ne s'étend pas à la page (qui, en défilant, la fermerait) */
 }
 /* v596 : variante multi-ligne pour un commentaire (texte long) */

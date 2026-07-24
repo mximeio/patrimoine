@@ -127,6 +127,7 @@ function collectSearchItems(ctx) {
           amount: op.amount, amountSign: sign, amountColor: color,
           target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `op-${op.id}` },
           keywords: [op.label, op.note].filter(Boolean).join(' '),
+          note: (op.note || '').trim() || null,
           monthKey: mKey,
         });
         for (const c of (op.components || [])) {
@@ -152,8 +153,9 @@ function collectSearchItems(ctx) {
           sub: `${accPrefix} · Paiement TR`,
           frozen: !!month.frozen, monthLbl,
           amount: tr.amount, amountSign: '−', amountColor: 'neg',
-          target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `tr-${tr.id}` },
+          target: { module: 'checking', checkingAccountId: acc.id, monthKey: mKey, locate: `tr-${tr.id}`, openTr: true },
           keywords: [tr.label, tr.note].filter(Boolean).join(' '),
+          note: (tr.note || '').trim() || null,
           monthKey: mKey,
         });
       }
@@ -205,17 +207,22 @@ function collectSearchItems(ctx) {
       keywords: p.name,
     });
     for (const e of (p.data?.etfs || [])) {
-      const hasBoth = (e.ticker || '').trim() && (e.label || '').trim();
-      const label = `${supportName(e)}${hasBoth ? ` — ${e.label}` : ''}`;
+      const base = supportName(e);
+      const shortLabel = (e.ticker || '').trim() && (e.label || '').trim() ? e.label : '';
+      const fullLabel = (e.fullName || '').trim();
+      // v609 : titre court par défaut ; variante « nom complet » affichée si la
+      // place le permet (desktop + paysage), comme sur les lignes de support.
+      const shortTitle = `${base}${shortLabel ? ` — ${shortLabel}` : ''}`;
       const kindLbl = (e.kind || 'capitalizing') === 'distributing' ? 'Distribuant' : 'Capitalisant';
       items.push({
         module: 'investments',
-        title: label,
+        title: shortTitle,
+        titleFull: fullLabel ? `${base} — ${fullLabel}` : null,
         sub: `${p.name || 'Enveloppe'} · ${kindLbl}`,
         amount: p.data?.currentValues?.[e.id] || 0,
         // Phase 2 : ouvre la sous-page du portefeuille et flashe le support.
         target: { module: 'investments', portfolioId: p.id, locate: `etf-${e.id}`, openDetail: true },
-        keywords: `${e.ticker || ''} ${e.label || ''}`,
+        keywords: [e.ticker, e.label, e.fullName, e.isin].filter(Boolean).join(' '),
       });
     }
   }
@@ -493,7 +500,17 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                           <Icon name={MODULE_ICONS_NAMES[g.module]} size={14} />
                         </div>
                         <div className="search-result-main">
-                          <div className="search-result-title">{highlightMatch(item.title, query)}</div>
+                          <div className="search-result-title">
+                            <span className="search-result-title-text">
+                              {item.titleFull
+                                ? (<>
+                                    <span className="support-name-full">{highlightMatch(item.titleFull, query)}</span>
+                                    <span className="support-name-short">{highlightMatch(item.title, query)}</span>
+                                  </>)
+                                : highlightMatch(item.title, query)}
+                            </span>
+                            {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="search-note" popClassName="infotip-pop--wrap" />}
+                          </div>
                           <div className="search-result-sub">{renderSearchSub(item)}</div>
                         </div>
                         {item.amount != null && (

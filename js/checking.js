@@ -329,6 +329,15 @@ function CheckingView({ ctx, onBack }) {
     window.addEventListener('patrimoine:open', onOpen);
     return () => window.removeEventListener('patrimoine:open', onOpen);
   }, [checking.id]); // eslint-disable-line
+  // (Recherche) ouverture de la modale « Tickets resto payés » depuis un
+  // résultat TR (v606). Jumeau de l'intention « recurring » ci-dessus.
+  useEffect(() => {
+    const apply = (p) => { if (p && p.accountId === checking.id) setShowTrManage(true); };
+    apply(consumeOpen('tr'));
+    const onOpen = (e) => { if (e.detail && e.detail.type === 'tr') apply(consumeOpen('tr')); };
+    window.addEventListener('patrimoine:open', onOpen);
+    return () => window.removeEventListener('patrimoine:open', onOpen);
+  }, [checking.id]); // eslint-disable-line
 
   if (!hasMonths) {
     return (<div className="loading" style={{ minHeight: 200 }}><Spinner /></div>);
