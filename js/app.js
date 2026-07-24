@@ -605,6 +605,27 @@ function App() {
             if (target.openDetail && target.savingId) requestOpen('saving', { id: target.savingId });
             if (target.openDetail && target.portfolioId) requestOpen('portfolio', { id: target.portfolioId });
             if (target.openRecurring && target.checkingAccountId) requestOpen('recurring', { accountId: target.checkingAccountId });
+            // v605 : résultat pointant sur une opération POINTÉE d'un mois où
+            // « masquer les pointées » est actif → la ligne n'est pas rendue,
+            // le flash échouerait en silence. On rouvre alors la vue complète
+            // (équivalent d'un clic sur l'œil) pour que le surlignage soit
+            // visible. UNIQUEMENT si la cible est une entrée/sortie pointée
+            // (`op-…`) : une ligne non pointée est déjà visible, et les TR ne
+            // sont jamais masqués → inutile de dévoiler les autres pointées.
+            if (target.module === 'checking' && target.checkingAccountId && target.monthKey
+                && typeof target.locate === 'string' && target.locate.indexOf('op-') === 0) {
+              const acc = checkingAccounts.find(a => a.id === target.checkingAccountId);
+              const month = acc && acc.months ? acc.months[target.monthKey] : null;
+              if (month && month.hidePointed && !month.frozen) {
+                const op = (month.operations || []).find(o => o.id === target.locate.slice(3));
+                if (op && op.pointed) {
+                  updateCheckingAccount({
+                    ...acc,
+                    months: { ...acc.months, [target.monthKey]: { ...month, hidePointed: false } },
+                  });
+                }
+              }
+            }
             // Localisation fine : scroll + flash sur la ligne cible
             // (data-locate posé par les vues, clé fournie par la recherche).
             requestLocate(target.locate);
