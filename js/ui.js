@@ -264,13 +264,16 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
     // bulle) la refermait aussitôt sur mobile.
     const inTip = (t) => (ref.current && ref.current.contains(t)) || (popRef.current && popRef.current.contains(t));
     const onDoc = (e) => { if (inTip(e.target)) return; setOpen(false); };
-    const onScroll = (e) => { if (e && inTip(e.target)) return; setOpen(false); }; // ferme au scroll de PAGE, pas au scroll interne
-    // v611 : le resize ferme la bulle (fixe → mal placée si la fenêtre change),
-    // MAIS fermer le clavier mobile émet un resize → au 1er tap la bulle
-    // s'ouvrait puis se refermait aussitôt (rien de visible, clavier fermé).
-    // On ignore donc le resize pendant ~500 ms après l'ouverture, le temps que
-    // le clavier se replie.
-    const onResize = () => { if (Date.now() - openedAt.current < 500) return; setOpen(false); };
+    // v611/613 : ouvrir la bulle au 1er tap ferme le clavier mobile, ce qui,
+    // sur iOS, fait remonter la mise en page → émet à la fois un `scroll` de
+    // page ET un `resize`. Ces deux événements refermaient la bulle aussitôt
+    // (rien de visible, clavier fermé, il fallait un 2ᵉ tap). On ignore donc
+    // scroll ET resize pendant ~600 ms après l'ouverture (le temps que le
+    // clavier se replie). Le scroll INTERNE de la bulle n'a jamais fermé (inTip),
+    // et au-delà du délai, scroll de page / resize referment normalement.
+    const GRACE = 600;
+    const onScroll = (e) => { if (e && inTip(e.target)) return; if (Date.now() - openedAt.current < GRACE) return; setOpen(false); };
+    const onResize = () => { if (Date.now() - openedAt.current < GRACE) return; setOpen(false); };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('touchstart', onDoc, { passive: true });
     window.addEventListener('scroll', onScroll, true);
