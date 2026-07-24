@@ -250,9 +250,11 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
   // Le popover est rendu dans document.body (position fixe) pour ne PAS être
   // rogné par un parent en overflow:hidden (ex. .support-sub qui tronque le
   // texte en portrait mobile). On mémorise la position de l'icône à l'ouverture.
+  const openedAt = useRef(0); // v611 : instant d'ouverture, pour ignorer le resize dû au clavier mobile
   const openTip = () => {
     const el = ref.current;
     if (el) { const r = el.getBoundingClientRect(); setPos({ left: r.left, top: r.top, bottom: r.bottom }); }
+    openedAt.current = Date.now();
     setOpen(true);
   };
   useEffect(() => {
@@ -262,16 +264,22 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
     // bulle) la refermait aussitôt sur mobile.
     const inTip = (t) => (ref.current && ref.current.contains(t)) || (popRef.current && popRef.current.contains(t));
     const onDoc = (e) => { if (inTip(e.target)) return; setOpen(false); };
-    const onMove = (e) => { if (e && inTip(e.target)) return; setOpen(false); }; // ferme au scroll de PAGE / resize, pas au scroll interne
+    const onScroll = (e) => { if (e && inTip(e.target)) return; setOpen(false); }; // ferme au scroll de PAGE, pas au scroll interne
+    // v611 : le resize ferme la bulle (fixe → mal placée si la fenêtre change),
+    // MAIS fermer le clavier mobile émet un resize → au 1er tap la bulle
+    // s'ouvrait puis se refermait aussitôt (rien de visible, clavier fermé).
+    // On ignore donc le resize pendant ~500 ms après l'ouverture, le temps que
+    // le clavier se replie.
+    const onResize = () => { if (Date.now() - openedAt.current < 500) return; setOpen(false); };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('touchstart', onDoc, { passive: true });
-    window.addEventListener('scroll', onMove, true);
-    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     return () => {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('touchstart', onDoc);
-      window.removeEventListener('scroll', onMove, true);
-      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
       cancelClose();
     };
   }, [open]);

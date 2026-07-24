@@ -2367,6 +2367,13 @@ input[type="month"] {
 /* v607 : icône note à côté du nom (cohérent avec les lignes du compte courant) —
    le nom tronque avant elle, l'icône reste visible. */
 .search-note { flex-shrink: 0; color: var(--text-muted); }
+/* v612 : le texte cherché est dans la note → fond rond jaune (même #fef3c7 que
+   le surlignage des titres) derrière l'icône, façon bouton œil. */
+.search-note.note-hit .infotip-ico {
+  width: 22px; height: 22px; border-radius: 50%;
+  align-items: center; justify-content: center;
+  background: #fef3c7; color: var(--text);
+}
 .search-empty {
   padding: 48px 24px;
   text-align: center;

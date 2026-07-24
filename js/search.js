@@ -489,6 +489,9 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                   {g.items.map((item, i) => {
                     const flatIdx = startIdx + i;
                     const isFocused = flatIdx === focused;
+                    // v612 : le texte cherché est-il DANS la note ? → fond rond
+                    // jaune derrière l'icône note (même jaune que le surlignage).
+                    const noteHit = !!item.note && searchNormalize(item.note).includes(searchNormalize(query));
                     return (
                       <button
                         key={flatIdx}
@@ -509,7 +512,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                                   </>)
                                 : highlightMatch(item.title, query)}
                             </span>
-                            {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="search-note" popClassName="infotip-pop--wrap" />}
+                            {item.note && <InfoTip iconName="comment" size={13} label={item.note} className={`search-note${noteHit ? ' note-hit' : ''}`} popClassName="infotip-pop--wrap" />}
                           </div>
                           <div className="search-result-sub">{renderSearchSub(item)}</div>
                         </div>
