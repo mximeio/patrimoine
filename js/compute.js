@@ -31,14 +31,13 @@ function computeMonth(checking, mKey) {
   const trTotal = (m.tr || []).reduce((s, t) => s + (t.amount || 0), 0);
   const userShare = trUserShare(checking.settings, m);
 
-  // Deux carries distincts :
-  // - carryPointed : ancré sur le solde POINTÉ du mois précédent —
+  // Deux carries distincts, obtenus en UN SEUL appel (v614) :
+  // - pointed   : ancré sur le solde POINTÉ du mois précédent —
   //   "vérité bancaire", ce qu'il reste vraiment fin de mois précédent.
-  // - carryProjected : ancré sur la PROJECTION fin de mois précédent —
+  // - projected : ancré sur la PROJECTION fin de mois précédent —
   //   vue prospective, propage les non-pointés en cascade. Les deux
   //   convergent dès qu'un mois est entièrement pointé.
-  const carryPointed = computeCarryOver(checking, mKey, 'pointed');
-  const carryProjected = computeCarryOver(checking, mKey, 'projected');
+  const carry = computeCarryOver(checking, mKey);
   return {
     entriesAll: r2(entriesAll), entriesPointed: r2(entriesPointed),
     exitsAll: r2(exitsAll), exitsPointed: r2(exitsPointed),
@@ -47,28 +46,48 @@ function computeMonth(checking, mKey) {
     trEmployerShare: r2(trTotal - userShare),
     // L'UI affiche stats.carry sous "Reste mois préc." → c'est bien le
     // pointé qui correspond ("ce qu'il reste vraiment en banque").
-    carry: r2(carryPointed),
+    carry: r2(carry.pointed),
     // Exposé pour le détail dépliable de la projection (v517) : c'est LUI
-    // qui entre dans la formule de balanceProjected, pas carryPointed.
-    carryProjected: r2(carryProjected),
-    balancePointed: r2(carryPointed + entriesPointed - exitsPointed),
-    balanceProjected: r2(carryProjected + entriesAll - exitsAll),
+    // qui entre dans la formule de balanceProjected, pas carry.pointed.
+    carryProjected: r2(carry.projected),
+    balancePointed: r2(carry.pointed + entriesPointed - exitsPointed),
+    balanceProjected: r2(carry.projected + entriesAll - exitsAll),
   };
 }
 
-// mode : 'pointed' (par défaut) ou 'projected'. Détermine quelle valeur
-// du mois précédent on utilise comme report : son solde pointé ou sa
-// projection fin de mois.
-function computeCarryOver(checking, mKey, mode = 'pointed') {
+// Reports du mois précédent : renvoie { pointed, projected } — les DEUX
+// valeurs en un seul appel.
+//
+// ⚠️ NE JAMAIS revenir à deux appels séparés (un par mode), comme c'était
+// le cas jusqu'en v613. computeMonth a besoin des deux reports ; en les
+// demandant séparément, chaque appel relançait computeMonth sur le mois
+// précédent, qui relançait deux fois à son tour → l'arbre d'appels
+// DOUBLAIT à chaque mois de la série, les deux branches recalculant
+// exactement la même chose. Coût mesuré pour UN résultat, sur une série
+// de mois consécutifs :
+//     6 mois →         63 appels        12 mois →      4 095 appels
+//    18 mois →    262 143 appels        24 mois → 16 777 215 appels (~1 min)
+// Ici, un seul appel par mois : 24 mois → 24 appels.
+// (Les 5 appelants de computeMonth visent tous le mois le PLUS PROFOND :
+//  consolidated.js, checking.js ×2, app.js snapshot, backups.js.)
+//
+// Aucune mémoïsation, volontairement : rien n'est conservé entre deux
+// appels, donc modifier un mois ancien reste immédiatement répercuté sur
+// toute la chaîne des mois suivants (cf. updateTRRefundsCascade).
+function computeCarryOver(checking, mKey) {
   const prev = prevMonthKey(mKey);
   if (checking.months[prev]) {
     const prevStats = computeMonth(checking, prev);
-    if (!prevStats) return 0;
-    return mode === 'projected' ? prevStats.balanceProjected : prevStats.balancePointed;
+    if (!prevStats) return { pointed: 0, projected: 0 };
+    return { pointed: prevStats.balancePointed, projected: prevStats.balanceProjected };
   }
+  // Pas de mois précédent : le tout premier mois de la série part du solde
+  // initial, les autres (après un trou dans la série) partent de 0. Même
+  // valeur pour les deux reports — comportement identique à l'avant-v614,
+  // où les deux modes tombaient sur cette même expression.
   const sortedKeys = Object.keys(checking.months).sort();
-  if (sortedKeys[0] === mKey) return checking.initialBalance || 0;
-  return 0;
+  const base = (sortedKeys[0] === mKey) ? (checking.initialBalance || 0) : 0;
+  return { pointed: base, projected: base };
 }
 
 // Calcule une date ISO YYYY-MM-DD à partir d'un dayOfMonth (1-31) et d'un

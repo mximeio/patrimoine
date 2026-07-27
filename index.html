@@ -18,7 +18,7 @@
        SRI sur les CDN, règles Firestore, validation des imports JSON. -->
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f172a'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12V7H5a2 2 0 0 1 0-4h14v4'/%3E%3Cpath d='M3 5v14a2 2 0 0 0 2 2h16v-5'/%3E%3Cpath d='M18 12a2 2 0 0 0 0 4h4v-4z'/%3E%3C/g%3E%3C/svg%3E" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=613" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=614" />
   <meta name="description" content="Suivi de patrimoine personnel : compte courant, épargne, investissements et actifs physiques." />
   <meta name="application-name" content="Patrimoine" />
   <meta name="theme-color" content="#fafafa" />
@@ -38,13 +38,13 @@
       // sed que le cache-busting. Affichée en pied du menu « ⋯ » et loguée
       // en console : permet de vérifier d'un coup d'œil quelle version
       // tourne réellement sur l'appareil (cache Safari, déploiement Pages…).
-      window.APP_BUILD = '?v=613'.replace('?v=', 'v');
+      window.APP_BUILD = '?v=614'.replace('?v=', 'v');
       var isDev = location.pathname.indexOf('/patrimoine-dev') === 0
                || location.hostname === 'localhost'
                || location.hostname === '127.0.0.1';
       var link = document.createElement('link');
       link.rel = 'manifest';
-      link.href = (isDev ? 'manifest-dev.json' : 'manifest.json') + '?v=613';
+      link.href = (isDev ? 'manifest-dev.json' : 'manifest.json') + '?v=614';
       document.head.appendChild(link);
       if (isDev) {
         // Titre iOS (Ajouter à l'écran d'accueil) + titre d'onglet distincts
@@ -62,7 +62,7 @@
   <!-- Cache-busting : incrémenter cette version à chaque modif visible
        pour forcer le navigateur (notamment iOS Safari) à recharger les
        fichiers JS/CSS depuis le serveur. -->
-  <link rel="stylesheet" href="styles.css?v=613" />
+  <link rel="stylesheet" href="styles.css?v=614" />
 
   <!-- React + Recharts + Babel + Firebase
        Tous les scripts CDN sont protégés par un hash SRI (Subresource
@@ -102,28 +102,28 @@
   <!-- ============================================================ -->
   <!--  Modules JS — chargés dans l'ordre des dépendances             -->
   <!-- ============================================================ -->
-  <script src="js/config.js?v=613"></script>
+  <script src="js/config.js?v=614"></script>
 
   <!-- Les modules React utilisent Babel (JSX) -->
-  <script type="text/babel" data-presets="env,react" src="js/utils.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/adapter.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/compute.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/ui.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/dnd.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/auth.js?v=613"></script>
+  <script type="text/babel" data-presets="env,react" src="js/utils.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/adapter.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/compute.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/ui.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/dnd.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/auth.js?v=614"></script>
   <!-- settings.js doit être chargé avant checking.js et investments.js : il définit RecurringList et EtfsList -->
-  <script type="text/babel" data-presets="env,react" src="js/settings.js?v=613"></script>
+  <script type="text/babel" data-presets="env,react" src="js/settings.js?v=614"></script>
   <!-- backups.js après settings.js : réutilise compute/adapter/ui, et
        fournit BackupsCard rendu par SettingsView + maybeAutoBackup (app.js) -->
-  <script type="text/babel" data-presets="env,react" src="js/backups.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/checking.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/savings.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/physical.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/investments.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/consolidated.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/search.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/charges.js?v=613"></script>
-  <script type="text/babel" data-presets="env,react" src="js/app.js?v=613"></script>
+  <script type="text/babel" data-presets="env,react" src="js/backups.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/checking.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/savings.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/physical.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/investments.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/consolidated.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/search.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/charges.js?v=614"></script>
+  <script type="text/babel" data-presets="env,react" src="js/app.js?v=614"></script>
 
   <!-- Service worker (mode hors ligne, v522) : enregistré après « load »
        pour ne pas concurrencer le démarrage. sw.js est volontairement
