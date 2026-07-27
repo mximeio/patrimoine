@@ -1,0 +1,189 @@
+# ============================================================
+#  Compilation JSX + déploiement Pages
+#  À placer dans .github/workflows/deploy.yml
+#  Prérequis : Settings → Pages → Source = « GitHub Actions »
+#
+#  Modèle : le dépôt ne contient QUE des sources. Le workflow assemble le
+#  site dans _site/ (statiques + JSX compilé), y applique le numéro de
+#  version, et le publie comme artefact Pages.
+#
+#  Conséquences, toutes bénéfiques :
+#    - AUCUN commit du robot → pas de risque de boucle, et surtout aucune
+#      dépendance à la question « un push du GITHUB_TOKEN redéclenche-t-il
+#      le déploiement Pages ? » : ici le déploiement est explicite ;
+#    - aucun code compilé dans le dépôt ;
+#    - les sources JSX restent dans js/, comme aujourd'hui — donc RIEN à
+#      réorganiser en local (pas de src/js/) ;
+#    - plus de fenêtre de version mixte : index.html, sw.js et js/ sont
+#      publiés ensemble, dans un seul artefact atomique.
+#
+#  Pas de bundle, volontairement : chaque fichier définit des globals et
+#  l'ordre de chargement d'index.html fait foi (cf. CLAUDE.md §2). On
+#  compile fichier par fichier, sans résolution de dépendances.
+# ============================================================
+name: Compiler et déployer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# cancel-in-progress: false — on ne coupe jamais un déploiement en cours
+# (recommandation GitHub pour Pages) ; les runs s'enchaînent proprement.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Numéro affiché = VERSION_BASE + numéro du run.
+  # PROD : 614 → premier déploiement = v615, dans la continuité du CHANGELOG.
+  # (DEV utilise 900 : voir deploy-DEV.yml.)
+  # ⚠️ Ce compteur est propre à CE fichier de workflow : le renommer le
+  # remettrait à zéro. Si ça arrive, relever VERSION_BASE en conséquence.
+  VERSION_BASE: 614
+  TARGET: es2020
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # enablement: true — active Pages en mode « GitHub Actions » si ce
+      # n'est pas déjà fait. Pratique sur un dépôt neuf : évite d'avoir à
+      # le régler à la main avant le premier run. Si ça échoue (droits,
+      # dépôt privé sans abonnement), le régler dans Settings → Pages.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # ----------------------------------------------------------
+      #  Garde-fous d'entrée — mieux vaut un échec bruyant qu'un
+      #  déploiement silencieusement faux.
+      # ----------------------------------------------------------
+      - name: Vérifier les sources
+        run: |
+          n=$(ls -1 js/*.js 2>/dev/null | wc -l)
+          echo "$n fichiers dans js/"
+          test "$n" -ge 17 || { echo "::error::$n fichier(s) dans js/, 17 attendus."; exit 1; }
+          for f in index.html styles.css sw.js manifest.json manifest-dev.json \
+                   apple-touch-icon.png icon-192.png icon-512.png icon-maskable-512.png; do
+            test -f "$f" || { echo "::error::$f est absent du dépôt."; exit 1; }
+          done
+          # index.html doit être la variante SANS Babel : sinon on déploierait
+          # une app qui recompile dans le navigateur en croyant le contraire.
+          if grep -q 'text/babel' index.html; then
+            echo "::error::index.html contient encore des balises type=\"text/babel\". Dépose la variante sans Babel."; exit 1
+          fi
+          if grep -q '@babel/standalone' index.html sw.js; then
+            echo "::error::index.html ou sw.js référence encore Babel standalone."; exit 1
+          fi
+
+      - name: Attribuer la version
+        id: ver
+        run: |
+          NEW=$(( ${{ env.VERSION_BASE }} + ${{ github.run_number }} ))
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+          echo "version = v$NEW  (base ${{ env.VERSION_BASE }} + run ${{ github.run_number }})"
+
+      # ----------------------------------------------------------
+      #  Assemblage du site dans _site/
+      # ----------------------------------------------------------
+      - name: Copier les fichiers statiques
+        run: |
+          mkdir -p _site/js
+          cp index.html styles.css sw.js manifest.json manifest-dev.json _site/
+          cp ./*.png _site/
+
+      - name: Compiler le JSX
+        run: |
+          for f in js/*.js; do
+            npx --yes esbuild "$f" \
+              --loader:.js=jsx \
+              --target=${{ env.TARGET }} \
+              --outfile="_site/js/$(basename "$f")"
+          done
+          echo "$(ls -1 _site/js/*.js | wc -l) fichiers compilés"
+          # Cible es2020 : NE PAS descendre à safari14, esbuild refuse
+          # (« Transforming destructuring … is not supported yet ») sur 16
+          # des 17 fichiers. Pas de --minify : le code servi reste lisible.
+
+      - name: Appliquer la version
+        run: |
+          # Motif ANCRÉ SUR UN CHIFFRE (« \?v=[0-9]… »). Ne pas élargir aux
+          # lettres en tête : index.html contient un COMMENTAIRE citant
+          # « ?v=NNN » pour documenter le bump ; un motif permissif le
+          # réécrirait et détruirait le sens de la documentation.
+          sed -i -E "s/\?v=[0-9][A-Za-z0-9.]*/?v=${{ steps.ver.outputs.new }}/g" \
+            _site/index.html _site/sw.js
+
+      # ----------------------------------------------------------
+      #  Contrôles de sortie. Remplacent le rituel manuel des compteurs
+      #  21/22 — et en mieux : plutôt qu'un NOMBRE d'occurrences (qui
+      #  change dès qu'on ajoute un fichier), on vérifie des INVARIANTS.
+      # ----------------------------------------------------------
+      - name: Contrôler le site assemblé
+        run: |
+          cd _site
+          NEW="${{ steps.ver.outputs.new }}"
+
+          # 1) une seule version référencée
+          found=$(grep -ohE '\?v=[0-9][A-Za-z0-9.]*' index.html sw.js | sort -u)
+          echo "versions référencées : $found"
+          test "$(printf '%s\n' "$found" | wc -l)" = "1" \
+            || { echo "::error::plusieurs versions coexistent"; exit 1; }
+          test "$found" = "?v=$NEW" \
+            || { echo "::error::version inattendue « $found », attendu « ?v=$NEW »"; exit 1; }
+
+          # 2) chaque fichier compilé est chargé par index.html ET mis en
+          #    cache par sw.js. Un oubli côté sw.js casserait le mode hors
+          #    ligne SANS rien casser en ligne — donc en silence.
+          for f in js/*.js; do
+            b=$(basename "$f")
+            grep -q "js/$b?v=$NEW" index.html \
+              || { echo "::error::$b n'est pas chargé par index.html"; exit 1; }
+            grep -q "js/$b?v=$NEW" sw.js \
+              || { echo "::error::$b est absent de l'APP_SHELL de sw.js"; exit 1; }
+          done
+
+          # 3) le JSX a bien été transformé (une balise résiduelle = compilation
+          #    manquée sur un fichier)
+          if grep -lE '^\s*return \(?\s*<[a-zA-Z]' js/*.js; then
+            echo "::error::du JSX subsiste dans le code compilé"; exit 1
+          fi
+
+          node --check sw.js
+          echo "$(ls -1 js/*.js | wc -l) fichiers contrôlés — OK"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Résumé
+        run: |
+          {
+            echo "### Déploiement v${{ steps.ver.outputs.new }}"
+            echo ""
+            echo "- $(ls -1 _site/js/*.js | wc -l) fichiers compilés (esbuild, cible ${{ env.TARGET }})"
+            echo "- Version appliquée à index.html et sw.js"
+            echo "- Babel absent, APP_SHELL complet, sw.js valide"
+            echo ""
+            echo "Vérifier dans l'app : menu « ⋯ » doit afficher **v${{ steps.ver.outputs.new }}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
