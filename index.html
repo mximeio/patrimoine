@@ -11,11 +11,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <title>Patrimoine</title>
 
-  <!-- Pas de Content-Security-Policy ici : Babel standalone compile les
-       fichiers JSX en injectant des scripts inline, ce qui rend un CSP
-       strict incompatible (il faudrait 'unsafe-inline', annulant la
-       protection). Les autres mesures de sécurité restent en place :
-       SRI sur les CDN, règles Firestore, validation des imports JSON. -->
+  <!-- BUILD PRÉCOMPILÉ (test) : le JSX est compilé en amont par esbuild,
+       Babel standalone n'est plus chargé et n'injecte plus de script inline.
+       Un Content-Security-Policy strict redevient donc possible — non ajouté
+       ici volontairement : un seul changement à la fois. Les autres mesures
+       restent en place : SRI sur les CDN, règles Firestore, validation des
+       imports JSON. -->
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f172a'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12V7H5a2 2 0 0 1 0-4h14v4'/%3E%3Cpath d='M3 5v14a2 2 0 0 0 2 2h16v-5'/%3E%3Cpath d='M18 12a2 2 0 0 0 0 4h4v-4z'/%3E%3C/g%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=614" />
@@ -82,9 +83,6 @@
           integrity="sha384-d1XH4LhwLW8j0l6VXMP8yJabdGY9ZqtZk7k7PaPk5NoUCcZ/hDkL5aaKioKQbcZg"
           src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <script crossorigin="anonymous"
-          integrity="sha384-ezQ6HS3FLspd9te19o2McUV6FAK091+GG7KO54f/R8DKgCDi7fULhapNrd5LY+vG"
-          src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
-  <script crossorigin="anonymous"
           integrity="sha384-ZaR6mWzmJtrRibZ1Vm7SoHFr8OXjyAuGAXalGDKqbxFT18oi/z+oZLIRFkpeNor1"
           src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script crossorigin="anonymous"
@@ -105,25 +103,25 @@
   <script src="js/config.js?v=614"></script>
 
   <!-- Les modules React utilisent Babel (JSX) -->
-  <script type="text/babel" data-presets="env,react" src="js/utils.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/adapter.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/compute.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/ui.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/dnd.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/auth.js?v=614"></script>
+  <script src="js/utils.js?v=614"></script>
+  <script src="js/adapter.js?v=614"></script>
+  <script src="js/compute.js?v=614"></script>
+  <script src="js/ui.js?v=614"></script>
+  <script src="js/dnd.js?v=614"></script>
+  <script src="js/auth.js?v=614"></script>
   <!-- settings.js doit être chargé avant checking.js et investments.js : il définit RecurringList et EtfsList -->
-  <script type="text/babel" data-presets="env,react" src="js/settings.js?v=614"></script>
+  <script src="js/settings.js?v=614"></script>
   <!-- backups.js après settings.js : réutilise compute/adapter/ui, et
        fournit BackupsCard rendu par SettingsView + maybeAutoBackup (app.js) -->
-  <script type="text/babel" data-presets="env,react" src="js/backups.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/checking.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/savings.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/physical.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/investments.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/consolidated.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/search.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/charges.js?v=614"></script>
-  <script type="text/babel" data-presets="env,react" src="js/app.js?v=614"></script>
+  <script src="js/backups.js?v=614"></script>
+  <script src="js/checking.js?v=614"></script>
+  <script src="js/savings.js?v=614"></script>
+  <script src="js/physical.js?v=614"></script>
+  <script src="js/investments.js?v=614"></script>
+  <script src="js/consolidated.js?v=614"></script>
+  <script src="js/search.js?v=614"></script>
+  <script src="js/charges.js?v=614"></script>
+  <script src="js/app.js?v=614"></script>
 
   <!-- Service worker (mode hors ligne, v522) : enregistré après « load »
        pour ne pas concurrencer le démarrage. sw.js est volontairement

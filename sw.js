@@ -67,7 +67,6 @@ const CDN = [
   'https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js',
   'https://unpkg.com/prop-types@15.8.1/prop-types.min.js',
   'https://unpkg.com/recharts@2.12.7/umd/Recharts.js',
-  'https://unpkg.com/@babel/standalone@7.29.7/babel.min.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
