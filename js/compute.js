@@ -192,12 +192,55 @@ function computeSavingsStats(saving) {
   };
 }
 
+// Le mois `month` porte-t-il un remboursement TR auto dont le montant
+// DIFFÈRE de `refundAmount` ? Sert uniquement à savoir si un garde-fou a
+// réellement empêché un changement (→ on le signale à l'utilisateur) ou s'il
+// n'y avait de toute façon rien à faire (→ on se tait).
+function _wouldChangeTRRefund(month, refundAmount) {
+  return (month.operations || []).some(o => {
+    if (o.type !== 'out') return false;
+    if (o.isTRRefund && !o.isComposite) return o.amount !== refundAmount;
+    if (o.isComposite && o.components) {
+      const trComp = o.components.find(c => c.isTRRefund);
+      return !!trComp && trComp.amount !== refundAmount;
+    }
+    return false;
+  });
+}
+
+// Recalcule le remboursement TR auto du mois SUIVANT mKey, d'après les
+// paiements TR de mKey.
+//
+// Renvoie le nombre de mois dont la mise à jour a été REFUSÉE par un
+// garde-fou (0 ou 1) — updateTRRefundsCascade totalise, l'appelant en fait
+// un toast. Sans ce retour, un saut serait invisible et passerait pour un bug.
 function updateTRRefundsForMonth(checking, mKey) {
-  if (checking.settings.trEnabled === false) return;
+  if (checking.settings.trEnabled === false) return 0;
   const next = nextMonthKey(mKey);
   const nextMonth = checking.months[next];
-  if (!nextMonth) return;
+  if (!nextMonth) return 0; // mois pas encore créé : instantiateRecurring s'en chargera
   const refundAmount = -trUserShare(checking.settings, checking.months[mKey] || { tr: [] });
+
+  // ⚠️ DEUX GARDE-FOUS — ne pas les retirer (bug mesuré le 28/07/2026).
+  //
+  // 1) Mois figé = lecture seule. Le garde-fou de gel de checking.js vit dans
+  //    updateMonth et ne protège que le mois ÉDITÉ ; la cascade, elle,
+  //    traverse tous les mois en aval. Sans ce test, défiger un mois ancien
+  //    puis l'éditer réécrivait 12 mois FIGÉS.
+  //
+  // 2) Mois révolu = intouchable, même défigé. Raison de fond : le taux TR
+  //    n'est PAS historisé — trUserShare ne lit que settings.trFaceValue /
+  //    trOwnShare, la valeur du JOUR. Or elle a changé (55 % de 2025-05 à
+  //    2026-05, valeur faciale de 10 € ; 45,08 % depuis 2026-06). Recalculer
+  //    un mois passé lui appliquerait donc un taux qui n'avait pas cours :
+  //    +173,01 € de sorties sur la série réelle, en silence.
+  //    Contrepartie assumée : saisir des TR d'un mois révolu ne met plus à
+  //    jour le mois suivant tout seul — il faut le défiger et le corriger à
+  //    la main. Cf. CLAUDE.md §10 et §11 LOT 1 point 5.
+  if (nextMonth.frozen || next < currentMonthKey()) {
+    return _wouldChangeTRRefund(nextMonth, refundAmount) ? 1 : 0;
+  }
+
   // Modèle unifié : operations[] filtré sur les sorties.
   const exits = (nextMonth.operations || []).filter(o => o.type === 'out');
   exits.forEach(e => {
@@ -211,19 +254,26 @@ function updateTRRefundsForMonth(checking, mKey) {
       }
     }
   });
+  return 0;
 }
 
 // Propage le recalcul des TR auto sur TOUS les mois à partir de startKey
 // (inclus). Utile quand on édite un mois ancien : le TR auto du mois M+1
 // dépend du mois M, lui-même peut alimenter M+2, etc. Itère sur tous les
 // mois connus triés.
+//
+// Renvoie le NOMBRE de mois qu'un garde-fou a protégés (figés ou révolus).
+// L'appelant doit en informer l'utilisateur : un recalcul silencieusement
+// abandonné se lit comme un bug.
 function updateTRRefundsCascade(checking, startKey) {
-  if (checking.settings.trEnabled === false) return;
+  if (checking.settings.trEnabled === false) return 0;
   const sortedKeys = Object.keys(checking.months).sort();
+  let skipped = 0;
   for (const k of sortedKeys) {
     if (k < startKey) continue;
-    updateTRRefundsForMonth(checking, k);
+    skipped += updateTRRefundsForMonth(checking, k);
   }
+  return skipped;
 }
 
 function hasTRInItem(item) {

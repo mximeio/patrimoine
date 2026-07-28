@@ -11,10 +11,59 @@ function searchNormalize(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+// v617 — Taille d'une PAGE de résultats par module. Le premier rendu s'arrête
+// là (sans elle, taper une seule lettre construisait 1 695 boutons à chaque
+// frappe), mais un bouton "Afficher 50 de plus" cumule les pages : aucun
+// résultat ne devient inatteignable. Indispensable, car on ne peut pas toujours
+// affiner — les 93 résultats de "carrefour" s'appellent TOUS "Carrefour".
+const SEARCH_PAGE_SIZE = 50;
+
+// v617 — Fenêtre de voisinage des montants (rang 3) : ±3 %, jamais moins de
+// 0,20 €. Le plancher couvre les petits montants, où le pourcentage seul ferait
+// moins d'un centime ; il agit sous 6,67 € (0,20 / 0,03), le pourcentage prend
+// le relais ensuite. Un écart d'un centime reste ainsi TOUJOURS dans la fenêtre.
+//
+// ⚠️ LES DEUX VALEURS SONT MESURÉES, pas choisies au hasard. Sur les 31 mois
+// réels, 2 002 requêtes numériques plausibles.
+//
+// Le POURCENTAGE, à plancher constant :
+//     ±1 % → 3,2 % de requêtes sans AUCUN résultat, queue médiane  2 lignes
+//     ±2 % → 0,8 %                                 , queue médiane  6
+//     ±3 % → 0,05 % (1 requête)                    , queue médiane 10
+//     ±5 % → 0,05 %                                , queue médiane 19
+// ⇒ au-delà de 3 % la couverture ne gagne PLUS rien alors que la queue double :
+// "25.9" passerait de 22 à 76 résultats, et sur 12 requêtes typiques on
+// passerait de 283 à 431 lignes réellement affichées pour UNE requête sauvée.
+// Ne pas remonter à 5 % « pour être sûr ».
+//
+// Le PLANCHER, à 3 % constant (lignes affichées sur 12 requêtes typiques) :
+//     0,05 → 1 requête vide, 283 lignes      0,20 → 0 vide, 283 lignes  ← retenu
+//     0,15 → 0 vide,         283 lignes      0,30 → 0 vide, 284 lignes
+//                                            0,50 → 0 vide, 307 lignes
+// ⇒ le seuil qui élimine la dernière requête vide est 0,15 ; jusqu'à 0,30 le
+// plancher est GRATUIT (les montants sous 7 € sont peu nombreux : 247 lignes).
+// 0,20 laisse donc de la marge sans rien coûter.
+//
+// ⚠️ Ne PAS monter à 0,50. Sur le balayage complet des 2 002 requêtes, 361
+// (18 %) changent de résultat, écart médian +16 lignes et jusqu'à +81 : "9.5"
+// passerait de 8 à 89 résultats, car la fenêtre irait de 9,00 à 10,00 € et
+// avalerait les 26 lignes à 9,99 € ET les 39 à 10,00 € — le point le plus dense
+// des données. Pour ZÉRO gain : aucune requête vide dans les deux cas.
+// (À ne pas confondre avec le bruit de l'ancien réglage, qui venait du
+//  POURCENTAGE à 5 % — "25.9" → 76 résultats — et non du plancher.)
+const AMOUNT_TOLERANCE_PCT = 0.03;
+const AMOUNT_TOLERANCE_FLOOR = 0.20;
+
 // Détecte si la query est numérique (pour match par montant)
+//
+// v617 : le séparateur décimal peut être le DERNIER caractère (`\d*` et non
+// `\d+`). On tape forcément « 10. » avant « 10.50 » ; sans ça, cet état
+// intermédiaire n'était pas reconnu comme un nombre, aucun rang de montant ne
+// s'appliquait, et « 10. » ne renvoyait qu'un match textuel accidentel (le
+// sous-titre « solde 10.00 € » d'un livret). parseFloat('10.') vaut bien 10.
 function searchAsNumber(q) {
   const trimmed = String(q || '').trim();
-  if (!/^-?\d+([.,]\d+)?$/.test(trimmed)) return null;
+  if (!/^-?\d+([.,]\d*)?$/.test(trimmed)) return null;
   return parseFloat(trimmed.replace(',', '.'));
 }
 
@@ -251,6 +300,17 @@ function filterItems(items, query) {
   if (!trimmed) return [];
   const q = searchNormalize(trimmed);
   const numQuery = searchAsNumber(trimmed);
+  // Requête numérique en valeur absolue : les montants sont indexés en absolu
+  // (le signe est porté par amountSign), donc "-25" et "25" doivent se
+  // comporter pareil.
+  const nq = numQuery === null ? null : Math.abs(numQuery);
+  // Forme TEXTE de la requête pour la comparaison "commence par" : la virgule
+  // est acceptée à la saisie, le point fait foi face à toFixed(2).
+  const numText = trimmed.replace(',', '.');
+  const numHasDecimals = numText.includes('.');
+  const tolerance = nq === null
+    ? 0
+    : Math.max(nq * AMOUNT_TOLERANCE_PCT, AMOUNT_TOLERANCE_FLOOR);
 
   const scored = [];
   for (const item of items) {
@@ -259,20 +319,62 @@ function filterItems(items, query) {
     const kw = searchNormalize(item.keywords);
 
     let score = 0;
+    // v617 — RANG du match par montant : 1 exact, 2 commence par, 3 dans la
+    // fenêtre de tolérance, 0 pas un match par montant. `diff` départage à
+    // l'intérieur d'un rang. Un match TEXTUEL garde rang 0 et n'est JAMAIS
+    // reclassé : un libellé contenant "800" reste trouvé par la requête 800.
+    let rank = 0;
+    let diff = 0;
     if (title.startsWith(q)) score = 100;
     else if (title.includes(q)) score = 70;
     else if (kw.includes(q)) score = 60;
-    else if (sub.includes(q)) score = 30;
-    else if (numQuery !== null && item.amount != null) {
+    // v617 — Le SOUS-TITRE n'est PAS consulté sur une requête numérique. Il
+    // contient le libellé du mois, donc l'ANNÉE : « Janvier 2026 · Entrée
+    // pointée » matche "26" via "2026". Et comme ce test précède celui du
+    // montant dans la chaîne else-if, une vraie ligne à 26,48 € était classée
+    // match textuel (score 30) et PERDAIT son rang et sa proximité.
+    // Mesuré : "20" → 1 660 matchs de sous-titre pour 0 montant, "26" → 443
+    // pour 15. Le sous-titre est de la métadonnée DÉRIVÉE (mois, état pointé,
+    // nom du parent) : on ne la cherche jamais en tapant un nombre. Titre et
+    // mots-clés restent consultés, donc « Nasdaq-100 » répond bien à "100".
+    // Rien n'est perdu : le solde d'un livret figure dans son sous-titre, mais
+    // l'item porte aussi son `amount` et ressort donc par le montant.
+    else if (nq === null && sub.includes(q)) score = 30;
+    else if (nq !== null && item.amount != null) {
       const absAmount = Math.abs(item.amount);
-      const diff = Math.abs(absAmount - numQuery);
-      const tolerance = Math.max(numQuery * 0.05, 0.5); // ±5% ou min 0.5 €
-      if (diff <= tolerance) score = 20 - diff; // plus proche = plus haut
+      diff = Math.abs(absAmount - nq);
+      // Rang 1 — exact. Comparaison à 0,005 près : les montants ont 2
+      // décimales, mais une égalité stricte sur des flottants serait fragile.
+      if (diff < 0.005) rank = 1;
+      // Rang 2 — "commence par". Avec décimales : préfixe de l'écriture à 2
+      // décimales ("25.9" → 25,90…25,99). Sans décimale : partie entière
+      // égale ("800" → 800,00 et 800,89, JAMAIS 8 000).
+      else if (numHasDecimals
+        ? absAmount.toFixed(2).startsWith(numText)
+        : Math.trunc(absAmount) === Math.trunc(nq)) rank = 2;
+      // Rang 3 — voisinage. Seul rang qui attrape un montant de l'AUTRE côté
+      // d'un arrondi : "commence par" ne regarde que vers le haut, donc sans
+      // lui, taper 10 perdrait les 9,99 € (26 lignes réelles, à 1 centime).
+      else if (diff <= tolerance) rank = 3;
+      // Tous les rangs de montant partagent le même score : ils passent donc
+      // APRÈS les matchs textuels, et c'est `rank` puis `diff` qui les ordonne.
+      if (rank) score = 20;
     }
-    if (score > 0) scored.push({ item, score });
+    if (score > 0) scored.push({ item, score, rank, diff });
   }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.map(s => s.item);
+
+  // v617 — RIEN N'EST ÉCARTÉ, tout est CLASSÉ : exacts, puis "commence par",
+  // puis le voisinage du plus proche au plus éloigné. Une version antérieure
+  // ne gardait que les exacts quand il en existait ; c'était asymétrique et
+  // ça cachait de l'information atteignable par aucun autre moyen (taper 10
+  // masquait 9,99 €). La longueur de la liste est traitée par la pagination
+  // de SearchModal, pas en jetant des résultats.
+  // Tri à trois clés : score (textuel avant montant), puis rang, puis écart.
+  scored.sort((a, b) => (b.score - a.score) || (a.rank - b.rank) || (a.diff - b.diff));
+  // Le rang voyage avec l'item (copie superficielle — surtout NE PAS muter
+  // l'item, il appartient au tableau mémoïsé allItems) pour que le rendu
+  // puisse marquer les exacts et insérer le séparateur "montants proches".
+  return scored.map(s => (s.rank ? { ...s.item, _amountRank: s.rank } : s.item));
 }
 
 // ============================================================
@@ -320,6 +422,10 @@ const MODULE_ICONS_NAMES = {
 function SearchModal({ ctx, onClose, onNavigate }) {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(0);
+  // v617 — Nombre de résultats affichés PAR MODULE. Grandit d'une page à
+  // chaque clic sur "Afficher 50 de plus", et repart à une page dès que la
+  // requête change (effet plus bas, à côté du reset de `focused`).
+  const [shown, setShown] = useState(SEARCH_PAGE_SIZE);
 
   const allItems = useMemo(() => collectSearchItems(ctx), [
     ctx.checkingAccounts, ctx.savings, ctx.portfolios, ctx.physical, ctx.profile,
@@ -335,27 +441,67 @@ function SearchModal({ ctx, onClose, onNavigate }) {
       if (!groups[r.module]) groups[r.module] = [];
       groups[r.module].push(r);
     }
-    // Tri stable : on garde l'ordre relatif des items sans date entre eux,
-    // et l'ordre des dates pour ceux qui en ont (récents → anciens).
-    for (const m of Object.keys(groups)) {
-      groups[m].sort((a, b) => {
-        const aHas = !!a.monthKey;
-        const bHas = !!b.monthKey;
-        if (!aHas && !bHas) return 0;
-        if (!aHas) return -1; // sans date d'abord
-        if (!bHas) return 1;
-        return b.monthKey.localeCompare(a.monthKey); // décroissant (YYYY-MM)
-      });
+    // v617 — Sur une recherche de MONTANT, filterItems a déjà classé par
+    // proximité (score = 20 - écart), qui EST la pertinence dans ce cas.
+    // Re-trier par date détruisait cette information : mesuré sur "25.95",
+    // les deux lignes au montant exact tombaient en 25e et 72e position,
+    // derrière des écarts de 1,05 €. Le tri par date reste en place pour les
+    // recherches textuelles, où le score n'a que 5 paliers et où la date est
+    // un départage utile. Cf. CLAUDE.md §10 et §11 LOT 1 point 2.
+    const isNumericQuery = searchAsNumber(query) !== null;
+    if (!isNumericQuery) {
+      // Tri stable : on garde l'ordre relatif des items sans date entre eux,
+      // et l'ordre des dates pour ceux qui en ont (récents → anciens).
+      for (const m of Object.keys(groups)) {
+        groups[m].sort((a, b) => {
+          const aHas = !!a.monthKey;
+          const bHas = !!b.monthKey;
+          if (!aHas && !bHas) return 0;
+          if (!aHas) return -1; // sans date d'abord
+          if (!bHas) return 1;
+          return b.monthKey.localeCompare(a.monthKey); // décroissant (YYYY-MM)
+        });
+      }
     }
     const order = ['checking', 'savings', 'investments', 'physical'];
-    return order.filter(m => groups[m]).map(m => ({ module: m, items: groups[m] }));
-  }, [results]);
+    // v617 — PAGINATION. Sans borne au premier rendu, taper une seule lettre
+    // construisait 1 695 boutons dans le DOM à CHAQUE frappe (tout l'index :
+    // le sous-titre « Juillet 2026 · Sortie pointée » contient lui aussi un
+    // « e »), sur téléphone. Le bouton "Afficher 50 de plus" rend la suite
+    // atteignable — on ne peut pas toujours affiner la requête.
+    //
+    // ⚠️ La coupe se fait ICI, APRÈS le tri ci-dessus — JAMAIS dans
+    // filterItems. collectSearchItems empile les mois en ordre CROISSANT et
+    // Array.sort est stable : des items de même score sortent de filterItems
+    // du plus ANCIEN au plus récent. Borner là-bas garderait les plus vieux
+    // et jetterait tout le récent.
+    return order.filter(m => groups[m]).map(m => {
+      const all = groups[m];
+      const hidden = Math.max(0, all.length - shown);
+      const items = hidden ? all.slice(0, shown) : all;
+      // v617 — Indice du 1er item du rang 3 (« montants proches »), pour
+      // insérer le séparateur au rendu. -1 s'il n'y a pas de frontière à
+      // montrer : soit aucun voisin affiché, soit QUE des voisins (rien de
+      // plus précis au-dessus, la frontière n'apprendrait rien).
+      const firstNear = items.findIndex(it => it._amountRank === 3);
+      return {
+        module: m,
+        items,
+        total: all.length,
+        hidden,
+        nearBoundary: firstNear > 0 ? firstNear : -1,
+        // Jusqu'où va ce qui n'est pas encore affiché. N'a de sens que trié par
+        // date : sur une recherche de montant, l'ordre est la proximité.
+        hiddenUntil: (hidden && !isNumericQuery && all[all.length - 1].monthLbl) || null,
+      };
+    });
+  }, [results, query, shown]);
 
   // Liste plate pour la navigation clavier
   const flat = useMemo(() => grouped.flatMap(g => g.items), [grouped]);
 
-  // Reset le focus quand la query change
-  useEffect(() => { setFocused(0); }, [query]);
+  // Reset le focus ET la pagination quand la query change
+  useEffect(() => { setFocused(0); setShown(SEARCH_PAGE_SIZE); }, [query]);
 
   // Navigation clavier
   useEffect(() => {
@@ -417,6 +563,10 @@ function SearchModal({ ctx, onClose, onNavigate }) {
 
   // Scroll auto pour garder l'élément focusé visible
   const resultsRef = useRef(null);
+  // v617 — L'appui initial a-t-il eu lieu SUR LE FOND ? Cf. le commentaire de
+  // l'overlay plus bas : sans ça, sélectionner le texte du champ et relâcher
+  // hors de la fenêtre fermait la recherche. Même mécanique que `Modal` (ui.js).
+  const downOnBackdropRef = useRef(false);
   useEffect(() => {
     if (!resultsRef.current) return;
     const el = resultsRef.current.querySelector('.search-result.focused');
@@ -429,7 +579,20 @@ function SearchModal({ ctx, onClose, onNavigate }) {
   const hasQuery = query.trim().length > 0;
 
   return (
-    <div className="search-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    // ⚠️ Fermeture au clic sur le fond : le test `target === currentTarget` ne
+    // SUFFIT PAS. Un événement `click` se déclenche sur l'ANCÊTRE COMMUN du
+    // mousedown et du mouseup ; presser dans le champ puis relâcher hors de la
+    // fenêtre (fin de sélection de texte) désigne donc l'overlay comme cible et
+    // fermait la recherche en plein travail. On exige que l'appui AUSSI ait eu
+    // lieu sur le fond. Même correctif que `Modal` (ui.js), qui l'avait déjà.
+    <div
+      className="search-overlay"
+      onMouseDown={(e) => { downOnBackdropRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
+        downOnBackdropRef.current = false;
+      }}
+    >
       <div className="search-modal" role="dialog" aria-modal="true" aria-label="Recherche">
         <div className="search-input-wrap">
           <span className="search-input-icon"><Icon name="search" size={18} /></span>
@@ -484,7 +647,11 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                   <div className="search-group-title">
                     <Icon name={MODULE_ICONS_NAMES[g.module]} size={12} />
                     {getModuleLabel(g.module, ctx.profile)}
-                    <span className="search-group-count">· {g.items.length}</span>
+                    {/* v617 : "50 sur 93" quand le groupe est borné, pour que la
+                        troncature se voie AUSSI ici et pas seulement en pied. */}
+                    <span className={`search-group-count${g.hidden ? ' trunc' : ''}`}>
+                      · {g.hidden ? `${g.items.length} sur ${g.total}` : g.items.length}
+                    </span>
                   </div>
                   {g.items.map((item, i) => {
                     const flatIdx = startIdx + i;
@@ -493,8 +660,14 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                     // jaune derrière l'icône note (même jaune que le surlignage).
                     const noteHit = !!item.note && searchNormalize(item.note).includes(searchNormalize(query));
                     return (
+                      <React.Fragment key={flatIdx}>
+                      {/* v617 : frontière entre les montants qui correspondent
+                          vraiment (exacts + "commence par") et le simple
+                          voisinage. Rend visible où le pertinent s'arrête. */}
+                      {i === g.nearBoundary && (
+                        <div className="search-near-sep">montants proches</div>
+                      )}
                       <button
-                        key={flatIdx}
                         className={`search-result${isFocused ? ' focused' : ''}`}
                         onClick={() => onNavigate(item.target)}
                         onMouseEnter={() => setFocused(flatIdx)}
@@ -512,6 +685,12 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                                   </>)
                                 : highlightMatch(item.title, query)}
                             </span>
+                            {/* Pas de marqueur "exact" : le montant est déjà affiché
+                                à droite de la ligne, donc la pastille n'apprenait
+                                rien (39 pastilles vertes sur une recherche de "10").
+                                Le séparateur "montants proches", lui, est conservé :
+                                il dit ce que la ligne ne montre pas — en dessous, les
+                                montants ne correspondent plus à la frappe. */}
                             {item.note && <InfoTip iconName="comment" size={13} label={item.note} className={`search-note${noteHit ? ' note-hit' : ''}`} popClassName="infotip-pop--wrap" />}
                           </div>
                           <div className="search-result-sub">{renderSearchSub(item)}</div>
@@ -522,8 +701,27 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                           </div>
                         )}
                       </button>
+                      </React.Fragment>
                     );
                   })}
+                  {/* v617 : la troncature est annoncée ET franchissable. Un
+                      simple avertissement rendait l'information inatteignable :
+                      on ne peut pas affiner "carrefour", ses 93 résultats
+                      s'appellent tous "Carrefour". */}
+                  {g.hidden > 0 && (
+                    <button
+                      type="button"
+                      className="search-more"
+                      onClick={() => setShown(s => s + SEARCH_PAGE_SIZE)}
+                    >
+                      <Icon name="arrowDown" size={14} />
+                      <span>
+                        Afficher {Math.min(g.hidden, SEARCH_PAGE_SIZE)} de plus
+                        {' '}— <strong>{g.hidden} restants</strong>
+                        {g.hiddenUntil ? `, jusqu'à ${g.hiddenUntil}` : ''}
+                      </span>
+                    </button>
+                  )}
                 </div>
               );
             })}

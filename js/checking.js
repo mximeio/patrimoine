@@ -411,12 +411,20 @@ function CheckingView({ ctx, onBack }) {
     // 1) Le mois courant peut avoir un TR auto qui pointe sur curKey-1
     //    (cas d'une ligne TR auto créée ad-hoc) : on recalcule à partir
     //    du mois précédent.
-    updateTRRefundsForMonth(newChecking, prevMonthKey(curKey));
+    let trSkipped = updateTRRefundsForMonth(newChecking, prevMonthKey(curKey));
     // 2) Les mois suivants peuvent dépendre en chaîne du mois courant.
     //    On propage la cascade pour qu'une modif aujourd'hui se reflète
     //    sur tous les mois en aval (pas seulement curKey+1).
-    updateTRRefundsCascade(newChecking, curKey);
+    trSkipped += updateTRRefundsCascade(newChecking, curKey);
     updateCheckingData(newChecking);
+    // Les garde-fous de compute.js ont pu refuser d'écrire dans des mois figés
+    // ou révolus (leur taux TR d'époque n'est pas recalculable — cf. §10).
+    // On le DIT : sinon l'utilisateur croirait à un recalcul manquant.
+    if (trSkipped > 0) {
+      showToast(
+        `Remboursement TR non recalculé sur ${trSkipped} mois — figé${trSkipped > 1 ? 's' : ''} ou révolu${trSkipped > 1 ? 's' : ''}`
+      );
+    }
   };
 
   // Gel / dégel du mois (v485). Confirmations en confirm() natif, comme

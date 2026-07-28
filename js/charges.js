@@ -400,7 +400,14 @@ function ChargesModal({ ctx, onClose }) {
   }, [data]);
 
   const people = data.people;
-  const [activeId, setActiveId] = useState(data.scenarios[0]?.id);
+  // v617 — On ouvre sur le scénario de RÉFÉRENCE (celui marqué ★), pas sur le
+  // premier du tableau : la référence est le scénario canonique, c'est celui
+  // qu'on veut voir en arrivant. Sans ça, le module s'ouvrait sur scenarios[0]
+  // par simple effet de bord de l'ordre de stockage (cas réel : ouverture sur
+  // « Rennes » alors que la référence était « Paris »).
+  // Sûr : baselineScenarioId est validé à l'initialisation de `data` ci-dessus
+  // (repli sur scenarios[0].id si l'id stocké ne correspond à aucun scénario).
+  const [activeId, setActiveId] = useState(data.baselineScenarioId);
   const active = data.scenarios.find(s => s.id === activeId) || data.scenarios[0];
 
   // ---- Mutateurs ----

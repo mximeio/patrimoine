@@ -2311,6 +2311,43 @@ input[type="month"] {
   display: flex; align-items: center; gap: 8px;
 }
 .search-group-count { color: var(--text-subtle); font-weight: 500; }
+/* v617 — Groupe paginé : "50 sur 93" passe en accent pour se remarquer. */
+.search-group-count.trunc { color: var(--accent); font-weight: 600; }
+/* v617 — Bouton de pagination en pied de groupe. Bordure tiretée pour le
+   distinguer d'une ligne de résultat, mais bien cliquable : sans lui, les
+   résultats au-delà de la 1re page seraient inatteignables. */
+.search-more {
+  display: flex; align-items: center; gap: 8px;
+  width: calc(100% - 40px);
+  margin: 6px 20px 4px; padding: 9px 12px;
+  background: var(--surface-alt);
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  font-size: 12px; color: var(--text-muted);
+  line-height: 1.45; text-align: left;
+  font-family: inherit; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.search-more:hover {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.search-more strong { color: var(--text-light); font-weight: 600; }
+.search-more:hover strong { color: var(--accent); }
+.search-more svg { flex: 0 0 auto; }
+/* v617 — Frontière entre les montants qui correspondent vraiment (exacts +
+   "commence par") et le simple voisinage à ±1 %. */
+.search-near-sep {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 20px 4px;
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-subtle);
+}
+.search-near-sep::after {
+  content: ""; flex: 1; height: 1px; background: var(--border);
+}
 .search-result {
   display: grid;
   grid-template-columns: 32px 1fr auto;
