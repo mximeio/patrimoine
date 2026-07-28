@@ -14,12 +14,21 @@
 //  Reproduit la logique du fichier Charges.xlsx (scénarios Rennes/Paris).
 // ============================================================
 
-// Deux personnes fixes (libellés éditables). Pas d'ajout/suppression de
-// personne pour l'instant — la logique de répartition est pensée pour 2.
+// Deux personnes fixes (libellés éditables dans l'app). Pas d'ajout/suppression
+// de personne pour l'instant — la logique de répartition est pensée pour 2.
+//
+// ⚠️ NE PAS y remettre de vrais prénoms. Ce dépôt est PUBLIC : tout ce qui est
+// écrit ici est lisible par n'importe qui. Les libellés réels vivent dans le
+// document Firestore partagé `joint/main` (champ `people`), protégé par les
+// règles Firestore et donc privé.
+//
+// Ces valeurs ne servent que de REPLI, si `joint/main` n'a pas de `people`
+// valide (cf. l'appel plus bas) — auquel cas la première édition dans l'app les
+// persisterait en base. Elles sont donc du code mort dès que `people` existe.
 function DEFAULT_PEOPLE() {
   return [
-    { id: 'p1', label: 'Maxime L', color: '#f59e0b' },   // copain
-    { id: 'p2', label: 'Maxime LJ', color: '#10b981' },  // toi
+    { id: 'p1', label: 'Personne 1', color: '#f59e0b' },
+    { id: 'p2', label: 'Personne 2', color: '#10b981' },
   ];
 }
 
@@ -139,7 +148,7 @@ const personLightAt = (i) => PERSON_COLORS_LIGHT[i] || (i === 0 ? '#fffbeb' : '#
 
 // Montant avec le « € » en symbole atténué (cohérent avec le reste de l'app).
 const eurEl = (n) => <>{fmt(n)} <span className="cur">€</span></>;
-// Initiales du libellé (ex. "Maxime L" → "ML", "Maxime LJ" → "MLJ").
+// Initiales du libellé (ex. "Jean Dupont" → "JD", "Marie-Claire B" → "MCB").
 const initials = (label) => {
   const caps = (label || '').match(/[A-ZÀ-Ý]/g);
   if (caps && caps.length) return caps.join('').slice(0, 3);
