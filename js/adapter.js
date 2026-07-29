@@ -54,21 +54,36 @@ function migrateCheckingShape(data) {
   if (!data) return data;
 
   // 1) Migration des months : entries + exits → operations
+  //
+  // ⚠️ Le spread recopie TOUT le mois — il faut donc retirer explicitement
+  // entries/exits une fois operations[] construit. Sans ce retrait, les
+  // champs hérités survivent à l'aller-retour lecture → state → écriture et
+  // se réécrivent indéfiniment, même après la suppression de la double
+  // écriture : c'est la LECTURE qui les faisait revenir, pas l'écriture.
+  // (Mesuré sur DEV : 31/31 mois, 108 230 o réécrits à chaque modification.)
+  // Personne ne les lit après normalisation — les trois replis qui les
+  // consultent encore (compute.js `createMonthData`, search.js ×2) sont
+  // gardés par un `Array.isArray(operations)` et ne s'appliquent qu'à des
+  // données NON normalisées. Ils restent en place, c'est leur rôle de filet.
   const newMonths = {};
   for (const [key, m] of Object.entries(data.months || {})) {
+    let month;
     if (Array.isArray(m.operations)) {
       // Déjà au bon format. On s'assure quand même qu'aucune op (ni
       // composante) n'a un id manquant — sécurité contre les très vieilles
       // données issues d'une époque où on ne posait pas d'id.
       const operations = m.operations.map(o => _normalizeOp(o, o.type || 'out'));
-      newMonths[key] = { ...m, operations };
+      month = { ...m, operations };
     } else {
       const operations = [
         ...(Array.isArray(m.entries) ? m.entries.map(e => _normalizeOp(e, 'in')) : []),
         ...(Array.isArray(m.exits)   ? m.exits.map(e   => _normalizeOp(e, 'out')) : []),
       ];
-      newMonths[key] = { ...m, operations, tr: (m.tr || []).map(t => { const tt = { ...t }; _ensureId(tt); return tt; }) };
+      month = { ...m, operations, tr: (m.tr || []).map(t => { const tt = { ...t }; _ensureId(tt); return tt; }) };
     }
+    delete month.entries;
+    delete month.exits;
+    newMonths[key] = month;
   }
 
   // 2) Migration des récurrents : recurringIncome + recurringExpense → recurringOperations
@@ -84,109 +99,45 @@ function migrateCheckingShape(data) {
     // Garantir id sur les récurrents existants aussi (sécurité).
     newSettings = { ...settings, recurringOperations: settings.recurringOperations.map(r => _normalizeOp(r, r.type || 'out')) };
   }
+  // Même raison que pour les months : sans ce retrait, les récurrents hérités
+  // se réécrivent à chaque modification du compte.
+  newSettings = { ...newSettings };
+  delete newSettings.recurringIncome;
+  delete newSettings.recurringExpense;
 
   return { ...data, months: newMonths, settings: newSettings };
 }
 
 // ============================================================
-//  Double écriture (compat descendante)
-//  Ajoute les anciens champs entries/exits + recurringIncome/recurringExpense
-//  dans le doc Firestore, dérivés de operations[] et recurringOperations[].
-//  Ainsi une version PRÉCÉDENTE de l'app (qui ne connaît pas operations[])
-//  peut continuer à lire les données correctement → rollback possible à
-//  tout moment sans perte apparente de données.
-//  La nouvelle version prioritise toujours operations[] à la lecture
-//  (cf. migrateCheckingShape), donc ces champs legacy ne perturbent rien.
+//  Double écriture descendante — RETIRÉE (chantier §11 « étape 1 »).
+//
+//  Jusqu'ici, `withLegacyShape` réinjectait à CHAQUE écriture les anciens
+//  champs entries/exits (par mois) et recurringIncome/recurringExpense,
+//  dérivés de operations[]/recurringOperations[], pour qu'une version de
+//  l'app antérieure à operations[] (~v182) puisse relire le doc en cas de
+//  rollback. Sur les 31 mois réels, ces champs dérivés pesaient 110 463 o
+//  sur 249 284 o : chaque case cochée les retéléversait, et chaque
+//  ouverture de l'app les retéléchargeait.
+//
+//  Ce rollback n'est plus plausible (prod alignée, SW qui force la mise à
+//  jour), et le `.set()` étant complet, la première écriture suffit à faire
+//  disparaître ces champs du document.
+//
+//  ⚠️ La LECTURE de ces champs reste en place — `migrateCheckingShape`
+//  ci-dessus continue de convertir entries/exits → operations[]. Sans elle,
+//  plus aucune sauvegarde ni aucun export ancien ne serait restaurable : les
+//  sauvegardes stockées et le fichier d'historique sont au vieux format.
+//  Ne pas la retirer en croyant finir le ménage.
+//
+//  Réversible : ces champs sont *dérivés*, remettre la fonction les
+//  régénérerait intégralement à l'écriture suivante.
+//
+//  Retirée en même temps : `_checkingDocNeedsHeal` et sa boucle
+//  d'auto-réparation dans `subscribeCheckingAccounts`, qui ne servaient
+//  qu'à garder ces champs dérivés cohérents (ids présents, pas de `type`
+//  résiduel) — et qui déclenchaient au passage une écriture complète
+//  silencieuse au chargement.
 // ============================================================
-function withLegacyShape(data) {
-  if (!data || typeof data !== 'object') return data;
-  const out = { ...data };
-  // 1) months : dériver entries/exits depuis operations
-  if (out.months && typeof out.months === 'object') {
-    const newMonths = {};
-    // Approche défensive : Babel standalone compile MAL le destructuring
-    // rest pattern `{ type: _t, ...rest } = o` (cf. bug observé v=182 :
-    // le compilateur retirait `id` au lieu de `type` !). On clone l'objet
-    // à la main pour garantir le comportement attendu.
-    const stripType = (o) => {
-      const out = {};
-      for (const k in o) {
-        if (Object.prototype.hasOwnProperty.call(o, k) && k !== 'type') {
-          out[k] = o[k];
-        }
-      }
-      return out;
-    };
-    for (const [k, m] of Object.entries(out.months)) {
-      if (!m || typeof m !== 'object') { newMonths[k] = m; continue; }
-      if (Array.isArray(m.operations)) {
-        const derivedEntries = m.operations.filter(o => o.type === 'in').map(stripType);
-        const derivedExits   = m.operations.filter(o => o.type === 'out').map(stripType);
-        newMonths[k] = { ...m, entries: derivedEntries, exits: derivedExits };
-      } else {
-        newMonths[k] = m;
-      }
-    }
-    out.months = newMonths;
-  }
-  // 2) settings : dériver recurringIncome/recurringExpense depuis recurringOperations
-  if (out.settings && typeof out.settings === 'object') {
-    const rops = out.settings.recurringOperations;
-    if (Array.isArray(rops)) {
-      // Même approche défensive que pour les months (cf. bug Babel).
-      const stripType = (r) => {
-        const obj = {};
-        for (const k in r) {
-          if (Object.prototype.hasOwnProperty.call(r, k) && k !== 'type') {
-            obj[k] = r[k];
-          }
-        }
-        return obj;
-      };
-      out.settings = {
-        ...out.settings,
-        recurringIncome:  rops.filter(r => r.type === 'in').map(stripType),
-        recurringExpense: rops.filter(r => r.type === 'out').map(stripType),
-      };
-    }
-  }
-  return out;
-}
-
-// Détecte si un doc compte courant nécessite une auto-réparation : ie son
-// operations[] a des ids mais ses entries[]/exits[] dérivés n'en ont pas
-// (ou ses recurringOperations vs recurringIncome/Expense). Un rollback
-// vers une ancienne version (qui lit entries/exits) tomberait alors
-// sur des ids manquants → bugs de findIndex.
-function _checkingDocNeedsHeal(raw) {
-  if (!raw || typeof raw !== 'object') return false;
-  // 1) months
-  if (raw.months && typeof raw.months === 'object') {
-    for (const m of Object.values(raw.months)) {
-      if (!m || typeof m !== 'object') continue;
-      const ops = Array.isArray(m.operations) ? m.operations : [];
-      if (ops.length === 0) continue;
-      const entries = Array.isArray(m.entries) ? m.entries : [];
-      const exits   = Array.isArray(m.exits)   ? m.exits   : [];
-      // Si on a des entries/exits mais qu'au moins un n'a pas d'id, on heal.
-      if (entries.some(e => !e || !e.id) || exits.some(e => !e || !e.id)) return true;
-      // Idem : présence d'un champ `type` résiduel dans entries/exits (qui
-      // ne devrait plus exister après stripType).
-      if (entries.some(e => e && e.type !== undefined) || exits.some(e => e && e.type !== undefined)) return true;
-    }
-  }
-  // 2) settings.recurringOperations vs recurringIncome/Expense
-  if (raw.settings && typeof raw.settings === 'object') {
-    const rops = Array.isArray(raw.settings.recurringOperations) ? raw.settings.recurringOperations : [];
-    if (rops.length > 0) {
-      const ri = Array.isArray(raw.settings.recurringIncome) ? raw.settings.recurringIncome : [];
-      const re = Array.isArray(raw.settings.recurringExpense) ? raw.settings.recurringExpense : [];
-      if (ri.some(r => !r || !r.id) || re.some(r => !r || !r.id)) return true;
-      if (ri.some(r => r && r.type !== undefined) || re.some(r => r && r.type !== undefined)) return true;
-    }
-  }
-  return false;
-}
 
 const DEFAULT_PORTFOLIO_DATA = {
   etfs: [],
@@ -385,11 +336,8 @@ const Adapter = {
         ...(extras.settings || {}),
       },
     };
-    // Compat descendante : on écrit aussi entries/exits + recurringIncome/recurringExpense
-    // pour qu'une ancienne version de l'app puisse lire le doc en cas de rollback.
-    const legacy = withLegacyShape(payload);
     await ref.set({
-      ...legacy,
+      ...payload,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
@@ -416,10 +364,12 @@ const Adapter = {
         }
       } catch (_) { /* meilleur effort : si la lecture échoue, on continue */ }
     }
-    // Compat descendante : double écriture (operations + entries/exits, etc.)
-    const legacy = withLegacyShape(rest);
+    // Écriture au seul format courant (operations[] / recurringOperations[]) :
+    // la double écriture descendante a été retirée, cf. le bandeau en tête de
+    // fichier. Le `.set()` étant complet, les champs entries/exits hérités
+    // disparaissent du document dès cette première écriture.
     await this._checkingAccountsCol(uidStr).doc(id).set({
-      ...legacy,
+      ...rest,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   },
@@ -633,31 +583,10 @@ const Adapter = {
     // un fantôme. La migration legacy ne doit s'exécuter qu'au COLD
     // boot d'un user qui n'a jamais eu de comptes courants.
     let seenAnyAccount = false;
-    // IDs des docs déjà auto-healés dans cette session (évite re-écriture
-    // en boucle si plusieurs snaps arrivent pour le même doc).
-    const healedDocs = new Set();
     return this._checkingAccountsCol(uidStr).onSnapshot(async (snap) => {
       if (!snap.empty) {
         seenAnyAccount = true;
-        const accounts = snap.docs.map(d => this._normalizeCheckingAccount(d.id, d.data()));
-        onChange(accounts);
-        // Auto-heal : pour les comptes dont le doc Firestore n'a pas les
-        // ids dans entries/exits (et donc n'est pas rollback-safe), on
-        // déclenche silencieusement un write qui re-applique la double
-        // écriture cohérente. Le state React contient déjà les ids
-        // générés par migrateCheckingShape, on les persiste juste.
-        for (let i = 0; i < snap.docs.length; i++) {
-          const doc = snap.docs[i];
-          if (healedDocs.has(doc.id)) continue;
-          if (_checkingDocNeedsHeal(doc.data())) {
-            healedDocs.add(doc.id);
-            try {
-              await this.updateCheckingAccount(uidStr, doc.id, accounts[i]);
-            } catch (e) {
-              console.warn('[auto-heal] échec sur ' + doc.id, e);
-            }
-          }
-        }
+        onChange(snap.docs.map(d => this._normalizeCheckingAccount(d.id, d.data())));
         return;
       }
       // Collection vide
