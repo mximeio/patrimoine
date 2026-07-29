@@ -236,24 +236,49 @@ function updateTRRefundsForMonth(checking, mKey) {
   //    +173,01 € de sorties sur la série réelle, en silence.
   //    Contrepartie assumée : saisir des TR d'un mois révolu ne met plus à
   //    jour le mois suivant tout seul — il faut le défiger et le corriger à
-  //    la main. Cf. CLAUDE.md §10 et §11 LOT 1 point 5.
+  //    la main. Cf. CLAUDE.md §10.
   if (nextMonth.frozen || next < currentMonthKey()) {
     return _wouldChangeTRRefund(nextMonth, refundAmount) ? 1 : 0;
   }
 
-  // Modèle unifié : operations[] filtré sur les sorties.
-  const exits = (nextMonth.operations || []).filter(o => o.type === 'out');
-  exits.forEach(e => {
-    if (e.isTRRefund && !e.isComposite) {
-      e.amount = refundAmount;
-    } else if (e.isComposite && e.components) {
-      const trComp = e.components.find(c => c.isTRRefund);
-      if (trComp) {
-        trComp.amount = refundAmount;
-        e.amount = r2(e.components.reduce((s, c) => s + (c.amount || 0), 0));
-      }
+  // ⚠️ RÉÉCRITURE IMMUABLE — ne pas « simplifier » en remutant les objets.
+  // Cette fonction reçoit des mois qui sont TOUJOURS partagés avec le state
+  // React `checkingAccounts` (les appelants ne copient que l'objet `months`,
+  // pas les mois eux-mêmes). Muter `e.amount` modifiait donc le state en
+  // place ; invisible tant qu'un setState suivait, mais deux conséquences :
+  //  1) plus aucune mutation d'état partagé ;
+  //  2) l'IDENTITÉ de `checking.months[next]` ne change QUE si un montant a
+  //     réellement bougé. C'est ce qui permet à l'appelant de savoir quels
+  //     mois écrire par simple comparaison de références — sans compter les
+  //     visites, qui sur-déclareraient (piège c du §11 : cette fonction
+  //     réaffecte les composantes même quand la valeur est identique).
+  // Le mois est reconstruit, jamais les mois voisins : `checking.months` est
+  // un objet frais chez tous les appelants (ils font `{ ...checking.months }`),
+  // donc l'affectation ci-dessous ne touche pas le state.
+  let changed = false;
+  const operations = (nextMonth.operations || []).map(o => {
+    if (o.type !== 'out') return o;
+    if (o.isTRRefund && !o.isComposite) {
+      if (o.amount === refundAmount) return o;
+      changed = true;
+      return { ...o, amount: refundAmount };
     }
+    if (o.isComposite && o.components) {
+      const i = o.components.findIndex(c => c.isTRRefund);
+      if (i < 0) return o;
+      const components = o.components.slice();
+      components[i] = { ...components[i], amount: refundAmount };
+      const total = r2(components.reduce((s, c) => s + (c.amount || 0), 0));
+      // Le total est recalculé même quand la composante TR n'a pas bougé
+      // (comportement d'origine : il rattrape un composite désynchronisé) —
+      // mais on ne remplace l'objet que si l'un des deux diffère vraiment.
+      if (o.components[i].amount === refundAmount && o.amount === total) return o;
+      changed = true;
+      return { ...o, components, amount: total };
+    }
+    return o;
   });
+  if (changed) checking.months[next] = { ...nextMonth, operations };
   return 0;
 }
 

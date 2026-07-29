@@ -7,11 +7,13 @@
    déjà hors ligne via la persistance Firestore (adapter.js,
    enablePersistence) : ce fichier ne s'occupe QUE des fichiers.
 
-   Mise à jour : la chaîne '?v=NNN' ci-dessous est réécrite par
-   le MÊME sed que le cache-busting d'index.html — la routine de
-   bump doit donc s'appliquer à index.html ET sw.js. Un bump
-   change le contenu de ce fichier → le navigateur installe un
-   nouveau SW en arrière-plan → l'app affiche le toast PERSISTANT
+   Mise à jour : la chaîne de version ci-dessous est un PLACEHOLDER,
+   réécrite par le workflow GitHub à chaque publication — dans ce
+   fichier ET dans index.html, qui portent donc toujours le même
+   numéro. Depuis la v615 il n'y a PLUS de sed de bump local, et
+   rien à maintenir à la main ici (cf. CLAUDE.md §8). Un changement
+   de version change le contenu de ce fichier → le navigateur installe
+   un nouveau SW en arrière-plan → l'app affiche le toast PERSISTANT
    « Nouvelle version disponible » (voir app.js) → « Mettre à jour »
    envoie SKIP_WAITING ici, controllerchange recharge la page.
    Pas de « Plus tard » (v548) : les utilisateurs ne ferment jamais
@@ -23,7 +25,7 @@
    toujours pouvoir détecter une nouvelle version).
    ============================================================ */
 
-const VERSION = '?v=614'.replace('?v=', 'v'); // réécrit par le sed de bump
+const VERSION = '?v=614'.replace('?v=', 'v'); // placeholder, réécrit par le workflow
 const CACHE = 'patrimoine-' + VERSION;
 const RUNTIME = 'patrimoine-runtime-' + VERSION;
 
@@ -126,7 +128,7 @@ self.addEventListener('fetch', (event) => {
   if (PASSTHROUGH_HOSTS.indexOf(url.hostname) !== -1) return;
 
   // Navigation (démarrage de la PWA) : RÉSEAU d'abord — index.html n'est
-  // pas versionné, c'est lui qui porte les ?v=NNN — puis cache si hors ligne.
+  // pas versionné, c'est lui qui porte les ?v= des autres — puis cache si hors ligne.
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       try {

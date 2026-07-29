@@ -407,6 +407,9 @@ function CheckingView({ ctx, onBack }) {
     // (Le gel/dégel lui-même passe par freezeMonth/unfreezeMonth, qui
     // écrivent directement via updateCheckingData.)
     if (m.frozen) { showToast('Mois figé — défige-le via le menu ⋯'); return; }
+    // Référence de comparaison : les mois TELS QU'ILS SONT EN BASE, avant la
+    // cascade. Sert à déclarer les mois à écrire, plus bas.
+    const monthsBefore = checking.months;
     const newChecking = { ...checking, months: { ...checking.months, [curKey]: newMonth } };
     // 1) Le mois courant peut avoir un TR auto qui pointe sur curKey-1
     //    (cas d'une ligne TR auto créée ad-hoc) : on recalcule à partir
@@ -416,7 +419,19 @@ function CheckingView({ ctx, onBack }) {
     //    On propage la cascade pour qu'une modif aujourd'hui se reflète
     //    sur tous les mois en aval (pas seulement curKey+1).
     trSkipped += updateTRRefundsCascade(newChecking, curKey);
-    updateCheckingData(newChecking);
+    // ⚠️ ÉCRITURE PARTIELLE — l'ensemble des mois à écrire n'est PAS déductible
+    // du geste : pointer une ligne d'un mois passé n'en touche qu'un, ajouter un
+    // TR sur le mois en cours en touche deux (le mois et le suivant), et les
+    // garde-fous v617 ramènent ce dernier cas à un seul sur un mois révolu. Une
+    // règle « le mois + le suivant » serait fausse dans les deux sens.
+    // On le DÉDUIT donc de ce que la cascade a réellement changé : depuis la
+    // réécriture immuable de `updateTRRefundsForMonth`, un mois ne change
+    // d'identité que si un montant a bougé. Comparer les références suffit — et
+    // c'est ce qui évite de sur-déclarer (la cascade VISITE des mois qu'elle
+    // laisse identiques). Ne pas revenir à un compteur d'affectations.
+    const touched = Object.keys(newChecking.months)
+      .filter(k => newChecking.months[k] !== monthsBefore[k]);
+    updateCheckingData(newChecking, touched);
     // Les garde-fous de compute.js ont pu refuser d'écrire dans des mois figés
     // ou révolus (leur taux TR d'époque n'est pas recalculable — cf. §10).
     // On le DIT : sinon l'utilisateur croirait à un recalcul manquant.
@@ -435,7 +450,9 @@ function CheckingView({ ctx, onBack }) {
     if (unpointed > 0 && !confirm(
       `Figer ${monthLabel(curKey)} ?\n\n${unpointed} opération${unpointed > 1 ? 's ne sont pas pointées' : " n'est pas pointée"} dans ce mois. Un mois figé ne peut plus être modifié ni pointé sans être défigé.`
     )) return;
-    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: true } } });
+    // Écriture partielle : le gel ne touche que ce mois, et aucun montant ne
+    // change → pas de cascade TR à propager (cf. le commentaire ci-dessus).
+    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: true } } }, [curKey]);
     showToast(`${monthLabel(curKey)} figé`);
   };
   const unfreezeMonth = () => {
@@ -443,7 +460,7 @@ function CheckingView({ ctx, onBack }) {
     // Défigeage → retour en « tout affiché » (v512, décision utilisateur) :
     // on repart d'une vue complète pour les retouches, le masquage se
     // réactive à la demande.
-    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: false, hidePointed: false } } });
+    updateCheckingData({ ...checking, months: { ...checking.months, [curKey]: { ...m, frozen: false, hidePointed: false } } }, [curKey]);
     showToast(`${monthLabel(curKey)} défigé`);
   };
 
@@ -452,8 +469,16 @@ function CheckingView({ ctx, onBack }) {
     // ceci est la ceinture ET les bretelles).
     if (m.frozen) { showToast('Mois figé — défige-le avant de le supprimer'); return; }
     if (!confirm(`Supprimer ${monthLabel(curKey)} ?\n\nToutes les lignes (entrées, sorties, TR) seront effacées.`)) return;
+    // ⚠️ RESTE SUR LE `.set()` COMPLET — par CHOIX, pas par impossibilité.
+    // Une suppression partielle marche (`FieldValue.delete()` sur
+    // `FieldPath('months', mKey)` retire bien la clé, vérifié sur Firestore le
+    // 29/07/2026, même combinée à une écriture dans le même appel atomique).
+    // Mais la suppression est RARE et le `.set()` sans merge est prouvé correct
+    // depuis toujours : ça ne vaut pas d'exposer le chemin le plus destructeur
+    // au code le plus neuf. Ne pas « harmoniser » avec updateMonth.
     const { [curKey]: removed, ...remaining } = checking.months;
     const newChecking = { ...checking, months: remaining };
+    // Pas un simple retrait de clé : la cascade réécrit aussi le mois suivant.
     updateTRRefundsForMonth(newChecking, curKey);
     const newKeys = Object.keys(remaining).sort();
     const newCurrent = newKeys[Math.max(0, idx - 1)] || newKeys[0] || currentMonthKey();

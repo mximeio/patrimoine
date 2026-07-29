@@ -380,9 +380,23 @@ function App() {
   };
   // Multi-comptes : on opère sur un compte précis identifié par son id.
   // `newAccount` contient l'id + toutes les données (settings, months, etc.).
-  const updateCheckingAccount = async (newAccount) => {
+  // `monthKeys` (optionnel) : la liste des mois dont le contenu a changé. Quand
+  // elle est fournie, seuls ces mois partent sur le réseau (~5 Ko au lieu de
+  // ~135 Ko) au lieu du document entier.
+  // ⚠️ Le DÉFAUT est l'écriture complète, et doit le rester : cette fonction
+  // est l'entonnoir unique de TOUTES les écritures du compte courant (11
+  // appelants). Un appelant qui ne déclare rien écrit tout — donc reste correct,
+  // y compris pour la suppression d'un mois, que seul le `.set()` complet
+  // persiste. Cf. CLAUDE.md §10, « Écritures Firestore : DEUX voies ».
+  const updateCheckingAccount = async (newAccount, monthKeys) => {
     setCheckingAccounts(prev => prev.map(a => a.id === newAccount.id ? newAccount : a));
-    try { await Adapter.updateCheckingAccount(user.uid, newAccount.id, newAccount); }
+    try {
+      if (Array.isArray(monthKeys)) {
+        await Adapter.updateCheckingMonths(user.uid, newAccount.id, newAccount, monthKeys);
+      } else {
+        await Adapter.updateCheckingAccount(user.uid, newAccount.id, newAccount);
+      }
+    }
     catch (e) { showToast('Erreur de sauvegarde', 'error'); }
   };
   const createCheckingAccount = async (name, extras = {}) => {

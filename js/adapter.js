@@ -285,6 +285,9 @@ const Adapter = {
   //    Firestore exclurait silencieusement le doc d'un query ordonné par ce champ.
   //  - ID FIXE 'main' pour l'auto-création : si appels concurrents, ils écrivent
   //    sur le même doc (idempotent), pas de doublons.
+  //  - `updateCheckingMonths` (plus bas) écrit un ou plusieurs mois SANS
+  //    toucher au reste du document. Elle ne remplace pas `updateCheckingAccount`,
+  //    qui reste le défaut et le seul chemin pour la suppression d'un mois.
   //  (v583 : l'ancienne migration depuis `checking/main` a été retirée — plus
   //   aucun doc legacy en base. Cold boot sans compte → seed DEFAULT_CHECKING.)
   // ============================================================
@@ -372,6 +375,53 @@ const Adapter = {
       ...rest,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+  },
+
+  // Écriture PARTIELLE des mois : seuls les mois listés partent sur le réseau.
+  // Mesuré sur les 31 mois réels : 4 959 o pour un mois, contre 138 087 o pour
+  // le document entier — ×27,8. Le gain n'est pas le ressenti (l'UI est
+  // optimiste, cf. §11) mais les données consommées et la FIABILITÉ : une
+  // écriture de 5 Ko en 4G faible aboutit là où 135 Ko échouaient, et un échec
+  // laissait l'écran et la base divergents.
+  //
+  // ⚠️ LE DÉFAUT RESTE `updateCheckingAccount` (`.set()` complet). Cette
+  // fonction n'est appelée que par les appelants qui déclarent EXPLICITEMENT
+  // les mois qu'ils modifient — `updateCheckingAccount` étant un entonnoir à
+  // 11 appelants, un défaut inversé ferait qu'un appelant oublié (ou ajouté
+  // plus tard) cesserait SILENCIEUSEMENT de persister les suppressions de mois.
+  // Corollaire : une liste vide ou invalide retombe sur l'écriture complète,
+  // jamais sur un no-op.
+  //
+  // ⚠️ Un `.set()` complet balaie tout le document d'un coup, une écriture
+  // partielle ne nettoie que les mois qu'elle touche. C'est pourquoi la
+  // suppression de la double écriture descendante devait précéder ce chantier
+  // (v903/v619) : les champs hérités auraient survécu dans les mois non touchés.
+  async updateCheckingMonths(uidStr, id, account, monthKeys) {
+    const months = account.months || {};
+    const keys = (Array.isArray(monthKeys) ? monthKeys : []).filter(k => months[k]);
+    if (!keys.length) return this.updateCheckingAccount(uidStr, id, account);
+
+    // `FieldPath('months', mKey)` : les segments sont pris LITTÉRALEMENT, sans
+    // analyse de chaîne. La notation pointée `months.2026-07` fonctionne aussi
+    // (vérifié sur Firestore le 29/07/2026, contrairement à ce que le §11
+    // affirmait), mais un mKey est une donnée — aucune raison de la faire
+    // interpréter comme un chemin. La forme variadique de update() est
+    // obligatoire : un FieldPath ne peut pas être une clé d'objet littéral.
+    const args = [];
+    for (const mKey of keys) {
+      args.push(new firebase.firestore.FieldPath('months', mKey), months[mKey]);
+    }
+    args.push('updatedAt', firebase.firestore.FieldValue.serverTimestamp());
+
+    try {
+      await this._checkingAccountsCol(uidStr).doc(id).update(...args);
+    } catch (e) {
+      // `update()` échoue si le document n'existe pas, là où `set()` le crée.
+      // Ne devrait pas arriver (le compte vient d'un onSnapshot), mais l'UI
+      // étant optimiste, un échec ici laisserait l'écran en avance sur la base.
+      if (e && e.code === 'not-found') return this.updateCheckingAccount(uidStr, id, account);
+      throw e;
+    }
   },
 
   async renameCheckingAccount(uidStr, id, name) {

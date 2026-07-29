@@ -35,10 +35,13 @@
        Même critère pathname que le switch Firebase de config.js. -->
   <script>
     (function () {
-      // Version de build — la chaîne '?v=NNN' est mise à jour par le même
-      // sed que le cache-busting. Affichée en pied du menu « ⋯ » et loguée
-      // en console : permet de vérifier d'un coup d'œil quelle version
-      // tourne réellement sur l'appareil (cache Safari, déploiement Pages…).
+      // Version de build. La chaîne de version ci-dessous est un PLACEHOLDER :
+      // le workflow GitHub la réécrit à chaque publication (VERSION_BASE +
+      // n° de run), partout dans ce fichier et dans sw.js. Ne pas la maintenir
+      // à la main — et depuis la v615 il n'y a PLUS de sed de bump local.
+      // Affichée en pied du menu « ⋯ » et loguée en console : permet de
+      // vérifier d'un coup d'œil quelle version tourne réellement sur
+      // l'appareil (cache Safari, déploiement Pages…).
       window.APP_BUILD = '?v=614'.replace('?v=', 'v');
       var isDev = location.pathname.indexOf('/patrimoine-dev') === 0
                || location.hostname === 'localhost'
@@ -125,9 +128,9 @@
 
   <!-- Service worker (mode hors ligne, v522) : enregistré après « load »
        pour ne pas concurrencer le démarrage. sw.js est volontairement
-       chargé SANS ?v=NNN : c'est le changement de son CONTENU (la
-       constante VERSION, réécrite par le sed de bump) qui déclenche la
-       détection de mise à jour par le navigateur.
+       chargé SANS chaîne de version : c'est le changement de son CONTENU
+       (la constante VERSION, réécrite par le workflow à la publication) qui
+       déclenche la détection de mise à jour par le navigateur.
        Détection → window.__SW_WAITING + événement 'patrimoine:sw-update'
        écoutés par app.js (toast « Nouvelle version disponible »). -->
   <script>
