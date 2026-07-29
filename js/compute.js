@@ -302,7 +302,14 @@ function hasTRInList(items) {
 // ============================================================
 function computePortfolioStats(data) {
   const { operations, currentValues, etfs } = data;
-  const sorted = [...operations].sort((a, b) => a.date.localeCompare(b.date) || (a.id - b.id || 0));
+  // ⚠️ `date` GARDÉE : une opération sans date levait une exception ici
+  // (`undefined.localeCompare`), et cette fonction est appelée depuis 7 endroits
+  // dont consolidated.js (vue Patrimoine, écran d'accueil) et le snapshot
+  // mensuel d'app.js → écran blanc à l'accueil pour UNE ligne mal formée.
+  // Repéré par _precompil/tests.js le 29/07/2026. Même motif que savings.js.
+  // Les lignes sans date remontent en tête ('' trie avant toute date).
+  const sorted = [...operations].sort((a, b) =>
+    String(a.date || '').localeCompare(String(b.date || '')) || (a.id - b.id || 0));
   const deposits    = sorted.filter(o => o.type === 'deposit');
   const purchases   = sorted.filter(o => o.type === 'purchase');
   const gifts       = sorted.filter(o => o.type === 'gift');
