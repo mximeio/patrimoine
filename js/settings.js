@@ -604,6 +604,10 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
       // Montant vide → 0 (au lieu de bloquer le submit silencieusement).
       const a = parseFloat(amount);
       const safeAmount = Number.isFinite(a) ? r2(a) : 0;
+      // …mais on le SIGNALE (cf. utils.js) : c'est ici qu'un 0 dort le plus
+      // longtemps avant de se manifester, au prochain mois créé.
+      // `isTRAuto` = montant calculé et readOnly → pas de confirmation.
+      if (!confirmZeroAmount(label, 'recurring', safeAmount, isTRAuto)) return;
       onSubmit({ type, label: (label || '').trim(), isComposite: false, amount: safeAmount, dayOfMonth });
     }
   };

@@ -89,6 +89,13 @@ const monthKey = (year, monthIdx) => `${year}-${String(monthIdx + 1).padStart(2,
 const parseMonth = (key) => { const [y, m] = key.split('-').map(Number); return { year: y, monthIdx: m - 1 }; };
 const monthLabel = (key) => { const { year, monthIdx } = parseMonth(key); return `${FRENCH_MONTHS[monthIdx]} ${year}`; };
 const monthLabelShort = (key) => { const { year, monthIdx } = parseMonth(key); return `${FRENCH_MONTHS_SHORT[monthIdx]} ${String(year).slice(2)}`; };
+// « de Juin 2026 », mais « d'Avril 2026 » : l'élision devant voyelle. Seuls
+// Avril, Août et Octobre sont concernés — d'où le test sur la 1ʳᵉ lettre
+// plutôt qu'une liste, qui se périmerait à la moindre retouche des libellés.
+const monthLabelDe = (key) => {
+  const l = monthLabel(key);
+  return /^[AÂEÉÈÊIÎOÔUÙÛ]/.test(l) ? `d'${l}` : `de ${l}`;
+};
 const prevMonthKey = (key) => { const { year, monthIdx } = parseMonth(key); return monthIdx === 0 ? monthKey(year - 1, 11) : monthKey(year, monthIdx - 1); };
 const nextMonthKey = (key) => { const { year, monthIdx } = parseMonth(key); return monthIdx === 11 ? monthKey(year + 1, 0) : monthKey(year, monthIdx + 1); };
 const currentMonthKey = () => { const d = new Date(); return monthKey(d.getFullYear(), d.getMonth()); };
@@ -200,6 +207,74 @@ function formatDayMonth(iso) {
 // Le toggle "Gestion des dates" est-il activé sur le profil ?
 function checkingDatesEnabled(profile) {
   return !!profile?.modulesEnabled?.checkingDates;
+}
+
+// ============================================================
+//  MONTANT À 0 — le SIGNALER, jamais le bloquer.
+//
+//  Les trois formulaires de saisie (récurrents, opérations d'un mois,
+//  paiements TR) écrivent délibérément 0 quand le champ montant est vide,
+//  plutôt que de bloquer le submit en silence — et c'est le bon choix : un
+//  clic sans effet ni explication est pire. Mais vider le champ pour retaper
+//  un nouveau prix est EXACTEMENT le geste qu'on fait quand un prix change,
+//  et un 0 ne coûte rien : il ne fausse aucun total, aucun solde, aucun
+//  report. Le récurrent iCloud est ainsi resté à 0 € pendant des semaines.
+//  ⚠️ La réponse est un SIGNAL, pas un verrou. Ne pas « corriger » en
+//  interdisant l'enregistrement à 0. Cf. CLAUDE.md §11.
+// ============================================================
+
+// Faut-il demander confirmation avant d'enregistrer ce montant ?
+// PURE exprès (donc testable). Règle : TOUT enregistrement à 0 est confirmé,
+// quels que soient la valeur précédente et le fait qu'on crée ou qu'on édite.
+// ⚠️ Décision utilisateur du 30/07/2026, qui a REMPLACÉ une première règle
+// « seulement si le 0 apparaît ». Motif : depuis l'écran, on ne voit pas
+// l'historique d'une ligne — une confirmation qui en dépend est imprévisible,
+// et les trois formulaires se comportaient différemment pour une raison
+// invisible. Ne pas la « rétablir » au nom du confort.
+//
+// SEULE exception : un montant que l'utilisateur ne peut PAS saisir (ligne TR
+// auto, champ readOnly). Le critère est bien « non saisissable », pas
+// « inchangé » : confirmer y proposerait de corriger un champ verrouillé, et
+// ce 0 est légitime quand le mois précédent n'a aucun ticket.
+function needsZeroAmountConfirm(montant, montantVerrouillé) {
+  if (montantVerrouillé) return false;
+  return r2(Number(montant) || 0) === 0;
+}
+
+// Conséquence propre à chaque formulaire, nommée dans la confirmation.
+// ⚠️ La plus forte n'est PAS celle du cas vécu : un ticket TR à 0 € n'est pas
+// inoffensif — trUserShare somme tr[].amount, donc il rend le remboursement
+// du mois suivant trop faible, et l'erreur se propage dans la cascade sans
+// rien afficher.
+const ZERO_AMOUNT_CONTEXTS = {
+  recurring: 'Un récurrent à 0 € est pré-rempli dans chaque nouveau mois sans rien y ajouter.',
+  tr: "Un ticket à 0 € abaisse d'autant le remboursement calculé pour le mois suivant.",
+  operation: 'La ligne restera visible à 0 € et ne changera aucun total.',
+};
+
+// Confirmation à l'enregistrement. Le TEXTE vit ici, pas chez les trois
+// appelants : un message qui diverge d'un formulaire à l'autre apprend à ne
+// pas faire confiance au signal. Renvoie true si on peut enregistrer.
+function confirmZeroAmount(label, contexte, montant, montantVerrouillé) {
+  if (!needsZeroAmountConfirm(montant, montantVerrouillé)) return true;
+  const nom = (label || '').trim();
+  return confirm(
+    `Montant à 0 € ?\n\n`
+    + `La ligne ${nom ? `« ${nom} » ` : ''}sera enregistrée à ${eur(0)}.\n\n`
+    + `${ZERO_AMOUNT_CONTEXTS[contexte] || ''}\n`
+    + `Pour retirer une ligne, supprime-la plutôt.`
+  );
+}
+
+// Les récurrents NON composites dont le montant est nul — ils naîtront à 0 €
+// dans le prochain mois créé (instantiateRecurring recopie fidèlement le
+// modèle). Sert à prévenir dans le confirm() de createMonth : c'est la seule
+// piste qui rattrape un 0 DÉJÀ en base, la liste des récurrents ne s'ouvrant
+// jamais spontanément.
+// ⚠️ Les composantes nulles d'un composite ne comptent pas : elles sont déjà
+// filtrées à l'instanciation, elles n'arriveront pas dans le mois.
+function zeroAmountRecurrings(recurringOperations) {
+  return (recurringOperations || []).filter(r => !r.isComposite && r2(Number(r.amount) || 0) === 0);
 }
 
 // Tri intelligent pour les lignes du compte courant en mode "dates" :

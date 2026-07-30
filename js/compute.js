@@ -211,14 +211,19 @@ function _wouldChangeTRRefund(month, refundAmount) {
 // Recalcule le remboursement TR auto du mois SUIVANT mKey, d'après les
 // paiements TR de mKey.
 //
-// Renvoie le nombre de mois dont la mise à jour a été REFUSÉE par un
-// garde-fou (0 ou 1) — updateTRRefundsCascade totalise, l'appelant en fait
-// un toast. Sans ce retour, un saut serait invisible et passerait pour un bug.
+// Renvoie la LISTE des mois source dont la mise à jour a été REFUSÉE par un
+// garde-fou : `[]` ou `[{ month, reason }]`, `reason` valant 'frozen' ou
+// 'rate'. updateTRRefundsCascade concatène, l'appelant en fait un toast via
+// trSkipMessage. Sans ce retour, un saut serait invisible et passerait pour
+// un bug.
+// ⚠️ C'était un simple COMPTEUR jusqu'à la date d'effet du taux : le mois et
+// le motif sont désormais nécessaires pour nommer, dans le toast, la ligne
+// qu'il faut corriger à la main.
 function updateTRRefundsForMonth(checking, mKey) {
-  if (checking.settings.trEnabled === false) return 0;
+  if (checking.settings.trEnabled === false) return [];
   const next = nextMonthKey(mKey);
   const nextMonth = checking.months[next];
-  if (!nextMonth) return 0; // mois pas encore créé : instantiateRecurring s'en chargera
+  if (!nextMonth) return []; // mois pas encore créé : instantiateRecurring s'en chargera
   const refundAmount = -trUserShare(checking.settings, checking.months[mKey] || { tr: [] });
 
   // ⚠️ DEUX GARDE-FOUS — ne pas les retirer (bug mesuré le 28/07/2026).
@@ -228,17 +233,34 @@ function updateTRRefundsForMonth(checking, mKey) {
   //    traverse tous les mois en aval. Sans ce test, défiger un mois ancien
   //    puis l'éditer réécrivait 12 mois FIGÉS.
   //
-  // 2) Mois révolu = intouchable, même défigé. Raison de fond : le taux TR
-  //    n'est PAS historisé — trUserShare ne lit que settings.trFaceValue /
-  //    trOwnShare, la valeur du JOUR. Or elle a changé (55 % de 2025-05 à
-  //    2026-05, valeur faciale de 10 € ; 45,08 % depuis 2026-06). Recalculer
-  //    un mois passé lui appliquerait donc un taux qui n'avait pas cours :
-  //    +173,01 € de sorties sur la série réelle, en silence.
-  //    Contrepartie assumée : saisir des TR d'un mois révolu ne met plus à
-  //    jour le mois suivant tout seul — il faut le défiger et le corriger à
-  //    la main. Cf. CLAUDE.md §10.
-  if (nextMonth.frozen || next < currentMonthKey()) {
-    return _wouldChangeTRRefund(nextMonth, refundAmount) ? 1 : 0;
+  // 2) Taux d'époque inconnu = intouchable, même défigé. Raison de fond : le
+  //    taux TR n'est PAS historisé — trUserShare ne lit que
+  //    settings.trFaceValue / trOwnShare, la valeur du JOUR. Or elle a changé
+  //    (55 % de 2025-05 à 2026-05, valeur faciale de 10 € ; 45,08 % depuis
+  //    2026-06). Recalculer un mois dont le taux d'alors différait lui
+  //    appliquerait un taux qui n'avait pas cours : +173,01 € de sorties sur
+  //    la série réelle, en silence.
+  //    La vraie question est « le taux d'aujourd'hui était-il celui de ce
+  //    mois-là ? ». `settings.trRateSince` (optionnel, saisi à la main dans
+  //    les réglages du compte) y répond : on refuse les mois ANTÉRIEURS à
+  //    cette date. Le test porte sur `mKey` — le mois dont les tickets sont
+  //    sommés, donc celui auquel le taux s'applique — jamais sur le mois
+  //    destinataire.
+  //    ⚠️ Sans cette date (compte d'un autre utilisateur, date pas encore
+  //    renseignée), on retombe sur le SUBSTITUT historique « mois révolu =
+  //    intouchable ». Il donne la même réponse aujourd'hui, mais se dégrade
+  //    tout seul : le simple passage du temps y transforme des refus
+  //    justifiés en refus arbitraires (en septembre, juin et juillet
+  //    seraient refusés alors que leur taux n'a pas bougé). D'où son
+  //    rétrogradage en repli — ne pas le remettre en règle principale.
+  //    Contrepartie assumée, inchangée : saisir des TR d'un mois refusé ne
+  //    met plus à jour le mois suivant tout seul — il faut le corriger à la
+  //    main, et le toast dit où. Cf. CLAUDE.md §10.
+  const rateSince = checking.settings.trRateSince;
+  const rateUnknown = rateSince ? mKey < rateSince : next < currentMonthKey();
+  if (nextMonth.frozen || rateUnknown) {
+    if (!_wouldChangeTRRefund(nextMonth, refundAmount)) return [];
+    return [{ month: mKey, reason: nextMonth.frozen ? 'frozen' : 'rate' }];
   }
 
   // ⚠️ RÉÉCRITURE IMMUABLE — ne pas « simplifier » en remutant les objets.
@@ -279,7 +301,7 @@ function updateTRRefundsForMonth(checking, mKey) {
     return o;
   });
   if (changed) checking.months[next] = { ...nextMonth, operations };
-  return 0;
+  return [];
 }
 
 // Propage le recalcul des TR auto sur TOUS les mois à partir de startKey
@@ -287,18 +309,37 @@ function updateTRRefundsForMonth(checking, mKey) {
 // dépend du mois M, lui-même peut alimenter M+2, etc. Itère sur tous les
 // mois connus triés.
 //
-// Renvoie le NOMBRE de mois qu'un garde-fou a protégés (figés ou révolus).
-// L'appelant doit en informer l'utilisateur : un recalcul silencieusement
-// abandonné se lit comme un bug.
+// Renvoie la CONCATÉNATION des refus des garde-fous (même forme que
+// updateTRRefundsForMonth). L'appelant doit en informer l'utilisateur : un
+// recalcul silencieusement abandonné se lit comme un bug.
 function updateTRRefundsCascade(checking, startKey) {
-  if (checking.settings.trEnabled === false) return 0;
+  if (checking.settings.trEnabled === false) return [];
   const sortedKeys = Object.keys(checking.months).sort();
-  let skipped = 0;
+  const skipped = [];
   for (const k of sortedKeys) {
     if (k < startKey) continue;
-    skipped += updateTRRefundsForMonth(checking, k);
+    skipped.push(...updateTRRefundsForMonth(checking, k));
   }
   return skipped;
+}
+
+// Texte du toast qui signale les refus ci-dessus. Il vit ICI, collé aux
+// motifs qu'il traduit : écrit chez l'appelant, il se désynchroniserait du
+// jour où un motif s'ajoute.
+// Un seul mois refusé — le cas réel, puisqu'une modification ne change les
+// tickets que d'un mois — est NOMMÉ, avec le mois où corriger à la main.
+// Au-delà on retombe sur un décompte : un toast n'est pas une liste.
+function trSkipMessage(skipped) {
+  if (!skipped || skipped.length === 0) return '';
+  if (skipped.length === 1) {
+    const { month, reason } = skipped[0];
+    const suivant = nextMonthKey(month);
+    if (reason === 'frozen') {
+      return `Tickets resto ${monthLabelDe(month)} non recalculés — ${monthLabel(suivant)} est figé. Défige-le pour reprendre le calcul.`;
+    }
+    return `Tickets resto ${monthLabelDe(month)} non recalculés — taux d'époque inconnu. Corrige la ligne ${monthLabelDe(suivant)} à la main si besoin.`;
+  }
+  return `Remboursement TR non recalculé sur ${skipped.length} mois — taux d'époque inconnu ou mois figé`;
 }
 
 function hasTRInItem(item) {

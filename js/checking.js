@@ -390,7 +390,17 @@ function CheckingView({ ctx, onBack }) {
 
   const createMonth = (k) => {
     if (checking.months[k]) { setCurrentMonth(k); return; }
-    if (!confirm(`Créer la feuille ${monthLabel(k)} ?\n\nLes entrées et sorties récurrentes seront pré-remplies.`)) return;
+    // Les récurrents à 0 € sont signalés DANS cette confirmation, pas dans un
+    // toast après coup : elle arrive AVANT le fait, elle est impossible à
+    // manquer, elle n'ajoute aucune UI, et son « Annuler » laisse la
+    // possibilité d'aller corriger le récurrent d'abord. C'est la seule piste
+    // qui rattrape un 0 déjà en base (cf. utils.js).
+    const zéros = zeroAmountRecurrings(checking.settings.recurringOperations);
+    const alerteZéros = zéros.length === 0 ? '' :
+      `\n\n⚠️ ${zéros.length} récurrent${zéros.length > 1 ? 's sont' : ' est'} à ${eur(0)}`
+      + ` (${zéros.map(r => (r.label || '').trim() || 'sans libellé').join(', ')})`
+      + ` et ser${zéros.length > 1 ? 'ont pré-remplis tels quels' : 'a pré-rempli tel quel'}.`;
+    if (!confirm(`Créer la feuille ${monthLabel(k)} ?\n\nLes entrées et sorties récurrentes seront pré-remplies.${alerteZéros}`)) return;
     const newChecking = {
       ...checking,
       months: { ...checking.months, [k]: createMonthData(checking, k, checkingDatesEnabled(profile)) },
@@ -414,11 +424,11 @@ function CheckingView({ ctx, onBack }) {
     // 1) Le mois courant peut avoir un TR auto qui pointe sur curKey-1
     //    (cas d'une ligne TR auto créée ad-hoc) : on recalcule à partir
     //    du mois précédent.
-    let trSkipped = updateTRRefundsForMonth(newChecking, prevMonthKey(curKey));
+    let trSkipped = updateTRRefundsForMonth(newChecking, prevMonthKey(curKey)); // liste [{ month, reason }]
     // 2) Les mois suivants peuvent dépendre en chaîne du mois courant.
     //    On propage la cascade pour qu'une modif aujourd'hui se reflète
     //    sur tous les mois en aval (pas seulement curKey+1).
-    trSkipped += updateTRRefundsCascade(newChecking, curKey);
+    trSkipped = trSkipped.concat(updateTRRefundsCascade(newChecking, curKey));
     // ⚠️ ÉCRITURE PARTIELLE — l'ensemble des mois à écrire n'est PAS déductible
     // du geste : pointer une ligne d'un mois passé n'en touche qu'un, ajouter un
     // TR sur le mois en cours en touche deux (le mois et le suivant), et les
@@ -433,13 +443,11 @@ function CheckingView({ ctx, onBack }) {
       .filter(k => newChecking.months[k] !== monthsBefore[k]);
     updateCheckingData(newChecking, touched);
     // Les garde-fous de compute.js ont pu refuser d'écrire dans des mois figés
-    // ou révolus (leur taux TR d'époque n'est pas recalculable — cf. §10).
-    // On le DIT : sinon l'utilisateur croirait à un recalcul manquant.
-    if (trSkipped > 0) {
-      showToast(
-        `Remboursement TR non recalculé sur ${trSkipped} mois — figé${trSkipped > 1 ? 's' : ''} ou révolu${trSkipped > 1 ? 's' : ''}`
-      );
-    }
+    // ou dont le taux TR d'époque n'est pas connu (cf. §10). On le DIT : sinon
+    // la carte TR du mois afficherait un nouveau « de ma poche » alors que la
+    // ligne du mois suivant reste à l'ancienne valeur, sans que rien ne le
+    // signale. Le texte (et le mois à corriger) vient de compute.js.
+    if (trSkipped.length > 0) showToast(trSkipMessage(trSkipped));
   };
 
   // Gel / dégel du mois (v485). Confirmations en confirm() natif, comme
@@ -836,9 +844,29 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
   const [enabled, setEnabled] = useState(checking.settings.trEnabled !== false);
   const [face, setFace] = useState(checking.settings.trFaceValue);
   const [own, setOwn] = useState(checking.settings.trOwnShare);
+  // Date d'effet du taux TR. Champ OPTIONNEL (aucune migration) : tant qu'il
+  // est vide, le garde-fou de compute.js retombe sur son substitut historique
+  // « mois révolu ». Saisie MANUELLE — la vraie date d'effet ne se déduit pas
+  // des données (le mois d'avril 2026 porte un taux qui ne correspond à aucun
+  // des deux taux connus).
+  const [since, setSince] = useState(checking.settings.trRateSince || '');
+  const sinceTouched = useRef(false);
 
   const employer = r2((parseFloat(face) || 0) - (parseFloat(own) || 0));
   const employerPct = parseFloat(face) > 0 ? r2(employer / parseFloat(face) * 100) : 0;
+
+  // Pré-remplissage sur le mois courant dès que la valeur faciale ou la part
+  // perso change : c'est le geste qui, en pratique, marque un changement de
+  // taux. Il reste MODIFIABLE — dès que l'utilisateur touche au mois, on ne
+  // repasse plus derrière lui. Le dépendance est le booléen, pas les montants :
+  // l'effet ne joue donc qu'aux transitions, et revenir aux valeurs d'origine
+  // restaure la date d'origine.
+  const rateEdited = r2(parseFloat(face) || 0) !== r2(checking.settings.trFaceValue || 0)
+    || r2(parseFloat(own) || 0) !== r2(checking.settings.trOwnShare || 0);
+  useEffect(() => {
+    if (sinceTouched.current) return;
+    setSince(rateEdited ? currentMonthKey() : (checking.settings.trRateSince || ''));
+  }, [rateEdited]); // eslint-disable-line
 
   // Détection des changements non sauvegardés. Le parent l'utilise pour
   // demander confirmation à la fermeture de la modale.
@@ -852,9 +880,10 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
       || enabled !== (checking.settings.trEnabled !== false)
       || r2(parseFloat(face) || 0) !== r2(checking.settings.trFaceValue || 0)
       || r2(parseFloat(own) || 0) !== r2(checking.settings.trOwnShare || 0)
+      || since !== (checking.settings.trRateSince || '')
     );
     onDirtyChange(dirty);
-  }, [name, initVal, initMonth, enabled, face, own]); // eslint-disable-line
+  }, [name, initVal, initMonth, enabled, face, own, since]); // eslint-disable-line
 
   const toggleEnabled = (checked) => {
     if (!checked && enabled) {
@@ -877,6 +906,23 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
     // qui utilise .update() au lieu de .set()). Ça évite les courses avec
     // un snapshot Firestore stale qui pourrait restaurer l'ancien nom
     // après un .set() complet du doc.
+    // RECULER la date d'effet du taux = confirmation, JAMAIS interdiction.
+    // ⚠️ Ne pas « améliorer » en bornant le champ : une interdiction ferait un
+    // cliquet, et une première saisie erronée deviendrait définitive (vécu à
+    // la conception : trois estimations de la date, une seule juste). Reculer
+    // est le seul sens dangereux — il rend des mois anciens recalculables au
+    // taux du jour, soit exactement la corruption de +173,01 € qu'a corrigée
+    // le garde-fou. D'où la confirmation, qui doit NOMMER ce risque.
+    const sinceBefore = checking.settings.trRateSince || '';
+    if (enabled && since && sinceBefore && since < sinceBefore && !confirm(
+      `⚠️ RECULER LA DATE D'EFFET DU TAUX\n\n`
+      + `De ${monthLabel(sinceBefore)} à ${monthLabel(since)}.\n\n`
+      + `Les tickets resto des mois compris entre les deux redeviennent recalculables, `
+      + `AU TAUX D'AUJOURD'HUI — alors que leur taux d'époque était peut-être différent. `
+      + `Un recalcul y écrirait alors des montants faux, sans rien afficher.\n\n`
+      + `Continuer ?`
+    )) return;
+
     const trimmedName = (name || '').trim();
     const nameChanged = trimmedName && trimmedName !== (checking.name || '');
     if (nameChanged && renameAccount) {
@@ -922,6 +968,11 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
           trEnabled: enabled,
           trFaceValue: parseFloat(face) || 0,
           trOwnShare: parseFloat(own) || 0,
+          // Champ optionnel : on ne l'écrit que s'il est renseigné, pour ne
+          // pas semer un `trRateSince: ''` sur les comptes qui ne s'en
+          // servent pas (le garde-fou lit une valeur absente comme un repli
+          // sur son ancien critère — cf. compute.js).
+          ...(since ? { trRateSince: since } : {}),
         },
       };
     }
@@ -997,6 +1048,21 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
               <AmountInput className="input" value={own} onChange={(n) => setOwn(n)} />
               <div className="field-hint">Part employeur : {eur(employer)} ({employerPct} %)</div>
             </div>
+          </div>
+        )}
+        {enabled && (
+          <div className="field-grid" style={{ marginTop: 12 }}>
+            <div>
+              <label className="label">Taux en vigueur depuis</label>
+              <MonthInputPicker
+                value={since}
+                onChange={(k) => { sinceTouched.current = true; setSince(k); }}
+              />
+              <div className="field-hint">
+                Les tickets des mois antérieurs ne seront pas recalculés : leur taux d'époque n'est pas connu.
+              </div>
+            </div>
+            <div />
           </div>
         )}
       </div>
@@ -1874,6 +1940,10 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
       // par la section parente (jamais composite).
       const a = parseFloat(amount);
       const safeAmount = Number.isFinite(a) ? r2(a) : 0;
+      // Signalement du 0 (cf. utils.js) : c'est ICI qu'il fait le plus de
+      // dégâts — un ticket à 0 au lieu de 12,20 € rend le remboursement du
+      // mois suivant trop faible, en silence.
+      if (!confirmZeroAmount(label, 'tr', safeAmount, isTRAuto)) return;
       onSubmit({ type: 'tr', label: (label || '').trim(), isComposite: false, amount: safeAmount, date: cleanDate, note: (note || '').trim() });
       return;
     }
@@ -1888,6 +1958,15 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
       // Permet de créer une ligne uniquement avec un libellé.
       const a = parseFloat(amount);
       const safeAmount = Number.isFinite(a) ? r2(a) : 0;
+      // Signalement du 0 (cf. utils.js). C'est le formulaire où il apporte le
+      // MOINS — un 0 y est immédiatement visible et sans effet sur les totaux
+      // — mais avertir dans un formulaire et pas dans le voisin apprend à ne
+      // pas faire confiance au signal. ⚠️ Si la confirmation s'avère pénible,
+      // c'est ICI qu'il faudra la retirer d'abord, ni sur les TR ni sur les
+      // récurrents.
+      // C'est cette branche qui porte les lignes TR AUTO (type 'out' +
+      // isTRRefund) : leur montant est calculé et readOnly, d'où `isTRAuto`.
+      if (!confirmZeroAmount(label, 'operation', safeAmount, isTRAuto)) return;
       onSubmit({ type, label: (label || '').trim(), isComposite: false, amount: safeAmount, date: cleanDate, note: (note || '').trim() });
     }
   };
