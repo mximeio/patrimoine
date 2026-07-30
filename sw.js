@@ -150,7 +150,22 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;
-    const resp = await fetch(req);
+    let resp;
+    try {
+      resp = await fetch(req);
+    } catch (e) {
+      // HORS LIGNE + ressource absente du cache. Sans ce catch, la promesse
+      // rejetée remonte dans respondWith et le navigateur consigne une erreur
+      // par requête — ~45 au démarrage en mode avion. C'est cosmétique, mais
+      // ce bruit MASQUE les vraies erreurs quand on diagnostique (§10).
+      // On rend une erreur réseau explicite, comme le fait déjà la branche
+      // « navigation » ci-dessus : pour la page, le résultat est identique
+      // (la requête échoue), seul le rejet non géré disparaît.
+      // ⚠️ Le catch n'entoure QUE le fetch. Envelopper aussi `caches.match`
+      // masquerait une panne du cache — c'est-à-dire la seule chose qui
+      // pourrait casser le hors ligne — au lieu de la faire voir.
+      return Response.error();
+    }
     if (resp && (resp.ok || resp.type === 'opaque')) {
       const runtime = await caches.open(RUNTIME);
       runtime.put(req, resp.clone());

@@ -61,7 +61,7 @@ function ConsolidatedView({ ctx, onNavigate }) {
   const totalGainPositive = totalGain >= 0;
   return (
     <div>
-      <div className="card hero-card" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: 'white', border: 'none', borderLeft: `4px solid ${COLORS.accent}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ borderLeft: `4px solid ${COLORS.accent}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>Patrimoine total</div>
           <div style={{

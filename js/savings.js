@@ -99,7 +99,7 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
   return (
     <div>
       {/* HERO */}
-      <div className="card hero-card" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: 'white', border: 'none', borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
             Total épargne
@@ -301,7 +301,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
       </div>
 
       {/* HERO — nom éditable in-place + module badge + kebab */}
-      <div className="card hero-card" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: 'white', border: 'none', borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div className="hero-name-static" title={saving.name}>{saving.name}</div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

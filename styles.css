@@ -827,7 +827,19 @@ input[type="month"] {
 }
 
 .hero-value-big { font-size: 42px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
-.hero-card { padding: 24px; min-height: 0; position: relative; }
+/* Le dégradé sombre des 5 hero cards (compte courant, épargne, investissements,
+   patrimoine, actifs physiques). Il était écrit LITTÉRALEMENT 8 fois dans 5
+   fichiers JS ; il vit ici, en un seul endroit.
+   ⚠️ `border: none` est nécessaire pour neutraliser le `1px solid` de `.card`
+   (règle plus haut, même spécificité) — mais le `borderLeft` coloré reste EN
+   LIGNE dans chaque vue : il porte la couleur du module (MODULE_COLORS) et
+   change donc d'une carte à l'autre. Le style en ligne l'emporte propriété par
+   propriété, donc il s'applique bien par-dessus ce `none`. */
+.hero-card {
+  padding: 24px; min-height: 0; position: relative;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: white; border: none;
+}
 /* L'en-tête (libellé + icône/badge/contrôles) : on sort l'élément de droite
    du flux (position absolue, coin haut-droit) pour que la ligne ne soit pas
    "gonflée" par l'icône — le gros montant colle ainsi au libellé. */
