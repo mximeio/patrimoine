@@ -9,10 +9,11 @@
 //  aussi sauvegarder manuellement.
 //
 //  Le format est IDENTIQUE à celui de l'export (version 4). La
-//  validation et la réécriture ci-dessous REPRODUISENT la logique
-//  de l'import (DataActionsCard, settings.js) : si l'une évolue,
-//  garder l'autre en phase (unification possible plus tard). On NE
-//  sérialise PAS les charges (doc partagé `joint`) : hors périmètre.
+//  validation et la réécriture ci-dessous sont PORTÉES ici et nulle
+//  part ailleurs : les deux chemins destructeurs (import JSON de
+//  settings.js, restauration de sauvegarde) y passent — ne pas en
+//  recréer de copie. On NE sérialise PAS les charges (doc partagé
+//  `joint`) : hors périmètre.
 // ============================================================
 
 const BACKUP_KEEP = 10;               // nombre de sauvegardes conservées
@@ -86,8 +87,17 @@ function computeRubriqueTotals(d) {
 }
 
 // ============================================================
-//  Validation + restauration — REPRISES de la logique d'import
-//  (DataActionsCard, settings.js). À garder en phase avec elle.
+//  Validation + restauration — SOURCE UNIQUE.
+//
+//  Les deux chemins destructeurs passent par ici : l'import JSON
+//  (`doImport`, settings.js) et la restauration de sauvegarde
+//  (`RestoreConfirmModal`, plus bas). settings.js en portait une copie,
+//  supprimée après avoir vérifié, fixture par fixture, que les deux
+//  rendaient les mêmes erreurs — sauf un cas limite (portefeuille
+//  falsy sans être nullish, ex. `[0]`) où cette version-ci est plus
+//  stricte : cf. `_precompil/_fixtures-validation.js`.
+//  ⇒ Ne PAS réintroduire de copie ailleurs : renforcer ce filtre, c'est
+//    renforcer les deux chemins. Tests : `_precompil/tests.js`.
 // ============================================================
 
 // Validation stricte : vérifie la version, les types des champs
@@ -212,11 +222,32 @@ function validatePatrimoineData(data) {
 // aux charges (doc partagé). `ctx` fournit user + updateProfile.
 async function restorePersonalData(ctx, data) {
   const { user, updateProfile } = ctx;
-  // ATTENTION : le PROFIL est écrit EN DERNIER (cf. import) — sinon un
-  // changement de modulesEnabled remonte CheckingView avec un state
-  // stale qui écrase les données fraîchement réécrites.
+  // ATTENTION : on écrit le PROFIL en DERNIER (à la fin de cette fonction).
+  // Sinon, l'updateProfile en premier change immédiatement modulesEnabled
+  // (par ex multiCheckingAccounts), ce qui déclenche un remount de
+  // CheckingModule → CheckingView re-mount → son useEffect initial peut
+  // appeler updateCheckingData() avec un `checking` stale (l'ancien name)
+  // AVANT que les écritures Firestore de l'import aient été propagées
+  // par le subscribe. Résultat : l'ancien name écrase le name importé.
+  // En faisant le profile en dernier, les comptes/savings/etc. sont déjà
+  // écrits quand le mode change → le re-mount voit les bonnes données.
 
-  // --- Comptes courants : UPSERT puis cleanup (jamais de collection vide) ---
+  // ============================================================
+  //  Comptes courants — UPSERT puis cleanup
+  //  IMPORTANT : on ne fait PAS "delete tout puis create tout" car
+  //  ça vide temporairement la collection, ce qui déclenche la
+  //  migration automatique de subscribeCheckingAccounts (création
+  //  d'un compte 'main' par défaut). Résultat : le nouveau compte
+  //  importé + un compte 'main' parasite = 2 comptes à la fin.
+  //
+  //  Stratégie : on commence par écrire les comptes importés (avec
+  //  leur id d'origine si possible) via updateCheckingAccount qui
+  //  fait un .set() COMPLET (3 arguments) — crée le doc s'il n'existait
+  //  pas, ou l'écrase. C'est la seule voie qui persiste la SUPPRESSION
+  //  de mois (cf. CLAUDE.md §10) : ne pas la passer en écriture
+  //  partielle. Puis on supprime les anciens comptes qui n'étaient pas
+  //  dans l'import. La collection n'est jamais vide.
+  // ============================================================
   const accountsToImport = data.checkingAccounts
     ? data.checkingAccounts
     : (data.checking ? [{ id: 'main', name: 'Compte principal', ...data.checking }] : []);
@@ -225,9 +256,15 @@ async function restorePersonalData(ctx, data) {
   for (const acc of accountsToImport) {
     const { id, createdAt, updatedAt, name, ...rest } = acc;
     const targetId = (typeof id === 'string' && id) ? id : 'main';
+    // Repli "Compte principal" si le fichier n'a pas de name explicite
+    // (décision : pas "Compte importé", qui prêtait à confusion).
     const finalName = (typeof name === 'string' && name.trim()) ? name.trim() : 'Compte principal';
     const migrated = Adapter.migrateCheckingShape ? Adapter.migrateCheckingShape(rest) : rest;
     await Adapter.updateCheckingAccount(user.uid, targetId, { id: targetId, name: finalName, ...migrated });
+    // Garantie : on refait passer le name via un .update() partiel après
+    // le .set() complet. Si une opération concurrente (subscribe stale,
+    // useEffect d'un re-mount) écrasait le name juste après, ce rename
+    // partiel le réécrit. Mécanisme identique à la hero card.
     await Adapter.renameCheckingAccount(user.uid, targetId, finalName);
     importedIds.add(targetId);
   }
@@ -235,7 +272,9 @@ async function restorePersonalData(ctx, data) {
     if (!importedIds.has(a.id)) await Adapter.deleteCheckingAccount(user.uid, a.id);
   }
 
-  // --- Épargne : remplacement complet ---
+  // --- Épargne : remplacement complet (peu critique, aucune migration
+  //     automatique ne s'y applique — contrairement aux comptes courants,
+  //     où vider la collection déclencherait un compte 'main' parasite) ---
   const existingSav = await Adapter.listSavings(user.uid);
   for (const s of existingSav) await Adapter.deleteSavings(user.uid, s.id);
   for (const s of (data.savings || [])) {
@@ -506,7 +545,9 @@ function RestoreConfirmModal({ ctx, backup, onClose }) {
         type: 'pre-restore', at: new Date().toISOString(), payload: curPayload,
       });
       await Adapter.pruneBackups(user.uid, BACKUP_KEEP);
-      // Restauration proprement dite (réutilise la mécanique de l'import).
+      // Restauration proprement dite. C'est la SOURCE (cf. en-tête) : depuis
+      // l'unification, c'est l'import de settings.js qui appelle celle-ci,
+      // et non l'inverse.
       await restorePersonalData(ctx, payload);
       showToast('Restauration réussie — rechargement…', 'success');
       setTimeout(() => window.location.reload(), 900);

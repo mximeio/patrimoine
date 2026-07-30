@@ -754,7 +754,7 @@ const Adapter = {
 };
 
 // Migration helper exposé pour pouvoir normaliser les données importées
-// (settings.js restoreComplete) AVANT l'écriture en Firestore. Idempotent.
+// (restorePersonalData, backups.js) AVANT l'écriture en Firestore. Idempotent.
 Adapter.migrateCheckingShape = migrateCheckingShape;
 
 window.Adapter = Adapter;

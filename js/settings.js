@@ -1093,8 +1093,11 @@ function CompositeRecurringCompRow({ c, parent, variant, scope, list, index, onD
 
 function DataActionsCard({ ctx }) {
   const fileRef = useRef(null);
+  // L'écriture du profil est passée dans backups.js
+  // (`restorePersonalData(ctx, data)`, qui la prend dans `ctx`) : ce
+  // composant n'en a plus besoin, d'où un champ de moins ici.
   const { user, checkingAccounts, savings, portfolios, physical, profile,
-    updateProfile, showToast } = ctx;
+    showToast } = ctx;
 
   const doExport = async () => {
     // Export v4 : ajoute `joint` (répartition des charges, doc partagé) si on y
@@ -1129,225 +1132,15 @@ function DataActionsCard({ ctx }) {
     showToast('Fichier exporté');
   };
 
-  const restoreComplete = async (data) => {
-    // ATTENTION : on écrit le PROFIL en DERNIER (à la fin de cette fonction).
-    // Sinon, l'updateProfile en premier change immédiatement modulesEnabled
-    // (par ex multiCheckingAccounts), ce qui déclenche un remount de
-    // CheckingModule → CheckingView re-mount → son useEffect initial peut
-    // appeler updateCheckingData() avec un `checking` stale (l'ancien name)
-    // AVANT que les écritures Firestore de l'import aient été propagées
-    // par le subscribe. Résultat : l'ancien name écrase le name importé.
-    // En faisant le profile en dernier, les comptes/savings/etc. sont déjà
-    // écrits quand le mode change → le re-mount voit les bonnes données.
-
-    // ============================================================
-    //  Comptes courants — UPSERT puis cleanup
-    //  IMPORTANT : on ne fait PAS "delete tout puis create tout" car
-    //  ça vide temporairement la collection, ce qui déclenche la
-    //  migration automatique de subscribeCheckingAccounts (création
-    //  d'un compte 'main' par défaut). Résultat : le nouveau compte
-    //  importé + un compte 'main' parasite = 2 comptes à la fin.
-    //
-    //  Stratégie : on commence par écrire les comptes importés (avec
-    //  leur id d'origine si possible) via updateCheckingAccount qui
-    //  fait un .set() complet — crée le doc s'il n'existait pas, ou
-    //  l'écrase. Puis on supprime les anciens comptes qui n'étaient
-    //  pas dans l'import. La collection n'est jamais vide.
-    // ============================================================
-    const accountsToImport = data.checkingAccounts
-      ? data.checkingAccounts
-      : (data.checking ? [{ id: 'main', name: 'Compte principal', ...data.checking }] : []);
-    const existingAccounts = await Adapter.listCheckingAccounts(user.uid);
-    const importedIds = new Set();
-    for (const acc of accountsToImport) {
-      const { id, createdAt, updatedAt, name, ...rest } = acc;
-      const targetId = (typeof id === 'string' && id) ? id : 'main';
-      // Nom final garanti : on tombe sur "Compte principal" si le fichier
-      // ne contient pas de name explicite (au lieu de "Compte importé"
-      // précédemment, qui prêtait à confusion).
-      const finalName = (typeof name === 'string' && name.trim()) ? name.trim() : 'Compte principal';
-      // Migration explicite : applique migrateCheckingShape sur les données
-      // importées AVANT l'écriture Firestore. Ça évite que la base reste
-      // au vieux format (entries/exits + recurringIncome/recurringExpense)
-      // entre l'import et la prochaine édition. Idempotent : si l'export
-      // est déjà au nouveau format, c'est un no-op.
-      const migrated = Adapter.migrateCheckingShape ? Adapter.migrateCheckingShape(rest) : rest;
-      await Adapter.updateCheckingAccount(user.uid, targetId, {
-        id: targetId,
-        name: finalName,
-        ...migrated,
-      });
-      // Garantie : on refait passer le name via un .update() partiel après
-      // le .set() complet. Si une opération concurrente (subscribe stale,
-      // useEffect d'un re-mount) écrasait le name juste après, ce rename
-      // partiel le réécrit. Mécanisme identique à la hero card.
-      await Adapter.renameCheckingAccount(user.uid, targetId, finalName);
-      importedIds.add(targetId);
-    }
-    // Cleanup : on supprime les comptes qui n'étaient pas dans l'import.
-    for (const a of existingAccounts) {
-      if (!importedIds.has(a.id)) {
-        await Adapter.deleteCheckingAccount(user.uid, a.id);
-      }
-    }
-
-    // Épargne : on remplace l'existant (peu critique car pas de migration auto)
-    const existingSav = await Adapter.listSavings(user.uid);
-    for (const s of existingSav) await Adapter.deleteSavings(user.uid, s.id);
-    for (const s of (data.savings || [])) {
-      const { id, createdAt, updatedAt, ...rest } = s;
-      await Adapter.createSavings(user.uid, rest);
-    }
-    // Portefeuilles : on remplace l'existant
-    const existingPf = await Adapter.listPortfolios(user.uid);
-    for (const p of existingPf) await Adapter.deletePortfolio(user.uid, p.id);
-    for (const p of (data.portfolios || [])) {
-      await Adapter.createPortfolio(user.uid, p.name || 'Enveloppe', p.data || {});
-    }
-    // Actifs physiques : on remplace l'existant
-    const existingPh = await Adapter.listPhysical(user.uid);
-    for (const p of existingPh) await Adapter.deletePhysical(user.uid, p.id);
-    for (const p of (data.physical || [])) {
-      const { id, createdAt, updatedAt, ...rest } = p;
-      await Adapter.createPhysical(user.uid, rest);
-    }
-
-    // Profil EN DERNIER (modules activés inclus). Cf. le commentaire en
-    // haut de cette fonction : un changement de mode avant l'écriture des
-    // comptes peut entraîner un remount de CheckingView avec un state
-    // stale qui écrase le name fraîchement importé.
-    if (data.profile) await updateProfile(data.profile);
-  };
-
-  // Validation stricte du fichier d'import : vérifie la version, les types
-  // des champs principaux, et qu'au moins une rubrique de données est
-  // présente. Retourne { ok: bool, errors: [string] }.
-  const validateImportData = (data) => {
-    const errors = [];
-    if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      return { ok: false, errors: ["le fichier n'est pas un objet JSON valide"] };
-    }
-    if (data.version != null && ![2, 3, 4].includes(data.version)) {
-      errors.push(`version inconnue : ${data.version} (attendu 2, 3 ou 4)`);
-    }
-    if (data.joint != null && (typeof data.joint !== 'object' || Array.isArray(data.joint))) {
-      errors.push("le champ 'joint' (charges) n'est pas un objet");
-    }
-    if (data.profile != null && (typeof data.profile !== 'object' || Array.isArray(data.profile))) {
-      errors.push("le champ 'profile' n'est pas un objet");
-    }
-    if (data.checkingAccounts != null && !Array.isArray(data.checkingAccounts)) {
-      errors.push("le champ 'checkingAccounts' n'est pas un tableau");
-    }
-    if (data.checking != null && (typeof data.checking !== 'object' || Array.isArray(data.checking))) {
-      errors.push("le champ 'checking' n'est pas un objet");
-    }
-    for (const k of ['savings', 'portfolios', 'physical']) {
-      if (data[k] != null && !Array.isArray(data[k])) {
-        errors.push(`le champ '${k}' n'est pas un tableau`);
-      }
-    }
-    // Helper : un montant est valide s'il est absent, ou convertible en
-    // nombre fini. Détecte les fichiers corrompus ("12,5", "NaN", objets…)
-    // qui seraient sinon silencieusement convertis en 0 par les calculs.
-    const badAmount = (v) => v != null && !Number.isFinite(Number(v));
-    const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-    // Sous-validation des comptes courants
-    if (Array.isArray(data.checkingAccounts)) {
-      data.checkingAccounts.forEach((acc, i) => {
-        if (!acc || typeof acc !== 'object') {
-          errors.push(`checkingAccounts[${i}] n'est pas un objet`);
-          return;
-        }
-        if (badAmount(acc.initialBalance)) {
-          errors.push(`checkingAccounts[${i}].initialBalance n'est pas un nombre`);
-        }
-        if (acc.months != null && (typeof acc.months !== 'object' || Array.isArray(acc.months))) {
-          errors.push(`checkingAccounts[${i}].months n'est pas un objet`);
-        } else if (acc.months) {
-          for (const [mk, m] of Object.entries(acc.months)) {
-            if (!MONTH_KEY_RE.test(mk)) {
-              errors.push(`checkingAccounts[${i}] : clé de mois invalide "${mk}" (attendu AAAA-MM)`);
-              continue;
-            }
-            if (!m || typeof m !== 'object') {
-              errors.push(`checkingAccounts[${i}].months["${mk}"] n'est pas un objet`);
-              continue;
-            }
-            for (const listKey of ['operations', 'entries', 'exits', 'tr']) {
-              const list = m[listKey];
-              if (list == null) continue;
-              if (!Array.isArray(list)) {
-                errors.push(`checkingAccounts[${i}].months["${mk}"].${listKey} n'est pas un tableau`);
-                continue;
-              }
-              list.forEach((op, j) => {
-                if (op && badAmount(op.amount)) {
-                  errors.push(`checkingAccounts[${i}].months["${mk}"].${listKey}[${j}] : montant invalide "${op.amount}"`);
-                }
-              });
-            }
-          }
-        }
-      });
-    }
-    // Sous-validation épargne / portefeuilles / actifs physiques
-    if (Array.isArray(data.savings)) {
-      data.savings.forEach((s, i) => {
-        if (!s || typeof s !== 'object') { errors.push(`savings[${i}] n'est pas un objet`); return; }
-        if (badAmount(s.initialBalance) || badAmount(s.balance)) {
-          errors.push(`savings[${i}] : solde invalide`);
-        }
-        if (s.operations != null && !Array.isArray(s.operations)) {
-          errors.push(`savings[${i}].operations n'est pas un tableau`);
-        } else {
-          (s.operations || []).forEach((op, j) => {
-            if (op && badAmount(op.amount)) errors.push(`savings[${i}].operations[${j}] : montant invalide "${op.amount}"`);
-          });
-        }
-      });
-    }
-    if (Array.isArray(data.portfolios)) {
-      data.portfolios.forEach((p, i) => {
-        const d = p?.data;
-        if (d != null && (typeof d !== 'object' || Array.isArray(d))) {
-          errors.push(`portfolios[${i}].data n'est pas un objet`);
-          return;
-        }
-        if (d) {
-          if (d.etfs != null && !Array.isArray(d.etfs)) errors.push(`portfolios[${i}].data.etfs n'est pas un tableau`);
-          if (d.operations != null && !Array.isArray(d.operations)) {
-            errors.push(`portfolios[${i}].data.operations n'est pas un tableau`);
-          } else {
-            (d.operations || []).forEach((op, j) => {
-              if (op && badAmount(op.amount)) errors.push(`portfolios[${i}].data.operations[${j}] : montant invalide "${op.amount}"`);
-            });
-          }
-        }
-      });
-    }
-    if (Array.isArray(data.physical)) {
-      data.physical.forEach((a, i) => {
-        if (a && (badAmount(a.quantity) || badAmount(a.unitCurrentPrice) || badAmount(a.unitPurchasePrice))) {
-          errors.push(`physical[${i}] : quantité ou prix invalide`);
-        }
-      });
-    }
-    // Au moins une rubrique de données doit être présente
-    const hasContent = data.profile || data.checkingAccounts || data.checking
-                    || data.savings || data.portfolios || data.physical || data.joint;
-    if (!hasContent) {
-      errors.push("le fichier ne contient aucune donnée Patrimoine reconnue");
-    }
-    return { ok: errors.length === 0, errors };
-  };
-
   const doImport = (file) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        const { ok, errors } = validateImportData(data);
+        // Source unique, définie dans backups.js (chargé APRÈS settings.js,
+        // ce qui est sans effet : l'appel a lieu à l'exécution, tout est
+        // chargé — même motif que buildBackupPayload/BACKUP_KEEP ci-dessous).
+        const { ok, errors } = validatePatrimoineData(data);
         if (!ok) {
           throw new Error("Fichier invalide :\n• " + errors.join('\n• '));
         }
@@ -1368,7 +1161,7 @@ function DataActionsCard({ ctx }) {
           await Adapter.pruneBackups(user.uid, BACKUP_KEEP);
         } catch (e) { console.warn('Sauvegarde avant import non créée', e); }
         // Restauration des données perso depuis le fichier
-        await restoreComplete(data);
+        await restorePersonalData(ctx, data);
         // Répartition des charges (doc PARTAGÉ) — traitée à part car elle
         // écrase les charges des DEUX comptes. Garde-fou d'accès obligatoire :
         // si on n'est pas membre, on ne tente PAS l'écriture (sinon rejet des
