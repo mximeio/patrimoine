@@ -52,15 +52,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # ⚠️ Versions des actions relevées sur les releases GitHub le 30/07/2026,
+      # pas devinées. Montées ensemble pour sortir du runtime Node 20 déprécié.
+      # La rupture de checkout v5/v6 (`allow-unsafe-pr-checkout`) ne concerne QUE
+      # `pull_request_target` — ce workflow se déclenche sur push, il n'est pas
+      # affecté. upload-pages-artifact et deploy-pages forment un JEU APPARIÉ :
+      # les monter séparément est le bon moyen de casser le déploiement.
+      # Épinglage sur la MAJEURE (@v7, pas @v7.0.1) : conserve la convention du
+      # fichier et laisse arriver les correctifs de sécurité.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          # Node 24 depuis le 30/07/2026 (Node 20 est en fin de vie). Node ne
+          # sert ici qu'à DEUX choses : lancer `npx esbuild` (un binaire Go —
+          # la version de Node ne change pas la sortie) et `node --check sw.js`
+          # (Node 24 analyse tout ce que Node 20 analysait). Aucun package.json,
+          # aucune dépendance : rien d'autre ne peut en dépendre.
+          node-version: '24'
       # enablement: true — active Pages en mode « GitHub Actions » si ce
       # n'est pas déjà fait. Pratique sur un dépôt neuf : évite d'avoir à
       # le régler à la main avant le premier run. Si ça échoue (droits,
       # dépôt privé sans abonnement), le régler dans Settings → Pages.
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         with:
           enablement: true
 
@@ -162,7 +175,7 @@ jobs:
           node --check sw.js
           echo "$(ls -1 js/*.js | wc -l) fichiers contrôlés — OK"
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
@@ -186,4 +199,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
