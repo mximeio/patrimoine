@@ -2,6 +2,53 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
+
+  <!-- ============================================================
+       CONTENT-SECURITY-POLICY
+       ⚠️ EN PREMIER dans le <head> : une politique en balise ne régit que ce
+       qui la SUIT dans le document. La déplacer plus bas la rendrait
+       partiellement inopérante, sans aucun message d'erreur.
+       ⚠️ Elle NE régit PAS sw.js : un service worker a son propre contexte.
+       ⚠️ GitHub Pages ne pose aucun en-tête HTTP, donc le mode `Report-Only`
+       (observer sans bloquer) est indisponible : toute modification ici se
+       teste EN AVEUGLE, sur DEV, console ouverte, en parcourant toute l'app.
+
+       🔴 RÈGLE PERMANENTE : toute nouvelle ressource externe — script, police,
+       image, point d'API — doit être ajoutée ICI dans le même dépôt, sinon le
+       navigateur la bloque SANS message visible. Symptômes à reconnaître :
+       graphiques blancs (script-src), typographie changée (style/font-src),
+       app qui démarre mais sans aucune donnée (connect-src). Cf. §2 et §8.
+
+       Ce qui est protégé, et ce qui ne l'est pas :
+       - script-src est STRICT : origines épinglées + les deux scripts inline
+         autorisés par EMPREINTE. Les empreintes ne tiennent que parce que ces
+         scripts ne contiennent aucun `?v=` (cf. la balise app-build plus bas) ;
+         y réintroduire un littéral de version les invaliderait à chaque dépôt.
+       - style-src garde 'unsafe-inline', OBLIGATOIRE : 407 `style={{…}}` dans
+         le JS. S'en passer demanderait une réécriture massive. Ce n'est donc
+         pas une protection totale, et il ne faut pas la vendre comme telle.
+       - connect-src liste les 5 hôtes Firebase, RECOPIÉS de PASSTHROUGH_HOSTS
+         de sw.js — surtout PAS déduits du panneau réseau : une session
+         complète n'en révèle que 2, les autres n'apparaissent qu'au
+         rafraîchissement de jeton ou à l'installation. `wss:` sur Firestore
+         est une ceinture : le SDK utilise du long-polling HTTP
+         (experimentalAutoDetectLongPolling), mais s'il basculait un jour sur
+         WebSocket, le symptôme serait « plus aucune donnée ».
+       ============================================================ -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://unpkg.com https://www.gstatic.com 'sha256-yPuM7RuD9GGnOgZBIJ/pTUIsl3RMPgOnnolzDAR36nE=' 'sha256-LQQRAwMBhpob2xH4RomBl1mVXeCIU8aUy2vQQeRG4Sw=';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    img-src 'self' data:;
+    connect-src 'self' https://firestore.googleapis.com wss://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseinstallations.googleapis.com;
+    manifest-src 'self';
+    worker-src 'self';
+    frame-src 'none';
+    object-src 'none';
+    base-uri 'none';
+    form-action 'self';
+  " />
   <!-- maximum-scale=1 : bloque le ZOOM AUTOMATIQUE d'iOS au focus d'un champ
        (déclenchable même à 16px par l'overlay de remplissage de mot de passe).
        En PWA, ce zoom ne se relâche jamais et fait défiler les éléments
@@ -11,12 +58,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <title>Patrimoine</title>
 
-  <!-- BUILD PRÉCOMPILÉ (test) : le JSX est compilé en amont par esbuild,
-       Babel standalone n'est plus chargé et n'injecte plus de script inline.
-       Un Content-Security-Policy strict redevient donc possible — non ajouté
-       ici volontairement : un seul changement à la fois. Les autres mesures
-       restent en place : SRI sur les CDN, règles Firestore, validation des
-       imports JSON. -->
+  <!-- BUILD PRÉCOMPILÉ : le JSX est compilé en amont par esbuild, Babel
+       standalone n'est plus chargé et n'injecte plus de script inline. C'est ce
+       qui a rendu le Content-Security-Policy ci-dessus possible — il est en
+       place depuis le 31/07/2026. Les autres mesures restent en place : SRI sur
+       les CDN, règles Firestore, validation des imports JSON. -->
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f172a'/%3E%3Cg transform='translate(4 4)' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12V7H5a2 2 0 0 1 0-4h14v4'/%3E%3Cpath d='M3 5v14a2 2 0 0 0 2 2h16v-5'/%3E%3Cpath d='M18 12a2 2 0 0 0 0 4h4v-4z'/%3E%3C/g%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=614" />
@@ -33,22 +79,34 @@
        test) ou en localhost, on charge manifest-dev.json ("Patrimoine DEV")
        pour distinguer les deux PWA installées sur l'écran d'accueil.
        Même critère pathname que le switch Firebase de config.js. -->
+  <!-- Version de build — PLACEHOLDER réécrit par le workflow GitHub à chaque
+       publication (VERSION_BASE + n° de run), comme tous les `?v=` de ce
+       fichier et de sw.js. Ne pas la maintenir à la main.
+       ⚠️ Elle vit dans cette balise, et NON dans le script ci-dessous, à dessein :
+       le script est destiné à être autorisé par EMPREINTE sha256 dans un
+       Content-Security-Policy, et une empreinte ne vaut que si le contenu ne
+       change pas. Y laisser un `?v=` la ferait changer à CHAQUE déploiement,
+       donc bloquer le script — et avec lui le numéro de version affiché et la
+       sélection du manifest. Cf. CLAUDE.md §11. -->
+  <meta name="app-build" content="?v=614" />
   <script>
     (function () {
-      // Version de build. La chaîne de version ci-dessous est un PLACEHOLDER :
-      // le workflow GitHub la réécrit à chaque publication (VERSION_BASE +
-      // n° de run), partout dans ce fichier et dans sw.js. Ne pas la maintenir
-      // à la main — et depuis la v615 il n'y a PLUS de sed de bump local.
+      // Version lue dans la balise <meta app-build> ci-dessus : ce script ne
+      // contient donc AUCUN `?v=` et son contenu est stable d'une version à
+      // l'autre (cf. le commentaire ci-dessus — ne pas y réintroduire de
+      // littéral de version).
+      var m = document.querySelector('meta[name="app-build"]');
+      var v = (m && m.getAttribute('content')) || '';
       // Affichée en pied du menu « ⋯ » et loguée en console : permet de
       // vérifier d'un coup d'œil quelle version tourne réellement sur
       // l'appareil (cache Safari, déploiement Pages…).
-      window.APP_BUILD = '?v=614'.replace('?v=', 'v');
+      window.APP_BUILD = v.replace('?v=', 'v');
       var isDev = location.pathname.indexOf('/patrimoine-dev') === 0
                || location.hostname === 'localhost'
                || location.hostname === '127.0.0.1';
       var link = document.createElement('link');
       link.rel = 'manifest';
-      link.href = (isDev ? 'manifest-dev.json' : 'manifest.json') + '?v=614';
+      link.href = (isDev ? 'manifest-dev.json' : 'manifest.json') + v;
       document.head.appendChild(link);
       if (isDev) {
         // Titre iOS (Ajouter à l'écran d'accueil) + titre d'onglet distincts
