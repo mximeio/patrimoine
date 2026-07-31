@@ -77,6 +77,29 @@ function App() {
   // Canal séparé des toasts : aucun écrasement mutuel possible avec les
   // confirmations d'action. Tout est superposé : zéro décalage de layout.
   const [netOnline, setNetOnline] = useState(() => navigator.onLine !== false);
+  // Cet onglet peut-il afficher tes données ? `true` par défaut : on n'alerte
+  // jamais avant de savoir.
+  // ⚠️ Le signal est un FAIT observé — « j'ai lu depuis le cache et il était
+  // vide » (`patrimoine:cache-vide`, émis par adapter.js) — et NON le retour
+  // d'`enablePersistence()`. Mesuré le 31/07/2026 : celle-ci résout à `true`
+  // dans deux onglets, dont celui qui n'affiche ensuite aucune donnée. Une
+  // première version de cet indicateur s'appuyait dessus et affichait donc
+  // « tout va bien » exactement dans le cas à signaler. Ne pas y revenir.
+  const [cacheOk, setCacheOk] = useState(true);
+  // ⚠️ REPRISE D'IMPORT après rechargement — cf. `reprendreImportEnAttente`
+  // (backups.js). Ne fait rien s'il n'y a pas de dépôt en attente, donc sans
+  // effet dans la quasi-totalité des ouvertures. Déclenchée une seule fois, et
+  // seulement quand les données sont chargées : l'import a besoin du `ctx`
+  // complet (profil, comptes, charges) pour construire son filet.
+  const repriseFaite = useRef(false);
+  useEffect(() => {
+    const surSignal = (e) => setCacheOk(!e.detail);
+    window.addEventListener('patrimoine:cache-vide', surSignal);
+    // L'adapter a pu émettre AVANT ce montage (abonnements lancés au chargement) :
+    // on lit donc aussi l'état courant, sinon on manquerait le tout premier signal.
+    setCacheOk(!Adapter._cacheVide);
+    return () => window.removeEventListener('patrimoine:cache-vide', surSignal);
+  }, []);
   const [netPill, setNetPill] = useState(null); // { text, color }
   const netPillTimer = useRef(null);
   useEffect(() => {
@@ -339,8 +362,53 @@ function App() {
     if (!dataLoaded || !user || !profile) return;
     if (autoBackupTried.current) return;
     autoBackupTried.current = true;
-    maybeAutoBackup(user, { profile, checkingAccounts, savings, portfolios, physical });
-  }, [dataLoaded, user, profile]);
+    // ⚠️ `joint` et `chargesMember` sont passés pour que la sauvegarde auto
+    // contienne AUSSI les charges (cf. l'en-tête de backups.js). Et l'effet
+    // attend que `joint` soit tranché — comme la reprise d'import juste en
+    // dessous — sinon une course le ferait sauvegarder sans les charges.
+    if (joint === undefined) return;
+    maybeAutoBackup(user, { profile, checkingAccounts, savings, portfolios, physical,
+      joint, chargesMember: !!(joint && Array.isArray(joint.members) && joint.members.includes(user.uid)) });
+  }, [dataLoaded, user, profile, joint]);
+
+  // ============================================================
+  //  REPRISE D'IMPORT après rechargement — cf. `reprendreImportEnAttente`
+  //  (backups.js). Ne fait rien s'il n'y a pas de dépôt en attente, donc sans
+  //  effet dans la quasi-totalité des ouvertures. Une seule tentative par
+  //  session, comme l'auto-sauvegarde : c'est ce qui interdit toute boucle.
+  //
+  //  🔴 CE HOOK DOIT RESTER ICI, AVANT le retour anticipé de l'écran de
+  //  chargement (`if (!dataLoaded || !profile) return …`, plus bas).
+  //  Déplacé après — pour le rapprocher de `ctx`, qu'il utilise — il a provoqué
+  //  l'**erreur React #310** (« plus de hooks qu'au rendu précédent ») : pendant
+  //  le chargement le composant retourne tôt, le hook n'est pas déclaré, puis il
+  //  l'est une fois les données là. Vécu le 31/07/2026, sur le site déposé.
+  //  ⚠️ Référencer `ctx` ici est sûr bien qu'il soit déclaré PLUS BAS : le
+  //  callback s'exécute après le corps du composant, et la garde `dataLoaded`
+  //  garantit qu'on n'y touche que sur un rendu qui n'est PAS retourné tôt —
+  //  donc où `ctx` est initialisé.
+  //  ⚠️ Aucun test unitaire ne peut attraper ça : le harnais ne rend rien
+  //  (useEffect y est un noop). Seul un rendu réel le révèle.
+  // ============================================================
+  useEffect(() => {
+    if (!dataLoaded || !user || !profile) return;
+    // 🔴 ATTENDRE AUSSI LES CHARGES. `dataLoaded` ne les attend PAS — c'est
+    // volontaire (un non-membre n'y a jamais accès, cf. `subscribeJoint`
+    // plus haut) — mais l'import en a besoin : `sharedChargesFrom` répond
+    // 'loading' tant que `joint` vaut `undefined`, donc les charges seraient
+    // IGNORÉES sans dialogue ni explication visible.
+    // Vécu le 31/07/2026 : sur trois reprises, l'une est passée avant l'arrivée
+    // des charges et les a silencieusement laissées de côté, l'autre non — une
+    // course, donc un comportement incompréhensible pour l'utilisateur.
+    // `joint` vaut `undefined` tant qu'on ne sait pas, puis un objet (membre)
+    // ou `null` (non-membre) : attendre qu'il soit tranché suffit, et
+    // `subscribeJoint` tranche toujours (son `onDenied` pose `null`).
+    if (joint === undefined) return;
+    if (repriseFaite.current) return;
+    repriseFaite.current = true;
+    reprendreImportEnAttente(ctx);
+  }, [dataLoaded, user, profile, joint]);
+
 
   // Flush immédiat du snapshot en attente quand la page passe en
   // arrière-plan ou se ferme. La persistance offline de Firestore met
@@ -506,6 +574,7 @@ function App() {
         onSelectModule={selectModule}
         onOpenSearch={() => setShowSearch(true)}
         onOpenSettings={() => setShowSettings(true)}
+        cacheOk={cacheOk}
         online={netOnline}
       />
       <main className="main-container">
@@ -540,6 +609,7 @@ function App() {
         onSelect={selectModule}
         onMore={() => setShowSheet(true)}
         online={netOnline}
+        cacheOk={cacheOk}
       />
       {/* Menu « ⋯ » mobile : bottom sheet avec recherche + actions du kebab.
           onSignOut = signOut DIRECT (pas handleSignOut) : la confirmation
@@ -550,6 +620,7 @@ function App() {
           onClose={() => setShowSheet(false)}
           onSearch={() => setShowSearch(true)}
           onSettings={() => setShowSettings(true)}
+          cacheOk={cacheOk}
           onSignOut={() => Adapter.signOut()}
           online={netOnline}
         />
@@ -757,7 +828,7 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
   }, deps); // eslint-disable-line
 }
 
-function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSearch, onOpenSettings, online = true }) {
+function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSearch, onOpenSettings, online = true, cacheOk = true }) {
   // Segmented control : la pastille foncée glisse entre les onglets.
   const railRef = useRef(null);
   const indRef = useRef(null);
@@ -802,7 +873,7 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
           <span className="user-email">{user.email}</span>
           {/* Point ambre réseau (v523) : superposé au coin du « ⋯ »,
               visible tant que l'app est hors ligne. */}
-          <Dropdown trigger={<button className="btn-icon" style={{ position: 'relative' }} aria-label="Menu">⋯{!online && <span className="net-dot" />}</button>}>
+          <Dropdown trigger={<button className="btn-icon" style={{ position: 'relative' }} aria-label="Menu">⋯{!online && <span className={`net-dot${cacheOk ? '' : ' net-dot--grave'}`} />}</button>}>
             {/* v584 : bloc identité (avatar + email) aligné à gauche — pendant
                 desktop de .sheet-id de la feuille mobile. */}
             <div className="dropdown-id">
@@ -816,6 +887,14 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
             {/* Tag hors-ligne (v549) : explique le point ambre du « ⋯ ». */}
             {!online && (
               <div className="offline-tag offline-tag--menu"><span className="offline-tag-dot" /> Hors ligne — modifications en attente</div>
+            )}
+            {/* Option C (maquette du 31/07/2026) : le tag « pas de cache » est
+                affiché EN PERMANENCE quand il manque — c'est une propriété de
+                l'onglet, pas de l'instant. La pastille, elle, ne passe au rouge
+                que si l'on est AUSSI hors ligne : un onglet en ligne sans cache
+                fonctionne, une alerte permanente n'alerterait plus. */}
+            {!cacheOk && (
+              <div className="offline-tag offline-tag--cache offline-tag--menu"><span className="offline-tag-dot" /> Données indisponibles hors ligne dans cet onglet — recharge-le en ligne</div>
             )}
             <button
               className="dropdown-item"
@@ -848,7 +927,7 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
 // Fixée en bas, jamais masquée : au scroll vers le bas elle se RÉTRACTE en
 // icônes seules (mode mini), au scroll vers le haut elle se redéploie.
 // Affichée uniquement sur mobile (CSS).
-function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
+function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk = true }) {
   const wrapRef = useRef(null);
   const barRef = useRef(null);
   const indRef = useRef(null);
@@ -1112,7 +1191,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
         onPointerCancel={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
         onPointerLeave={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
         aria-label="Menu"
-      >⋯{!online && <span className="net-dot" />}</button>
+      >⋯{!online && <span className={`net-dot${cacheOk ? '' : ' net-dot--grave'}`} />}</button>
     </div>
   );
 }
@@ -1126,7 +1205,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true }) {
 // (theme-color dynamique) a été MESURÉ SANS EFFET et retiré. Palliatif v525 :
 // les fondus du backdrop passent à 0,4 s — la bascule système tombe PENDANT
 // l'animation au lieu d'après, le décalage se fond dans le mouvement.
-function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = true }) {
+function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = true, cacheOk = true }) {
   // Fermeture ANIMÉE : le backdrop s'estompe pendant 400 ms (v525) AVANT le
   // démontage ; la sheet, elle, glisse en 240 ms (sheetDown, `forwards` la
   // fige hors écran le temps que le fondu se termine). L'action éventuelle
@@ -1273,6 +1352,9 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = 
             explique le point ambre du « ⋯ » quand le menu est ouvert. */}
         {!online && (
           <div className="offline-tag"><span className="offline-tag-dot" /> Hors ligne — modifications en attente</div>
+        )}
+        {!cacheOk && (
+          <div className="offline-tag offline-tag--cache"><span className="offline-tag-dot" /> Données indisponibles hors ligne dans cet onglet — recharge-le en ligne</div>
         )}
         {/* Zone basculante actions ⇄ confirmation : glissement latéral
             croisé + hauteur animée, l'identité reste visible au-dessus

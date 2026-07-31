@@ -1093,37 +1093,53 @@ function CompositeRecurringCompRow({ c, parent, variant, scope, list, index, onD
 
 function DataActionsCard({ ctx }) {
   const fileRef = useRef(null);
-  // L'écriture du profil est passée dans backups.js
-  // (`restorePersonalData(ctx, data)`, qui la prend dans `ctx`) : ce
-  // composant n'en a plus besoin, d'où un champ de moins ici.
-  const { user, checkingAccounts, savings, portfolios, physical, profile,
-    showToast } = ctx;
+  // L'écriture du profil, puis tout l'import, sont passés dans backups.js
+  // (`restorePersonalData` et `importPatrimoineData`, qui prennent `ctx`) —
+  // et depuis le 31/07/2026 l'export passe par `buildBackupPayload(ctx, …)`,
+  // qui lit `ctx` lui aussi. Ce composant n'a donc plus besoin d'aucune
+  // donnée : il ne garde que `showToast`.
+  const { showToast } = ctx;
 
-  const doExport = async () => {
-    // Export v4 : ajoute `joint` (répartition des charges, doc partagé) si on y
-    // a accès. v3 = sans charges, v2 = checking (objet). L'import gère v2/3/4.
-    const exportData = {
-      version: 4,
-      exportedAt: new Date().toISOString(),
-      profile,
-      checkingAccounts,
-      savings, portfolios, physical,
-    };
-    // Charges partagées : incluses seulement si on est membre (accès en lecture).
-    // On retire members (verrouillé) + les métadonnées techniques.
-    try {
-      const { access, data } = await Adapter.getJoint();
-      if (access && data) {
-        const { id, members, updatedAt, ...jointData } = data;
-        exportData.joint = jointData;
-      }
-    } catch (_e) { /* pas d'accès → export sans les charges */ }
+  // ⚠️ SYNCHRONE, et ça n'est pas un détail de style. Cette fonction
+  // attendait `Adapter.getJoint()` avant de déclencher le téléchargement,
+  // ce qui causait DEUX défauts, tous deux constatés sur iPhone le
+  // 31/07/2026 :
+  //  1. le 2ᵉ export ne produisait plus rien du tout — ce `get()` ne se
+  //     résolvait jamais (cf. le pavé de `sharedChargesFrom`, backups.js),
+  //     et le `try/catch` ci-dessous n'attrape pas une promesse en suspens ;
+  //  2. même résolu, un `await` fait sortir le clic de la fenêtre
+  //     d'ACTIVATION UTILISATEUR ouverte par le tap — et Safari refuse
+  //     alors le téléchargement, en silence.
+  // ⇒ Les charges viennent maintenant de `ctx.joint` (abonnement temps
+  //   réel), donc sans aucune attente. **Ne pas réintroduire d'`await`
+  //   ici**, ni de lecture Firestore : tout ce qui précède `a.click()`
+  //   doit rester synchrone.
+  const doExport = () => {
+    // Export v4 = MÊME structure que le payload de sauvegarde : on passe
+    // donc par `buildBackupPayload`, source unique de cette forme (v3 = sans
+    // charges, v2 = checking objet ; l'import gère v2/3/4).
+    // Et par `sharedChargesFrom`, source unique de la lecture des charges —
+    // c'est lui qui retire `members` et les métadonnées.
+    const charges = sharedChargesFrom(ctx);
+    const exportData = buildBackupPayload(ctx, charges.jointData);
+    // Non-membre : export sans les charges, silencieusement — c'est normal
+    // et ça l'a toujours été. En revanche « pas encore chargées » est un
+    // état transitoire, et le taire produirait un export SILENCIEUSEMENT
+    // incomplet : on le dit.
+    if (charges.reason === 'loading') {
+      showToast('Export sans les charges — pas encore chargées', 'error');
+    }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `patrimoine-${todayIso()}.json`;
+    // ⚠️ Le lien doit être DANS le document : certaines versions d'iOS
+    // ignorent un `.click()` sur un élément détaché.
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     // v544 : on retarde la libération de l'URL objet. La révoquer tout de
     // suite après a.click() peut couper le téléchargement sur les navigateurs
     // qui lisent le blob de façon asynchrone. 1,5 s laisse le temps au
@@ -1137,50 +1153,27 @@ function DataActionsCard({ ctx }) {
     reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        // Source unique, définie dans backups.js (chargé APRÈS settings.js,
-        // ce qui est sans effet : l'appel a lieu à l'exécution, tout est
-        // chargé — même motif que buildBackupPayload/BACKUP_KEEP ci-dessous).
-        const { ok, errors } = validatePatrimoineData(data);
-        if (!ok) {
-          throw new Error("Fichier invalide :\n• " + errors.join('\n• '));
-        }
-        if (!confirm(
-          "Attention — Import complet\n\n" +
-          "Cela REMPLACE intégralement tes données actuelles (compte courant, épargne, enveloppes, actifs physiques) par celles du fichier.\n\n" +
-          "Une sauvegarde « avant import » de ton état actuel est créée automatiquement — tu pourras revenir en arrière.\n\n" +
-          "Continuer ?"
-        )) return;
-        // Filet de sécurité (v565) : sauvegarde « avant import » de l'état
-        // ACTUEL avant d'écraser — même principe que la restauration. Non
-        // bloquant : si elle échoue, on prévient et on poursuit l'import
-        // (l'utilisateur l'a explicitement demandé).
-        try {
-          await Adapter.createBackup(user.uid, {
-            type: 'pre-import', at: new Date().toISOString(), payload: buildBackupPayload(ctx),
-          });
-          await Adapter.pruneBackups(user.uid, BACKUP_KEEP);
-        } catch (e) { console.warn('Sauvegarde avant import non créée', e); }
-        // Restauration des données perso depuis le fichier
-        await restorePersonalData(ctx, data);
-        // Répartition des charges (doc PARTAGÉ) — traitée à part car elle
-        // écrase les charges des DEUX comptes. Garde-fou d'accès obligatoire :
-        // si on n'est pas membre, on ne tente PAS l'écriture (sinon rejet des
-        // règles → import cassé), on prévient et on continue.
-        if (data.joint) {
-          const { access } = await Adapter.getJoint();
-          if (!access) {
-            showToast("Charges non importées — pas d'accès au document partagé", 'error');
-          } else if (confirm(
-            "Ce fichier contient aussi la répartition des charges (partagée).\n\n" +
-            "Attention : la remplacer écrasera les charges pour les DEUX comptes.\n\n" +
-            "Remplacer la répartition des charges ?"
-          )) {
-            const { id, members, updatedAt, ...jointData } = data.joint;
-            await Adapter.updateJoint(jointData);
-            showToast('Répartition des charges importée', 'success');
-          }
-        }
-        showToast('Import complet réussi — rechargement…', 'success');
+        // Tout le chemin destructeur vit dans `importPatrimoineData`
+        // (backups.js) depuis le 31/07/2026 : validation, dialogues, filet
+        // « avant import », réécriture et charges partagées. Il en portait
+        // une copie ici, où elle était intestable (une closure de composant
+        // n'est pas un global — cf. l'en-tête de la fonction).
+        // ⚠️ Ne pas réintroduire cette logique ici : la source est unique.
+        // backups.js est chargé APRÈS settings.js, ce qui est sans effet —
+        // l'appel a lieu à l'exécution, tout est chargé.
+        // false = annulé au dialogue : il n'y a alors ni toast ni
+        // rechargement à faire, et surtout rien n'a été écrit.
+        // `texteSource` : le JSON brut, pour que l'import puisse se METTRE DE
+        // CÔTÉ et reprendre après rechargement si la page est gelée (cf. le
+        // pavé de `reprendreImportEnAttente`, backups.js). Sans lui, le report
+        // est impossible et on retombe sur le message d'échec.
+        const résultat = await importPatrimoineData(ctx, data, { texteSource: e.target.result });
+        if (!résultat) return;   // annulé, différé, ou interrompu avec son propre message
+        // 'partiel' = données importées mais charges non remplacées. On recharge
+        // quand même (l'écran doit refléter les nouvelles données), en le disant.
+        showToast(résultat === 'partiel'
+          ? "Données importées — les charges n'ont pas pu être remplacées"
+          : 'Import complet réussi — rechargement…', résultat === 'partiel' ? 'error' : 'success');
         setTimeout(() => window.location.reload(), 900);
       } catch (err) {
         console.error(err);

@@ -139,6 +139,36 @@ function migrateCheckingShape(data) {
 //  silencieuse au chargement.
 // ============================================================
 
+// ============================================================
+//  🔴 UN VIDE VENANT DU CACHE N'EST PAS UN VIDE.
+//
+//  Chaque instantané Firestore porte `metadata.fromCache`. Hors ligne — ou
+//  avant la première réponse du serveur — un document absent et une
+//  collection vide sont indiscernables d'un « je ne sais pas encore ».
+//  Le code ne le regardait NULLE PART (0 occurrence de `fromCache` avant le
+//  31/07/2026), et trois endroits ÉCRIVAIENT sur cette base.
+//
+//  ⚠️ INCIDENT DU 31/07/2026, sur DEV, données réellement détruites.
+//  Deux onglets ouverts sur le même appareil ; le second, sans cache et mis
+//  hors ligne, a reçu une collection de comptes VIDE. `subscribeCheckingAccounts`
+//  en a conclu « nouvel utilisateur » et a fait un `set()` sur `doc('main')` —
+//  donc **écrasé les 31 mois**. Le retour en ligne a poussé ce vide au serveur,
+//  et l'auto-sauvegarde hebdomadaire en a même pris une copie.
+//  Récupéré grâce aux sauvegardes « avant import » (9 en portaient 31 mois).
+//
+//  ⇒ RÈGLE : ne JAMAIS créer, semer ni réparer quoi que ce soit à partir d'un
+//    instantané dont `fromCache` est vrai. On peut l'AFFICHER, jamais en tirer
+//    une écriture.
+//  Effet de bord assumé : un vrai nouvel utilisateur ouvrant l'app hors ligne
+//  n'aura pas de compte créé tant qu'il n'est pas en ligne. C'est voulu — mieux
+//  vaut ne rien créer que créer sur une supposition.
+// ============================================================
+function vientDuCache(snap) {
+  // Absence de `metadata` = doublure de test ou SDK inattendu : on considère
+  // que ça vient du cache, donc on n'écrit pas. Le défaut le plus prudent.
+  return !snap || !snap.metadata || snap.metadata.fromCache !== false;
+}
+
 const DEFAULT_PORTFOLIO_DATA = {
   etfs: [],
   operations: [],
@@ -197,9 +227,12 @@ const Adapter = {
     try {
       const ns = firebase.firestore;
       if (typeof ns.persistentLocalCache === 'function' && typeof ns.persistentMultipleTabManager === 'function') {
-        settings.localCache = ns.persistentLocalCache({
-          tabManager: ns.persistentMultipleTabManager(),
-        });
+        // ⚠️ SANS gestionnaire multi-onglets — même raison que le
+        // `enablePersistence()` ci-dessous. Cette branche ne tourne pas
+        // aujourd'hui (le build compat n'expose pas `persistentLocalCache`),
+        // mais si une version future l'exposait, y remettre
+        // `persistentMultipleTabManager()` réintroduirait le blocage.
+        settings.localCache = ns.persistentLocalCache();
         usedNewCacheAPI = true;
       }
     } catch (_) { /* fallback ci-dessous */ }
@@ -210,8 +243,46 @@ const Adapter = {
     } catch (_) {
       try { fbDb.settings(settings); } catch (__) {}
     }
+    // ============================================================
+    //  🔴 PERSISTANCE MONO-CONTEXTE — ne pas remettre `synchronizeTabs`.
+    //
+    //  `enablePersistence({ synchronizeTabs: true })` coordonne les
+    //  contextes d'une même origine par un **bail primaire** stocké dans
+    //  IndexedDB : un seul contexte parle au serveur, les autres passent
+    //  par lui. Si le détenteur du bail est une PWA que iOS a **suspendue**,
+    //  l'autre contexte attend ce bail indéfiniment.
+    //
+    //  Conséquence mesurée le 31/07/2026, sur iPhone, avec l'app ouverte
+    //  À LA FOIS en PWA installée et dans un onglet Safari : l'import
+    //  restait **totalement muet** — l'écriture n'atteignait même pas la
+    //  file locale (aucune trace côté serveur, ni sur le moment ni plus
+    //  tard, l'horodatage client des sauvegardes l'a prouvé). Le
+    //  contournement trouvé par l'utilisateur — tuer la PWA et rouvrir —
+    //  ne faisait que libérer le bail.
+    //  ⇒ Vérifié par élimination : **un seul contexte ouvert, trois imports
+    //    d'affilée passent en ~4 s chacun**, écritures acquittées en moins
+    //    d'une seconde. Deux contextes : blocage.
+    //
+    //  Ce qu'on perd, et c'est étroit : sur DESKTOP, un second onglet ouvert
+    //  EN MÊME TEMPS n'a plus le cache hors ligne (il fonctionne, en ligne).
+    //  Le `.catch()` absorbe précisément ce cas (`failed-precondition`).
+    //  Le hors ligne du contexte utilisé reste entier — le mode avion, validé
+    //  sur iPhone, n'est pas affecté.
+    //
+    //  ⚠️ Une application ne doit pas dépendre des habitudes d'onglets de
+    //  son utilisateur, surtout sur son chemin le plus destructeur.
+    // ============================================================
     if (!usedNewCacheAPI) {
-      fbDb.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+      // ⚠️ Le résultat est volontairement IGNORÉ, et ce n'est pas de la
+      // négligence : mesuré le 31/07/2026, `enablePersistence()` **résout à
+      // true dans DEUX onglets** de la même origine, y compris dans celui qui
+      // s'avère ensuite incapable d'afficher la moindre donnée hors ligne. Ce
+      // n'est donc PAS un indicateur fiable de « cet onglet a un cache
+      // utilisable » — une première version de l'indicateur s'appuyait dessus
+      // et annonçait « tout va bien » précisément dans le cas à signaler.
+      // ⇒ Le signal utilisé est la CONSÉQUENCE observée, pas l'intention
+      //   déclarée : cf. `_signalerCacheVide` et `subscribeCheckingAccounts`.
+      fbDb.enablePersistence().catch(() => {});
     }
   },
 
@@ -249,12 +320,49 @@ const Adapter = {
   _portfoliosCol(uid) { return this._userDoc(uid).collection('portfolios'); },
   _physicalCol(uid) { return this._userDoc(uid).collection('physical'); },
   _snapshotsCol(uid) { return this._userDoc(uid).collection('snapshots'); },
+  // ============================================================
+  //  « Cet onglet n'a pas tes données » — signal fondé sur un FAIT.
+  //
+  //  Émis quand une lecture vient du cache ET ne contient rien : l'app est
+  //  alors incapable d'afficher les données, et ne peut pas savoir si elles
+  //  existent. C'est exactement ce que l'utilisateur voit à l'écran (des 0),
+  //  et c'est l'état qui a précédé la destruction de données du 31/07/2026.
+  //  ⚠️ Ne PAS revenir à `enablePersistence()` comme source : elle résout à
+  //  true même dans un onglet sans cache utilisable (mesuré). On mesure la
+  //  conséquence, pas l'intention.
+  //  Événement personnalisé, comme `patrimoine:open` (§7) : l'adapter ne
+  //  connaît pas React.
+  //  ⚠️ Transitoire au démarrage EN LIGNE : le premier instantané peut venir
+  //  du cache et être vide avant la réponse du serveur. C'est sans effet
+  //  visible — le tag vit dans le menu « ⋯ » (fermé), et la pastille ne
+  //  rougit que si l'app se croit aussi hors ligne. Il est effacé dès qu'une
+  //  donnée arrive.
+  // ============================================================
+  _cacheVide: false,
+  //  Renvoie true si un événement a réellement été émis, false si l'appel
+  //  était un no-op (état inchangé). Ce retour n'existe que pour rendre la
+  //  déduplication TESTABLE : sans lui, un test ne peut pas distinguer « appelé »
+  //  de « émis », et une déduplication cassée passerait inaperçue.
+  _signalerCacheVide(vide) {
+    if (this._cacheVide === !!vide) return false;   // n'émettre que sur changement
+    this._cacheVide = !!vide;
+    try {
+      window.dispatchEvent(new CustomEvent('patrimoine:cache-vide', { detail: this._cacheVide }));
+    } catch (_e) { /* environnement sans dispatchEvent (harnais de test) */ }
+    return true;
+  },
+
   // Données partagées (compte joint) — un seul doc partagé entre membres.
   _jointRef() { return fbDb.collection('joint').doc('main'); },
 
   async loadProfile(uidStr) {
     const snap = await this._profileRef(uidStr).get();
     if (!snap.exists) {
+      // 🔴 cf. `vientDuCache` : un profil « absent » lu depuis le cache ne doit
+      // PAS être remplacé par le profil par défaut — ça effacerait les modules
+      // activés (dont `multiCheckingAccounts`, absent de DEFAULT_PROFILE, donc
+      // la perte serait invisible).
+      if (vientDuCache(snap)) return { ...DEFAULT_PROFILE };
       await this._profileRef(uidStr).set({
         ...DEFAULT_PROFILE,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -606,8 +714,12 @@ const Adapter = {
   subscribeProfile(uidStr, onChange) {
     return this._profileRef(uidStr).onSnapshot(async (snap) => {
       if (!snap.exists) {
-        // 1er login : on initialise le profil par défaut. Le set
-        // déclenchera un nouveau snapshot qui notifiera l'app.
+        // 🔴 cf. `vientDuCache` : tant que le serveur n'a pas confirmé
+        // l'absence, on ne sème rien. On propage tout de même le profil par
+        // défaut pour que l'app démarre (affichage), sans rien écrire.
+        if (vientDuCache(snap)) { onChange({ ...DEFAULT_PROFILE }); return; }
+        // 1er login CONFIRMÉ par le serveur : on initialise le profil par
+        // défaut. Le set déclenchera un nouveau snapshot qui notifiera l'app.
         try {
           await this._profileRef(uidStr).set({
             ...DEFAULT_PROFILE,
@@ -636,6 +748,7 @@ const Adapter = {
     return this._checkingAccountsCol(uidStr).onSnapshot(async (snap) => {
       if (!snap.empty) {
         seenAnyAccount = true;
+        this._signalerCacheVide(false);   // des données : l'onglet est utilisable
         onChange(snap.docs.map(d => this._normalizeCheckingAccount(d.id, d.data())));
         return;
       }
@@ -646,21 +759,69 @@ const Adapter = {
         onChange([]);
         return;
       }
-      // Premier snapshot vide → cold boot d'un utilisateur sans compte courant :
-      // auto-création du « Compte principal » par défaut. (v583 : l'ancienne
-      // migration depuis `checking/main` a été retirée — plus aucun doc legacy
-      // n'existe, la lecture retournait toujours "absent" ; on sème donc
-      // directement depuis DEFAULT_CHECKING, comportement identique.)
+      // 🔴 LA GARDE — cf. `vientDuCache`. C'est ICI que les données ont été
+      // détruites le 31/07/2026 : une collection vide venant du cache était
+      // prise pour un cold boot, et le `set()` sur `doc('main')` écrasait les
+      // 31 mois. On affiche le vide, on n'écrit rien.
+      if (vientDuCache(snap)) {
+        // 🔴 Le signal : on lit depuis le cache et il est vide. On ne sait pas
+        // si des données existent — donc on n'écrit rien, et on le DIT.
+        this._signalerCacheVide(true);
+        onChange([]);
+        return;
+      }
+      this._signalerCacheVide(false);   // le serveur a répondu : plus de doute
+      // Premier snapshot vide CONFIRMÉ PAR LE SERVEUR → cold boot d'un
+      // utilisateur sans compte courant : auto-création du « Compte principal »
+      // par défaut. (v583 : l'ancienne migration depuis `checking/main` a été
+      // retirée — plus aucun doc legacy n'existe.)
       try {
-        await this._checkingAccountsCol(uidStr).doc('main').set({
-          name: 'Compte principal',
-          ...DEFAULT_CHECKING,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+        await this._seedDefaultCheckingAccount(uidStr);
         seenAnyAccount = true; // le set déclenchera un autre snapshot
       } catch (e) { console.warn('[subscribeCheckingAccounts] auto-create failed', e); }
     }, (err) => console.error('[subscribeCheckingAccounts]', err));
+  },
+
+  // ============================================================
+  //  🔴 CEINTURE — semer le compte par défaut dans une TRANSACTION.
+  //
+  //  ⚠️ NE PAS SURESTIMER CETTE CEINTURE — mesuré le 31/07/2026 sur la base
+  //  DEV, et contraire à ce que ce commentaire affirmait d'abord :
+  //  **une transaction Firestore NE protège PAS du hors ligne.** Une
+  //  transaction qui écrit, lancée après `disableNetwork()`, se RÉSOUT : elle
+  //  s'applique localement et se synchronise ensuite, exactement comme un
+  //  `set()`. (Vérifié sur un document sonde : l'écriture hors ligne était bien
+  //  présente à la lecture suivante.)
+  //
+  //  Ce qu'elle apporte réellement, et c'est modeste : `tx.get()` puis
+  //  `if (d.exists) return` évite d'écraser un document **présent dans le
+  //  cache local**. Un `set()` direct écrasait sans rien regarder. Mais si le
+  //  cache est VIDE — le cas de l'incident — `d.exists` est faux et la ceinture
+  //  ne protège pas.
+  //
+  //  ⇒ **C'est la garde `vientDuCache` qui protège**, pas cette transaction.
+  //    Ne pas relâcher l'une en croyant que l'autre couvre.
+  //    Une vraie protection indépendante ne peut venir que du SERVEUR :
+  //    une règle Firestore refusant un `update` qui ramènerait `months` de
+  //    non-vide à vide. Cf. §11 du CLAUDE.md.
+  // ============================================================
+  //  `runner` n'existe que pour les TESTS : sans lui, le corps de la
+  //  transaction ne serait jamais exercé (le harnais n'a pas de vrai
+  //  `runTransaction`), et une mutation qui retirerait le `d.exists` passerait
+  //  inaperçue — constaté en posant ces tests. En production il est absent.
+  async _seedDefaultCheckingAccount(uidStr, runner) {
+    const run = runner || ((fn) => fbDb.runTransaction(fn));
+    const ref = this._checkingAccountsCol(uidStr).doc('main');
+    await run(async (tx) => {
+      const d = await tx.get(ref);
+      if (d.exists) return;   // déjà là → ne RIEN écraser
+      tx.set(ref, {
+        name: 'Compte principal',
+        ...DEFAULT_CHECKING,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    });
   },
 
   subscribeSavings(uidStr, onChange) {
@@ -719,22 +880,42 @@ const Adapter = {
     );
   },
 
-  // Lecture ponctuelle du doc partagé "Charges" + test d'accès.
-  // Retourne { access, data } :
-  //   - access:true  + data (doc) si le doc existe et est lisible (= membre) ;
-  //   - access:false + data:null si le doc n'existe pas OU si la lecture est
-  //     refusée par les règles (= non membre).
-  // Sert à l'export (n'inclure les charges que si on y a accès) et à l'import
-  // (ne PAS tenter d'écrire si on n'est pas membre → sinon écriture rejetée).
-  async getJoint() {
-    try {
-      const snap = await this._jointRef().get();
-      if (!snap.exists) return { access: false, data: null };
-      return { access: true, data: { id: snap.id, ...snap.data() } };
-    } catch (_err) {
-      return { access: false, data: null };
-    }
-  },
+  // 🔴 `resetConnection()` — AJOUTÉE PUIS RETIRÉE le 31/07/2026.
+  // NE PAS LA RECRÉER sans preuve sur l'appareil réel.
+  //
+  // Elle faisait `disableNetwork()` puis `enableNetwork()` en tête d'import,
+  // pour automatiser le « tuer la PWA et rouvrir » qui débloquait l'import sur
+  // iPhone. Retirée parce qu'elle n'a jamais été démontrée utile, et parce
+  // qu'elle est devenue le principal suspect d'une régression : bornée à 5 s
+  // par son appelant, un `enableNetwork()` plus lent laissait le réseau COUPÉ,
+  // donc l'écriture suivante jamais acquittée. Détail dans backups.js, à
+  // l'endroit où elle était appelée.
+  // Mesuré sur desktop : disableNetwork 2 ms, enableNetwork 5 ms — inoffensif
+  // là où ce n'était pas le problème. Sur iOS après suspension, non mesurable.
+
+  // 🔴 `getJoint()` — SUPPRIMÉE le 31/07/2026. NE PAS LA RECRÉER.
+  //
+  // Elle faisait une lecture ponctuelle (`get()`) du doc partagé, pour
+  // l'export et pour l'import. Sur iPhone (PWA installée), le PREMIER
+  // `get()` sur `joint/main` répondait et **tous les suivants restaient en
+  // suspens** : ni résolus, ni rejetés. Conséquences constatées, toutes
+  // silencieuses — pas d'erreur, pas de toast, pas de rechargement :
+  //   - le 2ᵉ export d'une session ne produisait plus aucun fichier ;
+  //   - l'import s'arrêtait juste après la confirmation, avant même
+  //     d'écrire sa sauvegarde de repli.
+  // Un `try/catch` n'attrape pas une promesse qui pend, d'où le silence.
+  // Cause : un `get()` sur un document déjà écouté par `onSnapshot`, avec
+  // la persistance multi-onglets (`synchronizeTabs: true`, cf. `init()`)
+  // dans une PWA iOS.
+  //
+  // ⇒ Le remplacement est `sharedChargesFrom(ctx)` (backups.js), qui lit
+  //   `ctx.joint` — alimenté par `subscribeJoint` juste au-dessus. Cet
+  //   abonnement fonctionne, et il est plus frais qu'un `get()` (lequel
+  //   peut servir le cache). La lecture ponctuelle faisait donc DEUX fois
+  //   le même travail, et c'est la seconde fois qui bloquait.
+  //
+  // Si un besoin de lecture ponctuelle réapparaît un jour, passer par
+  // l'abonnement — pas par un `get()` sur ce document.
 
   translateAuthError(err) {
     const code = err?.code || '';

@@ -2490,6 +2490,20 @@ input[type="month"] {
 .offline-tag-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
 /* Variante menu desktop : pleine largeur du dropdown, un peu d'air autour. */
 .offline-tag--menu { margin: 2px 4px 6px; }
+/* ------------------------------------------------------------
+   « Pas de cache dans cet onglet » (31/07/2026, option C de la maquette
+   `_maquettes/indicateur-cache-hors-ligne.html`). Même motif que le tag
+   hors ligne, code couleur --danger. Le texte peut passer à la ligne :
+   il est plus long que « Hors ligne — modifications en attente », et il
+   doit rester lisible dans les dialogues étroits d'iOS comme dans le
+   dropdown desktop. ⚠️ Ne pas le rendre alarmant : l'onglet FONCTIONNE,
+   il n'a simplement pas de cache durable.
+   ------------------------------------------------------------ */
+.offline-tag--cache {
+  background: var(--danger-light); border-color: #fecaca; color: #991b1b;
+  white-space: normal; text-align: center; line-height: 1.35;
+}
+.offline-tag--cache .offline-tag-dot { background: var(--danger); }
 
 /* ============================================================
    SAUVEGARDES (v552) — carte Paramètres + confirmation de
@@ -2625,6 +2639,21 @@ input[type="month"] {
   background: #f59e0b; border: 2px solid var(--surface);
   pointer-events: none;
 }
+/* Variante GRAVE : hors ligne ET sans données dans cet onglet — le seul état
+   réellement problématique (un rechargement perdrait l'affichage). En ligne
+   sans cache, la pastille reste absente ; c'est le tag du menu qui informe.
+   ⚠️ DOIT rester APRÈS `.net-dot` : même spécificité (une classe), donc c'est
+   l'ordre du fichier qui tranche. Placée plus haut, elle était écrasée par le
+   `background: #f59e0b` ci-dessus et le rouge ne s'appliquait JAMAIS — défaut
+   constaté le 31/07/2026 en lisant la couleur calculée dans le navigateur
+   (`rgb(245,158,11)` au lieu du rouge attendu). */
+.net-dot--grave { background: var(--danger); }
+
+/* Mention « charges incluses / absentes » dans la confirmation de restauration
+   (31/07/2026). Même motif que .rc-safe ; la variante « absentes » est neutre
+   et NON alarmante : une sauvegarde sans charges n'est pas un défaut, c'est
+   simplement une sauvegarde d'avant ce jour. */
+.rc-charges.absentes { background: var(--surface-hover); border-color: var(--border); color: var(--text-light); }
 .tabbar-more { position: relative; }
 /* Header desktop : bouton 36px plus petit que le cercle mobile → point
    réduit et rentré pour rester DANS l'empreinte du bouton. */

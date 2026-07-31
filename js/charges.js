@@ -490,7 +490,20 @@ function ChargesModal({ ctx, onClose }) {
   const railRef = useRef(null);
   const railIndRef = useRef(null);
   // Mode compositeur (v506) : cf. AppBar — translateX via --tx.
-  useSlideIndicator(railRef, railIndRef, '.seg-tab-active', [activeId, view, data.scenarios.length], undefined, true);
+  // Les LIBELLÉS entrent dans les deps, exactement comme la nav desktop depuis
+  // la v569 — et pour la même raison. Les deps précédentes (`activeId`, `view`,
+  // `scenarios.length`) ne bougeaient pas quand seul le TEXTE d'un onglet
+  // changeait : renommer le scénario actif, ou déplacer l'étoile de référence,
+  // redimensionnait l'onglet sans rejouer la mesure. La pastille gardait alors
+  // sa largeur précédente — elle débordait sur l'onglet voisin (texte sombre sur
+  // fond foncé, illisible) ou laissait dépasser l'onglet actif (texte blanc sur
+  // fond clair, invisible). Mesuré : « P » → onglet 70 px, pastille restée à 93.
+  // ⚠️ La chaîne doit refléter le libellé RENDU, étoile comprise : le « ★ » vaut
+  // 15 px de large et se déplace d'un onglet à l'autre sans changer aucun nom.
+  const railLabels = data.scenarios
+    .map(s => (s.name || '(sans nom)') + (s.id === baseScenario.id ? ' ★' : ''))
+    .join('|');
+  useSlideIndicator(railRef, railIndRef, '.seg-tab-active', [activeId, view, railLabels], undefined, true);
   // null = fermé, 'new' = création, objet charge = édition
   const [editingCharge, setEditingCharge] = useState(null);
   const personColor = personColorAt;
