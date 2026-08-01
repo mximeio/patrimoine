@@ -274,8 +274,8 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
 
   const submit = (e) => {
     e.preventDefault();
-    // Mensuelle → toggle « Virement sur le compte joint » (joint).
-    // Annuelle  → toggle « Charge à provisionner » (provision), pas de virement.
+    // Mensuelle → toggle « Virement mensuel (compte joint) » (joint).
+    // Annuelle  → toggle « Provision mensuelle (livret) » (provision), pas de virement.
     const base = { id: initial?.id || uid(), label: (label || '').trim() || 'Charge',
       ...(annual ? { period: 'annual', joint: false, provision } : { joint: mensuel }) };
     const charge = mode === 'perso'
@@ -349,7 +349,7 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
       </div>
 
       <div className="charge-mensuel-row">
-        <span>{annual ? 'Charge à provisionner' : 'Virement sur le compte joint'}</span>
+        <span>{annual ? 'Provision mensuelle (livret)' : 'Virement mensuel (compte joint)'}</span>
         <label className="toggle">
           <input type="checkbox"
             checked={annual ? provision : mensuel}
@@ -670,8 +670,8 @@ function ChargesModal({ ctx, onClose }) {
 
           {/* Légende globale du code couleur des ronds. */}
           <div className="charges-legend-global">
-            <span><span className="charge-vir-dot" /> Virement sur le compte joint</span>
-            <span><span className="charge-prov-dot" /> Charge à provisionner</span>
+            <span><span className="charge-vir-dot" /> Virement mensuel (compte joint)</span>
+            <span><span className="charge-prov-dot" /> Provision mensuelle (livret)</span>
           </div>
 
           {/* Synthèse propre au scénario */}
@@ -720,14 +720,14 @@ function ChargesModal({ ctx, onClose }) {
                       {virement > 0 && (
                         <div className="pcard-alloc-row">
                           <span className="charge-vir-dot" />
-                          <span className="pcard-alloc-lbl">Virement sur le compte joint</span>
+                          <span className="pcard-alloc-lbl">Virement mensuel (compte joint)</span>
                           <span className="pcard-alloc-val">{eurEl(virement)}</span>
                         </div>
                       )}
                       {provision > 0 && (
                         <div className="pcard-alloc-row">
                           <span className="charge-prov-dot" />
-                          <span className="pcard-alloc-lbl">Charges à provisionner (Livret)</span>
+                          <span className="pcard-alloc-lbl">Provision mensuelle (livret)</span>
                           <span className="pcard-alloc-val">{eurEl(provision)}</span>
                         </div>
                       )}
@@ -738,7 +738,7 @@ function ChargesModal({ ctx, onClose }) {
                       </div>
                       <div className="pcard-alloc-row">
                         <span className="charge-tampon-dot" />
-                        <span className="pcard-alloc-lbl">Tampon sur le compte commun</span>
+                        <span className="pcard-alloc-lbl">Tampon (compte courant)</span>
                         <span className="pcard-alloc-val">{eurEl(tampon)}</span>
                       </div>
                     </div>

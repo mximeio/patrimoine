@@ -1185,7 +1185,16 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
           jamais d'état actif (recommandation retenue à la validation). */}
       <button
         className="tabbar-more glassbar"
-        onClick={onMore}
+        // `setMini(false)` AVANT d'ouvrir la feuille : sans lui, la barre reste
+        // rétractée et on la retrouve en icônes seules à la fermeture (signalé
+        // le 01/08/2026 sur iPhone). Le redéploiement était attaché à un
+        // CHANGEMENT DE MODULE (`useEffect … [current]`) et au défilement — or
+        // le « ⋯ » ne change pas de module et ne fait pas défiler, il passait
+        // donc entre les deux. Les trois autres gestes, eux, sont couverts :
+        // autre onglet → `current` change ; onglet DÉJÀ actif → `selectModule`
+        // fait `scrollAppTo(0)`, donc le gestionnaire de défilement s'en charge ;
+        // défilement vers le haut → idem. Inutile d'en ajouter ailleurs.
+        onClick={() => { setMini(false); onMore(); }}
         onPointerDown={(e) => { e.currentTarget.classList.add('more-pressed'); }}
         onPointerUp={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
         onPointerCancel={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
