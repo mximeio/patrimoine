@@ -2644,8 +2644,26 @@ input[type="month"] {
    en accent (charte de l'app), sans fond coloré (fini l'ambre/brun). */
 .restore-confirm .rc-r.chgd { box-shadow: inset 3px 0 0 var(--accent); }
 .restore-confirm .rc-r.chgd .gb { color: var(--accent); }
+/* 05/08/2026 — LA LIGNE DE COMPTAGE, et le liseré ROUGE qui l'accompagne.
+   🔴 Elle existe parce que la comparaison en euros est AVEUGLE à un historique
+   détruit à solde constant : 31 mois ramenés à 5 avec le même solde final
+   affichent « = » partout, patrimoine net compris (observé au banc d'essai du
+   05/08/2026). Cette ligne est alors le SEUL signal — d'où le rouge, et non
+   l'indigo de `.chgd` : une valeur qui change n'est pas une valeur qui
+   disparaît. Cf. `countLossLabel` (backups.js) et la maquette
+   `Mockup-Import-Incomplet-Dialogue.html`. */
+.restore-confirm .rc-counts {
+  grid-column: 1 / -1; margin-top: 3px; font-size: 11px; line-height: 1.4;
+  color: var(--text-muted); font-weight: 500;
+}
+.restore-confirm .rc-counts b { color: var(--danger); font-weight: 700; }
+.restore-confirm .rc-r.chgd-count { box-shadow: inset 3px 0 0 var(--danger); }
+.restore-confirm .rc-r.chgd-count .gb { color: var(--danger); }
 .restore-confirm .rc-r.total { background: #f8fafc; font-weight: 800; }
 .restore-confirm .rc-r.total .gl, .restore-confirm .rc-r.total .gb { font-weight: 800; color: var(--text); }
+/* ⚠️ APRÈS la règle `.total` ci-dessus, qui force le noir : sans cette ligne le
+   total gardait une valeur noire alors que son liseré passait au rouge. */
+.restore-confirm .rc-r.total.chgd-count .gb { color: var(--danger); }
 .restore-confirm .rc-r.detail { background: #fbfbfd; }
 .restore-confirm .rc-r.detail .gl { padding-left: 12px; color: var(--text-subtle); font-weight: 500; font-size: 11.5px; }
 .restore-confirm .rc-r.detail .ga, .restore-confirm .rc-r.detail .gb { font-size: 11px; font-weight: 600; }

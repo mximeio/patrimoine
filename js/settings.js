@@ -1093,6 +1093,10 @@ function CompositeRecurringCompRow({ c, parent, variant, scope, list, index, onD
 
 function DataActionsCard({ ctx }) {
   const fileRef = useRef(null);
+  // Fichier choisi, en attente de confirmation dans la fenêtre de comparaison.
+  // `null` = aucune fenêtre ouverte. Il porte le JSON analysé, son texte brut
+  // (pour le report) et le nom du fichier (affiché dans la fenêtre).
+  const [enAttente, setEnAttente] = useState(null);
   // L'écriture du profil, puis tout l'import, sont passés dans backups.js
   // (`restorePersonalData` et `importPatrimoineData`, qui prennent `ctx`) —
   // et depuis le 31/07/2026 l'export passe par `buildBackupPayload(ctx, …)`,
@@ -1148,39 +1152,66 @@ function DataActionsCard({ ctx }) {
     showToast('Fichier exporté');
   };
 
+  // ============================================================
+  //  🔴 L'IMPORT PASSE PAR LA FENÊTRE DE COMPARAISON depuis le 05/08/2026.
+  //
+  //  Avant : un `confirm()` texte qui ne nommait RIEN. Résultat mesuré au banc
+  //  d'essai — 7 familles de fichiers effaçaient des données, la validation les
+  //  acceptait toutes, et l'app affichait « Import réussi ». Cf. la fiche de
+  //  `BACKLOG.md` et sa maquette `Mockup-Import-Incomplet-Dialogue.html`.
+  //  ⇒ On réutilise `ReplaceConfirmModal` (backups.js), celle de la
+  //    restauration : même fenêtre pour les deux chemins destructeurs, comme
+  //    `restorePersonalData` est déjà la même fonction pour les deux.
+  //
+  //  ⚠️ `doImport` ne fait plus QUE lire et analyser le fichier. Aucune
+  //  écriture ici : c'est la fenêtre qui déclenche `lancerImport`.
+  // ============================================================
   const doImport = (file) => {
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        // Tout le chemin destructeur vit dans `importPatrimoineData`
-        // (backups.js) depuis le 31/07/2026 : validation, dialogues, filet
-        // « avant import », réécriture et charges partagées. Il en portait
-        // une copie ici, où elle était intestable (une closure de composant
-        // n'est pas un global — cf. l'en-tête de la fonction).
-        // ⚠️ Ne pas réintroduire cette logique ici : la source est unique.
-        // backups.js est chargé APRÈS settings.js, ce qui est sans effet —
-        // l'appel a lieu à l'exécution, tout est chargé.
-        // false = annulé au dialogue : il n'y a alors ni toast ni
-        // rechargement à faire, et surtout rien n'a été écrit.
-        // `texteSource` : le JSON brut, pour que l'import puisse se METTRE DE
-        // CÔTÉ et reprendre après rechargement si la page est gelée (cf. le
-        // pavé de `reprendreImportEnAttente`, backups.js). Sans lui, le report
-        // est impossible et on retombe sur le message d'échec.
-        const résultat = await importPatrimoineData(ctx, data, { texteSource: e.target.result });
-        if (!résultat) return;   // annulé, différé, ou interrompu avec son propre message
-        // 'partiel' = données importées mais charges non remplacées. On recharge
-        // quand même (l'écran doit refléter les nouvelles données), en le disant.
-        showToast(résultat === 'partiel'
-          ? "Données importées — les charges n'ont pas pu être remplacées"
-          : 'Import complet réussi — rechargement…', résultat === 'partiel' ? 'error' : 'success');
-        setTimeout(() => window.location.reload(), 900);
+        // `texteSource` conservé tel quel : le JSON BRUT sert à mettre l'import
+        // de côté pour reprendre après rechargement si la page est gelée (cf.
+        // `reprendreImportEnAttente`, backups.js). Sans lui, le report est
+        // impossible et on retombe sur le message d'échec.
+        setEnAttente({ data, texteSource: e.target.result, nom: file.name });
       } catch (err) {
+        // JSON illisible : on ne peut même pas comparer, donc pas de fenêtre.
         console.error(err);
         showToast('Erreur : ' + (err.message || 'fichier invalide'), 'error');
       }
     };
     reader.readAsText(file);
+  };
+
+  // Déclenché par le bouton de la fenêtre de comparaison.
+  // ⚠️ `sansPremierDialogue: true` parce que **la fenêtre EST le premier
+  // dialogue**. Sans ce drapeau l'utilisateur en verrait deux d'affilée et
+  // cliquerait sur les deux sans lire — décision utilisateur du 05/08/2026.
+  // ⚠️ Tout le chemin destructeur reste dans `importPatrimoineData`
+  // (validation, filet « avant import », réécriture, charges) : il en a porté
+  // une copie ici, intestable, supprimée le 31/07/2026. Ne pas la réintroduire.
+  const lancerImport = async () => {
+    if (!enAttente) return;
+    try {
+      const résultat = await importPatrimoineData(ctx, enAttente.data, {
+        texteSource: enAttente.texteSource, sansPremierDialogue: true,
+      });
+      // false = annulé, différé, ou interrompu avec son propre message : ni
+      // toast ni rechargement à faire, et rien n'a été écrit.
+      if (!résultat) { setEnAttente(null); return; }
+      // 'partiel' = données importées mais charges non remplacées. On recharge
+      // quand même (l'écran doit refléter les nouvelles données), en le disant.
+      showToast(résultat === 'partiel'
+        ? "Données importées — les charges n'ont pas pu être remplacées"
+        : 'Import complet réussi — rechargement…', résultat === 'partiel' ? 'error' : 'success');
+      setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      console.error(err);
+      setEnAttente(null);
+      showToast('Erreur : ' + (err.message || 'fichier invalide'), 'error');
+    }
   };
 
   return (
@@ -1199,6 +1230,20 @@ function DataActionsCard({ ctx }) {
       <p className="muted" style={{ marginTop: 12, fontSize: 12 }}>
         L'export inclut aussi la répartition des charges (partagée), si tu y as accès. À l'import, tes données perso sont remplacées ; pour les charges, une confirmation à part te sera demandée car elles sont communes aux deux comptes.
       </p>
+
+      {/* La MÊME fenêtre que la restauration (backups.js), en mode import :
+          comparaison avant/après plutôt qu'un texte. Elle remplace l'ancien
+          `confirm()`, d'où le `sansPremierDialogue` dans `lancerImport`. */}
+      {enAttente && (
+        <ReplaceConfirmModal
+          ctx={ctx}
+          mode="import"
+          payload={enAttente.data}
+          label={enAttente.nom}
+          onConfirm={lancerImport}
+          onClose={() => setEnAttente(null)}
+        />
+      )}
     </div>
   );
 }

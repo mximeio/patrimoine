@@ -234,13 +234,108 @@ function computeRubriqueTotals(d) {
   const investments = sum(investmentsDetail);
   const physical = sum(physicalDetail);
 
+  // Total des mois, toutes lignes de compte courant confondues. Défensif sur
+  // `acc` : cette fonction tourne AUSSI sur un payload non validé (la modale
+  // calcule la comparaison avant d'afficher son écran « fichier invalide »).
+  const moisTotal = !on.checking ? 0
+    : accounts.reduce((t, acc) => t + Object.keys((acc && acc.months) || {}).length, 0);
+
   return {
     modules: on,
     checking: r2(checking), savings: r2(savings),
     investments: r2(investments), physical: r2(physical),
     net: r2(checking + savings + investments + physical),
     detail: { checking: checkingDetail, savings: savingsDetail, investments: investmentsDetail, physical: physicalDetail },
+    // Comptages — cf. `countLossLabel` juste en dessous pour le POURQUOI.
+    counts: {
+      checking: { accounts: checkingDetail.length, months: moisTotal },
+      savings: savingsDetail.length,
+      investments: investmentsDetail.length,
+      physical: physicalDetail.length,
+    },
   };
+}
+
+// ============================================================
+//  🔴 CE QUE LA COMPARAISON EN EUROS NE VOIT PAS.
+//
+//  Un historique peut être détruit à SOLDE CONSTANT : un fichier qui ramène
+//  un compte de 31 mois à 5 mois en gardant le même solde final affiche
+//  « = » sur TOUTE la colonne des euros, patrimoine net compris. 26 mois
+//  partiraient sans un mot. Observé au banc d'essai du 05/08/2026 (les huit
+//  familles de fichiers, cf. la fiche de `BACKLOG.md`).
+//  ⇒ « rubrique modifiée » ne peut donc PAS se décider sur le seul euro.
+//    Ne pas retirer cet appel en croyant simplifier : c'est le seul signal
+//    d'une destruction d'historique.
+//
+//  Renvoie `null` s'il n'y a AUCUNE perte, sinon `{ avant, apres }` — deux
+//  moitiés plutôt qu'une phrase, pour que la fenêtre puisse mettre « apres »
+//  en rouge gras (c'est la forme arbitrée dans la maquette).
+//  ⚠️ Ne signale QUE les pertes, jamais les gains : un fichier qui AJOUTE des
+//  livrets n'a pas à s'annoncer en rouge.
+// ============================================================
+// Une rubrique VIDÉE DE SA VALEUR : elle valait quelque chose, elle ne vaut plus
+// rien. Second déclencheur du rouge, ajouté le 05/08/2026 à la demande de
+// l'utilisateur — il bouche le cas symétrique de `countLossLabel` : garder les
+// 2 livrets mais mettre leurs soldes à zéro ne fait baisser AUCUN comptage.
+// ⚠️ Volontairement « tombe à ZÉRO », pas « baisse ». Une baisse ordinaire
+// arrive à presque CHAQUE restauration d'une sauvegarde ancienne : en faire un
+// signal rouge le rendrait permanent, donc muet. Tomber à zéro, en revanche,
+// n'arrive jamais par accident. C'est la fréquence qui a tranché, pas la gravité.
+// ⚠️ Le négatif compte aussi : un compte courant à −147 € qui passe à 0 € a bien
+// perdu sa valeur.
+function valueWiped(cur, snap) {
+  return r2(cur) !== 0 && r2(snap) === 0;
+}
+
+// ============================================================
+//  🔴 « CETTE RUBRIQUE EST-ELLE ROUGE ? » — décision SORTIE DE LA VUE.
+//
+//  Pourquoi elle n'est pas restée dans le JSX : le harnais de test ne rend pas
+//  React (cf. §8 de CLAUDE.md), donc toute logique laissée dans la vue n'est
+//  couverte par AUCUN test. Constaté par mutation le 05/08/2026 — neutraliser
+//  le rouge dans le JSX laissait les 418 tests VERTS. Les deux fonctions pures
+//  étaient testées, leur branchement ne l'était pas.
+//  ⇒ Ne pas réinliner cette condition dans le composant.
+//
+//  La règle, en une phrase : ROUGE = quelque chose disparaît — un ÉLÉMENT retiré
+//  de la liste (`countLossLabel`), ou une rubrique VIDÉE de sa valeur
+//  (`valueWiped`). Une simple baisse d'euros n'est PAS rouge.
+// ============================================================
+function rubriqueRouge(current, snap, key) {
+  return !!countLossLabel(current.counts, snap.counts, key)
+      || valueWiped(current[key], snap[key]);
+}
+
+const NOMS_COMPTAGE = {
+  savings:     { u: 'livret',    p: 'livrets',    rien: 'aucun' },
+  investments: { u: 'enveloppe', p: 'enveloppes', rien: 'aucune' },
+  physical:    { u: 'actif',     p: 'actifs',     rien: 'aucun' },
+};
+function countLossLabel(curCounts, snapCounts, key) {
+  if (!curCounts || !snapCounts) return null;
+  if (key === 'checking') {
+    const c = curCounts.checking || { accounts: 0, months: 0 };
+    const s = snapCounts.checking || { accounts: 0, months: 0 };
+    const perteComptes = s.accounts < c.accounts;
+    const perteMois = s.months < c.months;
+    if (!perteComptes && !perteMois) return null;
+    const cpt = (n) => (n === 0 ? 'aucun compte' : `${n} compte${n > 1 ? 's' : ''}`);
+    let apres = `${cpt(s.accounts)}, ${s.months} mois`;
+    // Le nombre de mois perdus n'est explicité que si les COMPTES, eux, ne
+    // bougent pas : sinon « 26 mois supprimés » se confondrait avec la
+    // disparition d'un compte entier, qui emporte ses mois par définition.
+    if (perteMois && !perteComptes) {
+      const d = c.months - s.months;
+      apres += ` (${d} mois supprimé${d > 1 ? 's' : ''})`;
+    }
+    return { avant: `${cpt(c.accounts)}, ${c.months} mois`, apres };
+  }
+  const noms = NOMS_COMPTAGE[key];
+  const c = curCounts[key], s = snapCounts[key];
+  if (!noms || typeof c !== 'number' || typeof s !== 'number' || s >= c) return null;
+  const lib = (n) => (n === 0 ? noms.rien : `${n} ${n > 1 ? noms.p : noms.u}`);
+  return { avant: lib(c), apres: lib(s) };
 }
 
 // ============================================================
@@ -248,7 +343,8 @@ function computeRubriqueTotals(d) {
 //
 //  Les deux chemins destructeurs passent par ici : l'import JSON
 //  (`doImport`, settings.js) et la restauration de sauvegarde
-//  (`RestoreConfirmModal`, plus bas). settings.js en portait une copie,
+//  (`ReplaceConfirmModal`, plus bas — une SEULE fenêtre pour les deux depuis
+//  le 05/08/2026). settings.js en portait une copie,
 //  supprimée après avoir vérifié, fixture par fixture, que les deux
 //  rendaient les mêmes erreurs — sauf un cas limite (portefeuille
 //  falsy sans être nullish, ex. `[0]`) où cette version-ci est plus
@@ -893,7 +989,7 @@ function BackupsCard({ ctx }) {
       )}
 
       {restoring && (
-        <RestoreConfirmModal
+        <ReplaceConfirmModal
           ctx={ctx}
           backup={restoring}
           onClose={() => setRestoring(null)}
@@ -904,22 +1000,48 @@ function BackupsCard({ ctx }) {
 }
 
 // ============================================================
-//  Confirmation de restauration — comparatif Actuel / Restauré
-//  (piste 2 : tableau aligné, inchangé = « = », détail replié).
+//  Confirmation de REMPLACEMENT — comparatif Actuel / Restauré ou Importé
+//  (tableau aligné, inchangé = « = », détail replié).
+//
+//  🔴 UNE SEULE FENÊTRE POUR LES DEUX CHEMINS DESTRUCTEURS, depuis le
+//  05/08/2026. Elle s'appelait `RestoreConfirmModal` et ne servait qu'à la
+//  restauration ; l'import, lui, n'avait qu'un `confirm()` texte qui **ne
+//  nommait rien** — d'où une destruction silencieuse suivie d'un message de
+//  succès (les 7 familles de fichiers destructeurs du banc d'essai, cf. la
+//  fiche de `BACKLOG.md` et sa maquette `Mockup-Import-Incomplet-Dialogue.html`).
+//  ⇒ C'est la même philosophie que `backups.js` applique déjà au code :
+//    **une seule source pour les deux chemins.** Ne pas la redupliquer.
+//
+//  ⚠️ LE CHEMIN DE RESTAURATION EST INCHANGÉ : `doRestore` n'a pas été
+//  touchée, et le mode 'restore' reste le défaut. Le mode 'import' n'ajoute
+//  qu'un habillage (titre, en-tête de colonne, libellé du bouton) et délègue
+//  l'action à `onConfirm`, l'appelant faisant le travail — c'est ce qui évite
+//  de déplacer les 60 lignes de `doRestore`, dans la zone la plus sensible.
+//
+//  ⚠️ La fenêtre est posée AVANT `importPatrimoineData`, qui reçoit alors
+//  `sansPremierDialogue: true` (drapeau déjà présent, construit pour la
+//  reprise après rechargement). Conséquence voulue : **le dialogue reste
+//  synchrone du point de vue de l'import**, la mise de côté en
+//  `sessionStorage` n'est pas touchée, et l'écriture part immédiatement
+//  après le geste. Ne pas rendre `io.confirm` asynchrone pour ça.
 // ============================================================
-function RestoreConfirmModal({ ctx, backup, onClose }) {
+function ReplaceConfirmModal({ ctx, backup, payload: payloadImport, label, mode = 'restore', onConfirm, onClose }) {
   const { user, showToast } = ctx;
   const [showDetail, setShowDetail] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
-  const payload = backup.payload || {};
+  const estImport = mode === 'import';
+  const payload = (estImport ? payloadImport : (backup && backup.payload)) || {};
   const check = validatePatrimoineData(payload);
 
   const current = React.useMemo(() => computeRubriqueTotals({
     profile: ctx.profile, checkingAccounts: ctx.checkingAccounts,
     savings: ctx.savings, portfolios: ctx.portfolios, physical: ctx.physical,
   }), [ctx.profile, ctx.checkingAccounts, ctx.savings, ctx.portfolios, ctx.physical]);
-  const snap = React.useMemo(() => computeRubriqueTotals(payload), [backup.id]);
+  // Dépendance sur l'IDENTITÉ du payload et non plus sur `backup.id` : en mode
+  // import il n'y a pas d'id, et l'objet est stable (gardé dans un état React
+  // chez l'appelant) — donc même effet qu'avant côté restauration.
+  const snap = React.useMemo(() => computeRubriqueTotals(payload), [payload]);
 
   const RUBRIQUES = [
     { key: 'checking', label: 'Compte courant' },
@@ -929,8 +1051,28 @@ function RestoreConfirmModal({ ctx, backup, onClose }) {
   ];
   const rows = RUBRIQUES
     .filter(r => current.modules[r.key] || snap.modules[r.key])
-    .map(r => ({ ...r, cur: current[r.key], snap: snap[r.key], changed: r2(current[r.key]) !== r2(snap[r.key]) }));
+    .map(r => {
+      // DEUX déclencheurs du rouge, et ils sont indépendants :
+      //  · `perte`  — un ÉLÉMENT est retiré de la liste (comptages), visible même
+      //               quand les euros ne bougent pas (cf. `countLossLabel`) ;
+      //  · `videe`  — la rubrique est VIDÉE DE SA VALEUR, sans qu'aucun comptage
+      //               ne baisse (cf. `valueWiped`).
+      // ⚠️ `changed` teste les deux PLUS l'écart en euros — ne pas le réduire au
+      // seul euro, une rubrique peut être modifiée sans qu'un centime bouge.
+      const perte = countLossLabel(current.counts, snap.counts, r.key);
+      // ⚠️ La décision du rouge vit dans `rubriqueRouge` (fonction pure, testée) —
+      // ne pas la réinliner ici, la vue n'est pas couverte par les tests.
+      const rouge = rubriqueRouge(current, snap, r.key);
+      return {
+        ...r, perte, rouge,
+        cur: current[r.key], snap: snap[r.key],
+        changed: r2(current[r.key]) !== r2(snap[r.key]) || rouge,
+      };
+    });
   const changedCount = rows.filter(r => r.changed).length;
+  // Au moins une rubrique perd quelque chose — élément retiré OU valeur anéantie
+  // ⇒ bouton rouge, « quand même », et le total suit.
+  const aPerte = rows.some(r => r.rouge);
 
   // Détail par ligne (dépliant) : union des ids courant/sauvegarde.
   const detailRows = (key) => {
@@ -1008,24 +1150,45 @@ function RestoreConfirmModal({ ctx, backup, onClose }) {
     }
   };
 
+  // Mode import : la fenêtre ne fait QUE confirmer. Tout le travail reste chez
+  // l'appelant (`doImport`, settings.js), qui appelle `importPatrimoineData` —
+  // source unique du chemin destructeur. ⚠️ Ne pas y déplacer la logique
+  // d'import : ce serait recréer la copie supprimée le 31/07/2026.
+  const doImportConfirme = async () => {
+    if (!check.ok || !onConfirm) return;
+    setBusy(true);
+    try { await onConfirm(); } catch (_) { setBusy(false); }
+  };
+
   const euro = (v) => fmtNoDec(v) + ' €';
 
   return (
-    <Modal title="Restaurer une sauvegarde" size="md" noDirtyGuard onClose={onClose}>
+    <Modal title={estImport ? 'Importer un fichier' : 'Restaurer une sauvegarde'} size="md" noDirtyGuard onClose={onClose}>
       <div className="restore-confirm">
         <p className="rc-lead">
-          Restaurer la sauvegarde du <b>{backupDateLabel(backup.at)}</b> ?
-          {changedCount > 0
+          {estImport
+            ? <>Importer <b>{label || 'ce fichier'}</b> ?</>
+            : <>Restaurer la sauvegarde du <b>{backupDateLabel(backup.at)}</b> ?</>}
+          {/* ⚠️ La phrase de comparaison n'a de sens QUE si le fichier est
+              exploitable : en mode bloqué elle promettait une comparaison
+              affichée juste en dessous… qui n'existe pas, à l'endroit même où
+              l'on annonce un refus. Défaut ANTÉRIEUR au chantier (la
+              restauration l'avait aussi avec une sauvegarde incompatible),
+              rendu visible parce que l'import tombe en mode bloqué dès qu'un
+              fichier est mauvais. Vu sur capture iPhone le 05/08/2026. */}
+          {check.ok && (changedCount > 0
             ? <> Comparaison avec ton état actuel — seules les rubriques « modifié » changent.</>
-            : <> Aucune différence avec ton état actuel : rien ne changera.</>}
+            : <> Aucune différence avec ton état actuel : rien ne changera.</>)}
         </p>
 
         {!check.ok ? (
           <div className="rc-blocked">
             <Icon name="lock" size={15} />
             <div>
-              Sauvegarde incompatible avec cette version de l'application
-              {payload.version ? ` (format ${payload.version})` : ''}. Mets l'application à jour, puis réessaie.
+              {estImport
+                ? <>Ce fichier n'est pas exploitable{payload.version ? ` (format ${payload.version})` : ''} — rien n'a été modifié.</>
+                : <>Sauvegarde incompatible avec cette version de l'application
+                   {payload.version ? ` (format ${payload.version})` : ''}. Mets l'application à jour, puis réessaie.</>}
               <div className="rc-errs">{check.errors.slice(0, 3).join(' · ')}</div>
             </div>
           </div>
@@ -1034,14 +1197,24 @@ function RestoreConfirmModal({ ctx, backup, onClose }) {
             {changedCount > 0 && (
               <p className="rc-summary"><b>{changedCount} rubrique{changedCount > 1 ? 's' : ''}</b> sur {rows.length} {changedCount > 1 ? 'seraient modifiées' : 'serait modifiée'}.</p>
             )}
-            <div className="rc-head"><span>Rubrique</span><span>Actuel</span><span>Restauré</span></div>
+            <div className="rc-head"><span>Rubrique</span><span>Actuel</span><span>{estImport ? 'Importé' : 'Restauré'}</span></div>
             <div className="rc-grid">
               {rows.map(r => (
                 <React.Fragment key={r.key}>
-                  <div className={`rc-r${r.changed ? ' chgd' : ' eq'}`}>
+                  {/* ⚠️ `chgd-count` (liseré ROUGE) plutôt que `chgd` (indigo) dès
+                      qu'il y a une PERTE : une valeur qui change n'est pas une
+                      valeur qui disparaît, et les deux ne se disent pas pareil.
+                      La règle tient en une phrase : ROUGE = quelque chose
+                      disparaît — un élément retiré, ou une rubrique vidée. */}
+                  <div className={`rc-r${r.rouge ? ' chgd-count' : (r.changed ? ' chgd' : ' eq')}`}>
                     <span className="gl">{r.label}</span>
                     <span className="ga">{euro(r.cur)}</span>
-                    <span className="gb">{r.changed ? euro(r.snap) : '='}</span>
+                    <span className="gb">{r2(r.cur) !== r2(r.snap) ? euro(r.snap) : '='}</span>
+                    {/* La ligne de comptage — le SEUL signal quand les euros ne
+                        bougent pas (historique détruit à solde constant). */}
+                    {r.perte && (
+                      <div className="rc-counts">{r.perte.avant} → <b>{r.perte.apres}</b></div>
+                    )}
                   </div>
                   {showDetail && r.changed && detailRows(r.key).map((dr, di) => (
                     <div className="rc-r detail" key={r.key + ':' + di}>
@@ -1052,7 +1225,13 @@ function RestoreConfirmModal({ ctx, backup, onClose }) {
                   ))}
                 </React.Fragment>
               ))}
-              <div className={`rc-r total${r2(current.net) !== r2(snap.net) ? ' chgd' : ''}`}>
+              {/* ⚠️ Le TOTAL suit le rouge des rubriques : sans ça il restait en indigo
+                  « ça change » pendant que les quatre lignes au-dessus étaient en
+                  rouge « ça disparaît » — la ligne la plus grave était la seule à
+                  ne pas alarmer. Défaut vu sur capture iPhone le 05/08/2026, que
+                  la vérification desktop avait manqué (je regardais les comptages,
+                  pas la couleur du total). */}
+              <div className={`rc-r total${aPerte ? ' chgd-count' : (r2(current.net) !== r2(snap.net) ? ' chgd' : '')}`}>
                 <span className="gl">Patrimoine net</span>
                 <span className="ga">{euro(current.net)}</span>
                 <span className="gb">{r2(current.net) !== r2(snap.net) ? euro(snap.net) : '='}</span>
@@ -1075,18 +1254,31 @@ function RestoreConfirmModal({ ctx, backup, onClose }) {
             <div className={`rc-safe rc-charges${payload.joint ? '' : ' absentes'}`}>
               <Icon name={payload.joint ? 'check' : 'info'} size={15} />
               <span>{payload.joint
-                ? <>Elle contient aussi la <b>répartition des charges</b> — une confirmation à part te sera demandée.</>
-                : <>Elle ne contient <b>pas</b> la répartition des charges : elles ne seront pas modifiées.</>}</span>
+                ? <>{estImport ? 'Ce fichier' : 'Elle'} contient aussi la <b>répartition des charges</b> — une confirmation à part te sera demandée.</>
+                : <>{estImport ? 'Ce fichier ne contient' : 'Elle ne contient'} <b>pas</b> la répartition des charges : elles ne seront pas modifiées.</>}</span>
             </div>
           </>
         )}
 
         {/* Pied = convention de l'app (variante A) : un seul bouton principal
             dans .form-actions, on annule par la croix « × ». Si la sauvegarde
-            est incompatible, on n'affiche que « Fermer ». */}
+            est incompatible, on n'affiche que « Fermer ».
+            ⚠️ Le bouton passe en ROUGE et gagne « quand même » dès qu'une rubrique
+            PERD quelque chose — décision utilisateur du 05/08/2026. Sur une
+            opération sans perte, il reste l'accent habituel : on n'ajoute pas un
+            avertissement de plus, seulement quand il est mérité. */}
         <div className="form-actions">
           {check.ok
-            ? <button className="btn btn-accent btn-lg" onClick={doRestore} disabled={busy}>{busy ? 'Restauration…' : 'Restaurer'}</button>
+            ? <button
+                className={`btn btn-lg ${aPerte ? 'btn-danger' : 'btn-accent'}`}
+                onClick={estImport ? doImportConfirme : doRestore}
+                disabled={busy}>
+                {busy
+                  ? (estImport ? 'Import…' : 'Restauration…')
+                  : (estImport
+                      ? (aPerte ? 'Importer quand même' : 'Importer')
+                      : (aPerte ? 'Restaurer quand même' : 'Restaurer'))}
+              </button>
             : <button className="btn btn-secondary btn-lg" onClick={onClose}>Fermer</button>}
         </div>
       </div>
