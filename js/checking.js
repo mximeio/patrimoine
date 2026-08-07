@@ -1174,11 +1174,25 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
     <span className={`month-chip month-chip-${variant}`} ref={rootRef}>
       {/* Clone invisible (hors flux) avec le mois COMPLET : donne la
           largeur que la chip occuperait en mode complet, mesurée avec
-          les vraies règles CSS, quelle que soit la valeur affichée. */}
+          les vraies règles CSS, quelle que soit la valeur affichée.
+          🔴 LE CADENAS EN FAIT PARTIE — il manquait jusqu'au 07/08/2026, et
+          c'était un vrai défaut : le clone sous-estimait de ~18 px sur un
+          mois FIGÉ (icône 13 px + `margin-right: 5px`). Conséquence, relevée
+          par l'utilisateur sur iPhone 17 Pro Max : quand le besoin réel était
+          à moins de 18 px de la place disponible, la règle concluait « ça
+          tient » à tort, gardait le mois complet — et c'est le TITRE qui se
+          faisait tronquer, l'inverse exact de ce que ce mode évite.
+          ⚠️ Le clone doit donc porter TOUT ce que la chip porte. La bonne
+          formulation du besoin n'est pas « Septembre est trop long » mais
+          « un Septembre VERROUILLÉ est trop long » : deux verdicts pour le
+          même nom de mois, et c'est `locked` qui les sépare. */}
       {labelShort && (
         <span className="mc-measure" aria-hidden="true" ref={measureRef}>
           <span className="mc-chev">‹</span>
-          <span className="mc-label">{label}<span className="mc-dd"><Icon name="chevronDown" size={11} /></span></span>
+          <span className="mc-label">
+            {locked && <span className="mc-lock"><Icon name="lock" size={13} /></span>}
+            {label}<span className="mc-dd"><Icon name="chevronDown" size={11} /></span>
+          </span>
           <span className="mc-chev">›</span>
         </span>
       )}
