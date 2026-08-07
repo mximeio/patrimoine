@@ -1192,7 +1192,11 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
   );
 }
 
-function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, simple = false, anchorRect = null }) {
+// ⚠️ `zIndex` : le popover ancré se pose à 2000 par défaut, ce qui suffit
+// au-dessus d'une modale ordinaire (1000). La fenêtre de RECHERCHE est à 3000
+// (cf. §7) : elle doit donc passer une valeur supérieure, sinon le popover
+// s'ouvre DERRIÈRE elle et paraît ne pas s'ouvrir du tout.
+function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, simple = false, anchorRect = null, zIndex = 2000 }) {
   const ref = useRef(null);
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
@@ -1216,7 +1220,7 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
       position: 'fixed',
       top: openUp ? Math.max(8, anchorRect.top - estH) : anchorRect.bottom + 8,
       left: cx, transform: 'translateX(-50%)',
-      width: w, zIndex: 2000,
+      width: w, zIndex,
     };
   })() : null;
   return (
@@ -1468,7 +1472,7 @@ function DatePickerPopover({ year, month, setYear, setMonth, selectedDate, onPic
 
 // Bouton-input qui ouvre un MonthPicker en mode simple — pour les formulaires
 // qui ont besoin de choisir un mois (ex: "Mois de référence" du Solde initial)
-function MonthInputPicker({ value, onChange }) {
+function MonthInputPicker({ value, onChange, placeholder = 'Choisir un mois', className = 'input', style = null, zIndex = 2000 }) {
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState(null);
   const btnRef = useRef(null);
@@ -1480,15 +1484,15 @@ function MonthInputPicker({ value, onChange }) {
     setOpen(true);
   };
   return (
-    <div style={{ width: '100%', position: 'relative' }}>
+    <div style={{ width: style ? 'auto' : '100%', position: 'relative' }}>
       <button
         ref={btnRef}
         type="button"
-        className="input"
-        style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--surface)' }}
+        className={className}
+        style={style || { textAlign: 'left', cursor: 'pointer', background: 'var(--surface)' }}
         onClick={handleOpen}
       >
-        {value ? monthLabel(value) : 'Choisir un mois'}
+        {value ? monthLabel(value) : placeholder}
       </button>
       {open && ReactDOM.createPortal(
         <MonthPicker
@@ -1500,6 +1504,7 @@ function MonthInputPicker({ value, onChange }) {
           onClose={() => setOpen(false)}
           simple
           anchorRect={anchorRect}
+          zIndex={zIndex}
         />,
         document.body
       )}

@@ -419,6 +419,158 @@ const MODULE_ICONS_NAMES = {
   physical: 'coin',
 };
 
+// ============================================================
+//  FILTRE PAR PÉRIODE — le filtre RETIRE, il ne RÉORDONNE PAS
+//
+//  🔴 Invariant posé par l'utilisateur, et c'est le point qui compte :
+//  l'ordre relatif des résultats conservés est IDENTIQUE avec et sans
+//  filtre. `Array.filter` le garantit par construction — ne jamais
+//  remplacer ce filtrage par un tri, un `sort` ou une reconstruction.
+//  Le classement des recherches TEXTUELLES (par date décroissante) et
+//  celui des NUMÉRIQUES (par proximité, trois rangs, tolérance ±3 % et
+//  plancher 0,20 € — calibrage v617, cf. CLAUDE.md §10) restent intacts
+//  parce qu'on ne les touche pas.
+//
+//  ⚠️ Granularité au MOIS, pas au jour : les opérations sont rangées par
+//  mois (`months["2026-08"]`) et leur champ `date` est OPTIONNEL. Un
+//  filtre au jour écarterait celles qui n'en ont pas, sans prévenir.
+//
+//  🔴 Les items SANS `monthKey` (récurrents, comptes, livrets, supports,
+//  actifs) sont MASQUÉS dès qu'une borne est posée — décision de
+//  l'utilisateur le 07/08/2026, après un premier arbitrage inverse.
+//  Motif : poser une période, c'est exprimer une intention temporelle ;
+//  ce qui n'a pas de date n'y répond pas. Vu à l'écran, la règle
+//  précédente affichait les douze récurrents AVANT les opérations de la
+//  période — l'inverse exact du besoin.
+//  ⚠️ Le risque assumé est le « filtre oublié » : chercher « livret »
+//  sous une période active ne le trouve plus. Deux garde-fous le
+//  couvrent, et ils n'existaient pas au premier arbitrage — la PASTILLE
+//  sur l'icône, visible même barre repliée, et la MENTION dans le
+//  compteur (« 5 sans date »), qui dit ce qui a été écarté.
+//  ⇒ **Ne jamais masquer sans cette mention** : ce serait une perte
+//  silencieuse, exactement ce que le §10 reproche à une comparaison en
+//  euros aveugle à un historique détruit.
+// ============================================================
+
+// Les mois réellement présents dans les résultats, du plus ancien au plus
+// récent. Les clés "YYYY-MM" se trient en ordre lexicographique.
+function moisDisponibles(items) {
+  const vus = new Set();
+  for (const it of (items || [])) if (it && it.monthKey) vus.add(it.monthKey);
+  return [...vus].sort();
+}
+
+// `du` et `au` sont des clés "YYYY-MM", ou '' pour une borne ouverte.
+// Bornes INCLUSES. Une seule borne suffit à filtrer.
+function filtrerParPeriode(items, du, au) {
+  const liste = items || [];
+  if (!du && !au) return liste;
+  let d = du || '';
+  let a = au || '';
+  // Filet : si les bornes sont inversées malgré la correction de l'IHM, on
+  // les remet dans l'ordre plutôt que de renvoyer une liste vide, qui
+  // ressemblerait à « aucun résultat » et non à une saisie incohérente.
+  if (d && a && d > a) { const t = d; d = a; a = t; }
+  return liste.filter((it) => {
+    if (!it || !it.monthKey) return false; // sans date → hors période
+    if (d && it.monthKey < d) return false;
+    if (a && it.monthKey > a) return false;
+    return true;
+  });
+}
+
+// Le texte de l'infobulle du compteur. Fonction pure — un accord se teste,
+// alors qu'écrit dans le JSX il ne se voit qu'à l'usage : « 1 élément(s) …
+// sont écartés » a survécu jusqu'à ce que l'utilisateur le lise à l'écran.
+// Renvoie `undefined` quand rien n'est masqué : pas d'infobulle vide.
+function libelleSansDateMasques(n) {
+  if (!n) return undefined;
+  return n > 1
+    ? `${n} éléments sans date (récurrents, livrets, supports, actifs) sont écartés par la période`
+    : '1 élément sans date (récurrent, livret, support ou actif) est écarté par la période';
+}
+
+// Combien d'éléments sans date une période écarterait-elle ? Sert à la mention
+// du compteur. Renvoie 0 quand aucune borne n'est posée : rien n'est masqué.
+function nbSansDateMasques(items, du, au) {
+  if (!du && !au) return 0;
+  return (items || []).filter((it) => !it || !it.monthKey).length;
+}
+
+// Ce que la fenêtre doit afficher, selon la requête ET la période.
+//
+//  ⚠️ Sortie de la vue à dessein (§10) : « faut-il afficher quelque chose ? »
+//  est une DÉCISION, et une condition écrite dans le JSX est une condition
+//  sans test — le harnais ne rend rien.
+//
+//  Trois cas, et le troisième est celui qu'on a ajouté :
+//   - une requête          → `filterItems` classe, puis la période retire ;
+//   - rien du tout         → liste vide, l'écran d'accueil s'affiche ;
+//   - SEULEMENT une période → **tous** les items, filtrés par la période.
+//     C'est une vue transverse — « qu'est-ce qui s'est passé en mars 2025 ? »,
+//     tous modules confondus — que le compte courant ne sait pas donner.
+//
+//  ⚠️ `filterItems` renvoie [] sur une requête vide : d'où le passage direct
+//  par `allItems`. Sans danger, elle ne fait qu'ajouter `_amountRank` aux
+//  items d'une recherche par montant, inutile ici.
+function itemsAffiches(allItems, query, du, au) {
+  const liste = allItems || [];
+  const q = String(query || '').trim();
+  const base = q ? filterItems(liste, query) : ((du || au) ? liste : []);
+  return filtrerParPeriode(base, du, au);
+}
+
+// Ordre d'un groupe de résultats. Fonction PURE : elle renvoie une nouvelle
+// liste et ne touche jamais l'entrée (§10 — `Array.sort` mute en place).
+//
+//  - requête NUMÉRIQUE  → on ne touche à RIEN : `filterItems` a déjà classé
+//    par proximité, qui EST la pertinence dans ce cas (calibrage v617).
+//  - requête TEXTUELLE  → date décroissante, les items SANS date en TÊTE.
+//    C'est la convention historique, et elle est bonne : quand on tape
+//    « livret », on veut le livret avant ses opérations.
+//  - AUCUNE requête (période seule) → date décroissante, les sans-date à la
+//    FIN. 🔴 Sans terme de recherche la pertinence n'existe pas, donc la date
+//    est le seul critère qui ait du sens. Garder la convention affichait les
+//    douze récurrents AVANT les opérations de la période — l'inverse exact de
+//    ce qu'on demande en filtrant par date. Constaté à l'écran le 07/08/2026,
+//    invisible pour les tests unitaires.
+function trierGroupe(items, query) {
+  const liste = [...(items || [])];
+  if (searchAsNumber(query) !== null) return liste;
+  const sansRequete = !String(query || '').trim();
+  liste.sort((a, b) => {
+    const aHas = !!a.monthKey;
+    const bHas = !!b.monthKey;
+    if (!aHas && !bHas) return 0;
+    if (!aHas) return sansRequete ? 1 : -1;
+    if (!bHas) return sansRequete ? -1 : 1;
+    return b.monthKey.localeCompare(a.monthKey); // décroissant (YYYY-MM)
+  });
+  return liste;
+}
+
+// Que devient le couple de bornes quand l'une rend l'autre incohérente ?
+//
+//  🔴 Règle retenue (option C, décidée le 07/08/2026) : **la borne qu'on
+//  vient de TOUCHER fait foi, l'autre s'OUVRE.** Choisir « au 2024 » alors
+//  que « du » vaut 2026 donne « début → 2024 », pas « 2024 → 2024 ».
+//
+//  ⚠️ Deux autres règles ont été écartées, et le cas MIROIR est ce qui les
+//  départage — le vérifier avant de reproposer l'une d'elles :
+//   - « recaler l'autre borne » (l'ancien comportement) ÉCRASE une saisie :
+//     on avait dit 2026, il devient 2024 sans l'avoir demandé ;
+//   - « inverser les deux » paraît meilleur sur cet exemple, mais sur le
+//     miroir — avoir « du 2024 au 2026 » et choisir « du 2027 » — la valeur
+//     qu'on vient de saisir atterrit dans **l'autre champ** (« du 2026 au
+//     2027 »). La borne touchée cesse d'être celle qu'on a remplie.
+//  ⇒ C est la seule des trois où ce qu'on clique fait ce qu'on lui demande.
+function corrigerBornes(champ, valeur, du, au) {
+  if (champ === 'du') {
+    return { du: valeur, au: (valeur && au && valeur > au) ? '' : au };
+  }
+  return { du: (valeur && du && valeur < du) ? '' : du, au: valeur };
+}
+
 function SearchModal({ ctx, onClose, onNavigate }) {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(0);
@@ -426,11 +578,37 @@ function SearchModal({ ctx, onClose, onNavigate }) {
   // chaque clic sur "Afficher 50 de plus", et repart à une page dès que la
   // requête change (effet plus bas, à côté du reset de `focused`).
   const [shown, setShown] = useState(SEARCH_PAGE_SIZE);
+  // Filtre par période. Volontairement NON persisté : la modale est démontée à
+  // la fermeture, donc le filtre repart à zéro à chaque ouverture. C'est la
+  // parade la plus sûre contre le « filtre oublié » qui ferait conclure à des
+  // résultats manquants trois jours plus tard.
+  const [du, setDu] = useState('');
+  const [au, setAu] = useState('');
+  const [filtreOuvert, setFiltreOuvert] = useState(false);
 
   const allItems = useMemo(() => collectSearchItems(ctx), [
     ctx.checkingAccounts, ctx.savings, ctx.portfolios, ctx.physical, ctx.profile,
   ]);
-  const results = useMemo(() => filterItems(allItems, query), [allItems, query]);
+  const mois = useMemo(() => moisDisponibles(allItems), [allItems]);
+  // Deux étapes DISTINCTES, et l'ordre importe : `filterItems` classe (par
+  // score, ou par proximité sur un montant), `filtrerParPeriode` ne fait que
+  // retirer. Le filtre s'applique donc AVANT le groupement — donc avant la
+  // pagination, comme le veut la fiche — et sans toucher au classement.
+  const filtreActif = !!(du || au);
+  const resultsBruts = useMemo(
+    () => (query.trim() ? filterItems(allItems, query) : (filtreActif ? allItems : [])),
+    [allItems, query, filtreActif],
+  );
+  const results = useMemo(() => itemsAffiches(allItems, query, du, au), [allItems, query, du, au]);
+  // Ce que la période écarte faute de date — annoncé dans le compteur, pour
+  // que rien ne disparaisse en silence.
+  const sansDateMasques = useMemo(() => nbSansDateMasques(resultsBruts, du, au), [resultsBruts, du, au]);
+
+  // Bornes incohérentes : cf. `corrigerBornes` — la borne touchée fait foi,
+  // l'autre s'ouvre. La décision vit dans la fonction pure, pas ici.
+  const changerDu = (v) => { const b = corrigerBornes('du', v, du, au); setDu(b.du); setAu(b.au); };
+  const changerAu = (v) => { const b = corrigerBornes('au', v, du, au); setDu(b.du); setAu(b.au); };
+  const effacerPeriode = () => { setDu(''); setAu(''); };
 
   // Grouper par module dans l'ordre fixe, puis trier chaque groupe par date
   // décroissante. Les items sans monthKey (récurrents, comptes/portefeuilles
@@ -449,20 +627,10 @@ function SearchModal({ ctx, onClose, onNavigate }) {
     // recherches textuelles, où le score n'a que 5 paliers et où la date est
     // un départage utile. Cf. CLAUDE.md §10 et §11 LOT 1 point 2.
     const isNumericQuery = searchAsNumber(query) !== null;
-    if (!isNumericQuery) {
-      // Tri stable : on garde l'ordre relatif des items sans date entre eux,
-      // et l'ordre des dates pour ceux qui en ont (récents → anciens).
-      for (const m of Object.keys(groups)) {
-        groups[m].sort((a, b) => {
-          const aHas = !!a.monthKey;
-          const bHas = !!b.monthKey;
-          if (!aHas && !bHas) return 0;
-          if (!aHas) return -1; // sans date d'abord
-          if (!bHas) return 1;
-          return b.monthKey.localeCompare(a.monthKey); // décroissant (YYYY-MM)
-        });
-      }
-    }
+    // Le tri vit dans `trierGroupe` (fonction pure, testable) — pas ici : le
+    // harnais ne rend rien, donc un tri écrit dans le composant est un tri
+    // sans test.
+    for (const m of Object.keys(groups)) groups[m] = trierGroupe(groups[m], query);
     const order = ['checking', 'savings', 'investments', 'physical'];
     // v617 — PAGINATION. Sans borne au premier rendu, taper une seule lettre
     // construisait 1 695 boutons dans le DOM à CHAQUE frappe (tout l'index :
@@ -501,7 +669,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
   const flat = useMemo(() => grouped.flatMap(g => g.items), [grouped]);
 
   // Reset le focus ET la pagination quand la query change
-  useEffect(() => { setFocused(0); setShown(SEARCH_PAGE_SIZE); }, [query]);
+  useEffect(() => { setFocused(0); setShown(SEARCH_PAGE_SIZE); }, [query, du, au]);
 
   // Navigation clavier
   useEffect(() => {
@@ -576,7 +744,10 @@ function SearchModal({ ctx, onClose, onNavigate }) {
   }, [focused, query]);
 
   const total = results.length;
+  const totalBrut = resultsBruts.length;
   const hasQuery = query.trim().length > 0;
+  // Une période seule suffit désormais à afficher des résultats.
+  const aQuelqueChoseAMontrer = hasQuery || filtreActif;
 
   return (
     // ⚠️ Fermeture au clic sur le fond : le test `target === currentTarget` ne
@@ -604,9 +775,45 @@ function SearchModal({ ctx, onClose, onNavigate }) {
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
-          {hasQuery && (
-            <span className="search-input-meta">{total} résultat{total > 1 ? 's' : ''}</span>
+          {aQuelqueChoseAMontrer && (
+            <span
+              className="search-input-meta"
+              title={libelleSansDateMasques(sansDateMasques)}
+            >
+              {filtreActif && total !== totalBrut
+                ? <><strong>{total}</strong> sur {totalBrut}</>
+                : `${total} résultat${total > 1 ? 's' : ''}`}
+              {/* ⚠️ `title` HTML, donc INVISIBLE au tactile — l'explication
+                  n'existe pas sur iPhone, seule la mention reste lisible.
+                  Un InfoTip a été essayé le 07/08/2026 puis ABANDONNÉ : son
+                  déclencheur est calé pour une icône (`inline-flex`,
+                  `vertical-align: -2px`), et sur du texte il avalait l'espace
+                  avant le « · » et désalignait la mention (+2 px de hauteur,
+                  −3 px de largeur, mesurés). Et surtout, sa BULLE DÉBORDAIT de
+                  l'écran : elle se positionne par rapport à une icône centrée,
+                  or ici le déclencheur est un texte collé au bord droit, et le
+                  recadrage au viewport n'y suffit pas.
+                  ⇒ Ne pas le reproposer sans revoir d'abord `.infotip` pour un
+                  déclencheur TEXTUEL — style ET positionnement. C'est un
+                  chantier à part, pas une ligne. */}
+              {sansDateMasques > 0 && (
+                <span className="search-meta-exclus"> · {sansDateMasques} sans date</span>
+              )}
+            </span>
           )}
+          <button
+            type="button"
+            className={`search-periode-btn${(filtreOuvert || filtreActif) ? ' on' : ''}`}
+            onClick={() => setFiltreOuvert((o) => !o)}
+            aria-label="Filtrer par période"
+            aria-expanded={filtreOuvert}
+            title="Filtrer par période"
+          >
+            <Icon name="calendar" size={16} />
+            {/* La pastille survit au repli : c'est elle qui empêche le filtre
+                oublié, quand la barre est refermée mais le filtre encore actif. */}
+            {filtreActif && <span className="search-periode-pastille" />}
+          </button>
           <button
             type="button"
             className="search-close"
@@ -616,7 +823,40 @@ function SearchModal({ ctx, onClose, onNavigate }) {
           >×</button>
         </div>
 
-        {!hasQuery && (
+        {filtreOuvert && (
+          <div className="search-periode">
+            <span className="search-periode-lab">du</span>
+            {/* Le MÊME sélecteur que le compte courant, plutôt qu'une liste
+                déroulante de 31 entrées : le geste est déjà connu.
+                ⚠️ `zIndex` 3100 est indispensable — la fenêtre de recherche est
+                à 3000, et le popover s'ouvrirait DERRIÈRE elle avec sa valeur
+                par défaut (2000), en paraissant ne pas s'ouvrir du tout. */}
+            <MonthInputPicker
+              value={du}
+              onChange={changerDu}
+              placeholder="début"
+              className={`search-periode-sel${du ? '' : ' vide'}`}
+              style={{ cursor: 'pointer' }}
+              zIndex={3100}
+            />
+            <span className="search-periode-lab">au</span>
+            <MonthInputPicker
+              value={au}
+              onChange={changerAu}
+              placeholder="fin"
+              className={`search-periode-sel${au ? '' : ' vide'}`}
+              style={{ cursor: 'pointer' }}
+              zIndex={3100}
+            />
+            {filtreActif && (
+              <button type="button" className="search-periode-clear" onClick={effacerPeriode}>
+                Effacer
+              </button>
+            )}
+          </div>
+        )}
+
+        {!aQuelqueChoseAMontrer && (
           <div className="search-empty">
             <div className="search-empty-icon"><Icon name="search" size={20} /></div>
             <div className="search-empty-title">Recherche cross-application</div>
@@ -627,7 +867,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
           </div>
         )}
 
-        {hasQuery && total === 0 && (
+        {aQuelqueChoseAMontrer && total === 0 && (
           <div className="search-empty">
             <div className="search-empty-icon">∅</div>
             <div className="search-empty-title">Aucun résultat pour "{query}"</div>
@@ -638,7 +878,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
           </div>
         )}
 
-        {hasQuery && total > 0 && (
+        {aQuelqueChoseAMontrer && total > 0 && (
           <div className="search-results" ref={resultsRef}>
             {grouped.map(g => {
               const startIdx = flat.findIndex(it => it === g.items[0]);
