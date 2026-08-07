@@ -1096,27 +1096,6 @@ input[type="month"] {
 .tx-check.checked { background: var(--accent); border-color: var(--accent); color: white; }
 .tx-check.checked::after { content: '✓'; font-size: 12px; font-weight: bold; }
 
-/* Étiquette compacte JJ/MM cliquable, affichée à gauche du libellé
-   uniquement quand le toggle "Gestion des dates" est actif. */
-.tx-date-chip {
-  display: inline-flex; align-items: center; justify-content: center;
-  height: 22px; min-width: 50px; width: 50px;
-  padding: 0 6px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 4px;
-  background: var(--surface-alt);
-  cursor: pointer;
-  flex-shrink: 0;
-  font-family: inherit;
-  transition: border-color 0.15s, background 0.15s;
-}
-.tx-date-chip:hover { border-color: var(--accent); background: var(--accent-light); }
-.tx-date-chip-label {
-  font-size: 11px; font-weight: 500;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-}
 
 /* Variante de la grille .tx-row quand le mode "dates" est actif :
    on insère une 3ème colonne pour la chip JJ/MM, sans casser le reste. */
@@ -1145,37 +1124,6 @@ input[type="month"] {
   grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px) 24px;
 }
 
-/* Étiquette "Le X" pour les récurrents (jour du mois 1-31), strictement
-   alignée sur .tx-date-chip pour la cohérence visuelle. */
-.recurring-day-chip {
-  display: inline-flex; align-items: center; justify-content: center;
-  height: 22px; min-width: 50px; width: 50px;
-  padding: 0 6px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 4px;
-  background: var(--surface-alt);
-  cursor: pointer; flex-shrink: 0;
-  font-size: 11px; font-weight: 500;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  transition: border-color 0.15s, background 0.15s;
-}
-.recurring-day-chip:hover { border-color: var(--accent); background: var(--accent-light); }
-.recurring-day-input {
-  width: 50px; height: 22px;
-  padding: 0 6px;
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  background: white;
-  font-size: 11px; font-family: inherit;
-  text-align: center;
-  outline: none;
-  flex-shrink: 0;
-}
-/* Sur mobile, le chip est légèrement plus compact pour s'adapter à la grille. */
-@media (max-width: 640px) {
-  .recurring-day-chip, .recurring-day-input { min-width: 44px; width: 44px; }
-}
 
 .tx-label, .tx-amount {
   background: transparent; border: none; outline: none;
@@ -1880,7 +1828,16 @@ input[type="month"] {
   cursor: pointer; font-family: inherit;
   font-size: 13px; font-weight: 600;
   color: var(--text-muted); text-transform: capitalize;
-  transition: all 0.15s; position: relative;
+  /* ⚠️ PAS `transition: all` — 07/08/2026. `all` embarque les propriétés
+     GÉOMÉTRIQUES (padding, border-width, top…) : sur iPhone en PWA, chaque
+     ouverture du sélecteur monte douze cellules neuves et les cadenas des
+     mois figés, en position:absolute et sans transition, « sautaient »
+     (furtif, invisible sur ordinateur). Ces trois couleurs sont EXACTEMENT
+     ce que les règles :hover changent — `border-style` (pointillé → plein)
+     n'est pas animable, `all` ne l'animait donc déjà pas : le survol est
+     inchangé. Verrouillé par un test qui lit styles.css. */
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  position: relative;
 }
 .month-cell:hover {
   border-color: var(--text-light); color: var(--text);
@@ -2386,6 +2343,22 @@ input[type="month"] {
   font-size: 12.5px; color: var(--text-light);
   flex-wrap: wrap;
   flex-shrink: 0;
+  /* `relative` : ancre le clone de mesure ci-dessous. Aucun autre enfant n'est
+     positionné (le popover des bornes part en portal), donc sans effet. */
+  position: relative;
+}
+/* Clone INVISIBLE de la barre en libellés LONGS — il ne sert qu'à mesurer.
+   `position: absolute` : hors flux, donc il n'élargit pas la barre et ne
+   déclenche pas de retour à la ligne. `nowrap` : on veut la largeur d'UNE
+   ligne, c'est la question posée. Mêmes classes et même `gap` que la vraie
+   barre, sinon la mesure ne vaudrait rien.
+   ⚠️ Ce clone est ce qui rend la décision stable — cf. le pavé de `search.js`.
+   Même motif que `.mc-measure` (chip de mois). */
+.search-periode-measure {
+  position: absolute; left: 20px; top: 0;
+  visibility: hidden; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 9px;
+  white-space: nowrap;
 }
 .search-periode-lab { color: var(--text-muted); flex: 0 0 auto; }
 /* Bouton du sélecteur de mois — c'est le MÊME composant que le compte
@@ -2402,12 +2375,13 @@ input[type="month"] {
 /* Une borne ouverte s'affiche en gris : « début » et « aujourd'hui » disent
    l'absence de borne mieux qu'un champ vide. */
 .search-periode-sel.vide { color: var(--text-subtle); }
-.search-periode-clear {
-  margin-left: auto; border: none; background: transparent;
-  color: var(--accent); font-family: inherit; font-size: 12px;
-  cursor: pointer; padding: 4px 7px; border-radius: 6px;
-}
-.search-periode-clear:hover { background: var(--accent-light); }
+/* Le bouton « Effacer » du filtre porte le secondaire STANDARD de l'app
+   (`btn btn-secondary btn-sm`), comme celui du pied de calendrier. Seule
+   l'implantation reste locale : il est poussé à droite de la barre.
+   ⚠️ L'ancien `.search-periode-clear` a été RETIRÉ le 07/08/2026 — c'était la
+   SEULE règle de toute la feuille à combiner fond transparent et texte en
+   couleur d'accent, donc un style unique au monde pour un seul bouton. */
+.search-periode > .btn { margin-left: auto; }
 
 .search-results {
   overflow-y: auto; flex: 1;
@@ -2999,6 +2973,18 @@ input[type="month"] {
 .infotip { position: relative; display: inline-flex; align-items: center; cursor: pointer; vertical-align: -2px; }
 .infotip-ico { display: inline-flex; color: var(--text-subtle); }
 .infotip:hover .infotip-ico, .infotip:focus-visible .infotip-ico { color: var(--text-muted); }
+/* 07/08/2026 : déclencheur TEXTUEL (prop `children` d'InfoTip). Délibérément
+   NU — `.infotip` juste au-dessus est calé pour une ICÔNE (`inline-flex`,
+   `vertical-align: -2px`) et, sur du texte, son inline-flex avale l'espace qui
+   précède la mention et la fait descendre d'un pixel (mesuré au banc
+   `_maquettes/2026-08-07-tooltip-tactile-banc.html` : −3,2 px de largeur,
+   +2 px de hauteur). Pas de `position: relative` non plus : la bulle est en
+   `position: fixed` dans un portal, celui de `.infotip` est vestigial.
+   Le padding VERTICAL porte la cible au doigt de 12 à 30 px SANS rien
+   déplacer : sur une boîte inline, il ne contribue pas à la hauteur de ligne.
+   L'horizontal reste à 0 — lui, il décalerait le texte.
+   Les trois interdits sont verrouillés par un test. */
+.infotip-txt { cursor: pointer; padding: 9px 0; }
 /* v593/v595 : tooltip BLANC (aligné sur CustomTooltip). Rendu en position
    FIXE dans document.body (via portal) pour ne pas être rogné par un parent
    overflow:hidden (ex. .support-sub en portrait). left/top posés en inline
@@ -3091,8 +3077,6 @@ input[type="month"] {
   .tx-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px) 22px; }
   .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px) 22px; }
   .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px) 22px; }
-  /* Chip date plus compacte sur mobile pour économiser l'espace. */
-  .tx-date-chip { min-width: 44px; width: 44px; }
   .tx-icon { width: 20px; height: 20px; }
   /* Récurrents (modales Entrées/Sorties dans le menu ⋯) : mêmes colonnes et paddings que tx-row */
   .recurring-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 10px; }
@@ -3424,7 +3408,6 @@ input[type="month"] {
      la case, sans liseré. */
   background: rgba(79, 70, 229, 0.5); border-color: transparent; color: white;
 }
-.frozen-month .tx-date-chip { cursor: default; }
 .frozen-month .tx-icon { cursor: default; }
 /* Cadenas de la chip de mois (hero + titre mobile) — icône vectorielle
    en currentColor : blanche sur la variante hero, ardoise sur la light.
@@ -3439,7 +3422,23 @@ input[type="month"] {
    sur cellule claire, blanc sur le mois courant et au survol. La cellule
    reste sélectionnable normalement. */
 .month-cell { position: relative; }
-.month-cell-lock { position: absolute; top: 4px; right: 5px; display: inline-flex; }
+/* 🔴 `transform: translateZ(0)` — NE PAS LE SUPPRIMER EN CROYANT NETTOYER.
+   Il ne déplace RIEN : son seul rôle est de promouvoir le cadenas en couche
+   de composition. Sans lui, sur iPhone en PWA, les cadenas « descendaient un
+   peu puis se figeaient » à CHAQUE ouverture du sélecteur de mois.
+   Ce que la mesure sur l'appareil a établi le 07/08/2026, en 92 images sur
+   1513 ms : la mise en page ne bouge JAMAIS — amplitude 0 sur le popover, la
+   cellule et les cadenas, échantillon pris AVANT la première peinture, et
+   style calculé (`top`, bordure, padding) identique du début à la fin. Le
+   défaut était donc dans le RENDU, pas dans la géométrie.
+   ⚠️ Trois hypothèses fausses avant celle-ci, à ne pas reproposer : « la
+   police arrive après le premier rendu » (réfutée : le défaut survient à
+   TOUTES les ouvertures) · « `transition: all` étire les cellules » (déposée
+   en v944, le défaut a persisté) · « le cadenas est sur un demi-pixel »
+   (réfutée par l'essai : `translateZ(0)`, qui ne corrige aucune fraction,
+   suffit — donc c'est la promotion qui mord, pas le recalage).
+   Même parade que celle du §10 pour les onglets des charges sur iOS. */
+.month-cell-lock { position: absolute; top: 4px; right: 5px; display: inline-flex; transform: translateZ(0); }
 .month-cell-lock svg { stroke-width: 2.4; display: block; }
 .month-cell.created.frozen:not(.current)::after { content: none; }
 /* Item de menu désactivé (Supprimer un mois figé) */

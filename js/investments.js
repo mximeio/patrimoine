@@ -819,6 +819,21 @@ function AddOperationForm({ data, initial, onSubmit, onDelete }) {
   const [costBasis, setCostBasis] = useState(initial?.costBasis ?? '');
   const [etf, setEtf] = useState(initial?.etf || data.etfs[0]?.id || '');
 
+  // Détection de modification pour la confirmation de fermeture du Modal.
+  // 🔴 OBLIGATOIRE dès qu'un formulaire porte un contrôle à CLIC : le champ
+  // Date est un `<button>` qui ouvre un calendrier, il n'émet ni `input` ni
+  // `change`, donc l'heuristique générique du Modal est aveugle — on modifiait
+  // la date, on fermait, et la saisie était jetée SANS AUCUNE CONFIRMATION.
+  // Défaut déjà trouvé et corrigé en v535 sur la modale Réglages, jamais
+  // généralisé ; relevé par l'utilisateur le 07/08/2026 sur l'épargne.
+  // On ignore le 1er rendu pour ne pas marquer « modifié » à la simple ouverture.
+  const markDirty = React.useContext(ModalDirtyContext);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (markDirty) markDirty();
+  }, [opType, date, amount, marketValue, costBasis, etf]);
+
   // Liste des supports distribuants pour le filtre "dividende"
   const distributingEtfs = (data.etfs || []).filter(e => (e.kind || 'capitalizing') === 'distributing');
 

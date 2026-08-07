@@ -231,7 +231,18 @@ function Dropdown({ trigger, children, align = 'right', portal = false }) {
 // v592 : petite pastille d'info (icône) avec bulle au SURVOL (desktop) et au
 // TAP (mobile, fermeture au clic extérieur). Générique — sert l'icône cible des
 // supports, réutilisable ailleurs (ex. commentaire d'opération).
-function InfoTip({ iconName = 'target', size = 13, label, className = '', popClassName = '' }) {
+//
+// 07/08/2026 : `children` permet un déclencheur QUELCONQUE — un texte, par
+// exemple — à la place de l'icône. La racine prend alors `.infotip-txt` et
+// NON `.infotip`, qui est calé pour une icône et déplacerait le texte
+// (mesuré : −3,2 px de largeur, +2 px de hauteur). Toute la mécanique reste
+// ICI : une seconde implémentation divergerait en silence (§10).
+// ⚠️ Sur un déclencheur textuel, penser à `popClassName="infotip-pop--wrap"`.
+// La bulle est en `white-space: nowrap` par défaut : un libellé de phrase sort
+// de sa boîte plafonnée à 220 px, donc de l'écran — 220 px dehors sur un
+// viewport de 390, et encore 195 px sur un viewport de 766. Le recadrage au
+// viewport n'y peut rien, il place la BOÎTE, pas le contenu qui en sort.
+function InfoTip({ iconName = 'target', size = 13, label, className = '', popClassName = '', children = null }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const ref = useRef(null);
@@ -289,7 +300,7 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
   return (
     <span
       ref={ref}
-      className={`infotip ${className}`}
+      className={`${children ? 'infotip-txt' : 'infotip'} ${className}`}
       role="button"
       tabIndex={0}
       aria-label={label}
@@ -298,7 +309,7 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
       onMouseLeave={() => { if (hoverable()) scheduleClose(); }}
       onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openTip(); }}
     >
-      <span className="infotip-ico"><Icon name={iconName} size={size} /></span>
+      {children || <span className="infotip-ico"><Icon name={iconName} size={size} /></span>}
       {open && pos && ReactDOM.createPortal(
         <span
           className={`infotip-pop ${popClassName}`}
@@ -675,4 +686,26 @@ function SignedAmountField({ value, onChange, naturalExpense = true, isTR = fals
       )}
     </div>
   );
+}
+
+// Adaptateur DOM de `placerPopover` (utils.js) : mesure le nœud, puis applique.
+// La DÉCISION reste dans la fonction pure, testable ; ici il n'y a que la
+// lecture du DOM et l'écriture des styles (§10).
+// ⚠️ À appeler depuis un `ref` callback : React les exécute pendant le commit,
+// donc AVANT la peinture — le popover n'est jamais vu à sa position provisoire.
+// C'est le motif d'`InfoTip`, généralisé aux trois calendriers le 07/08/2026.
+function appliquerPlacement(node, ancre, ancrage = 'centre') {
+  if (!node || !ancre) return;
+  const r = node.getBoundingClientRect();
+  const p = placerPopover({
+    ancre,
+    taille: { largeur: r.width, hauteur: r.height },
+    viewport: { largeur: window.innerWidth, hauteur: window.innerHeight },
+    ancrage,
+  });
+  node.style.top = p.top + 'px';
+  node.style.left = p.left + 'px';
+  node.style.transform = 'none';
+  node.style.maxHeight = p.maxHeight ? p.maxHeight + 'px' : '';
+  node.style.overflowY = p.maxHeight ? 'auto' : '';
 }

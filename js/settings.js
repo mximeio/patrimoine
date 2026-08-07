@@ -839,13 +839,13 @@ function SimpleRecurringRow({ item, scope, list, index, onUpdate, onRemove, onEd
   );
 }
 
-// Étiquette compacte pour le jour du mois (1-31) d'une ligne récurrente.
-// Cliquable, ouvre un DayPickerPopover (même style/comportement que le
+// Champ pleine largeur pour le jour du mois (1-31) d'une ligne récurrente —
+// calqué sur DateInputPicker, pour un rendu cohérent avec le champ Date
+// d'OperationForm. Ouvre un DayPickerPopover (même style/comportement que le
 // DatePickerPopover des opérations, mais avec une grille 1-31 sans mois).
-// Affiche "Le 5" ou "—" si pas encore défini.
-// Variante "input pleine largeur" du DayChip — calquée sur DateInputPicker.
-// Sert dans la modale RecurringForm pour un rendu cohérent avec le champ
-// Date d'OperationForm. Ouvre le même DayPickerPopover que DayChip.
+// Affiche "Le 5" ou "Choisir un jour" si pas encore défini.
+// ⚠️ Il existait une variante compacte `DayChip` pour les LIGNES de la liste :
+// supprimée le 07/08/2026, elle était du code mort (définie, jamais rendue).
 function DayInputPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState(null);
@@ -862,6 +862,11 @@ function DayInputPicker({ value, onChange }) {
         type="button"
         className="input"
         style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--surface)' }}
+        // ⚠️ OBLIGATOIRE, cf. le pavé de MonthChip (checking.js) : sans ce
+        // stopPropagation, le handler de clic extérieur du popover (document,
+        // mousedown) ferme la fenêtre juste avant que le click ne rappelle
+        // handleOpen, qui la rouvre. Le re-clic ne fermait jamais (07/08/2026).
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={handleOpen}
       >
         {value ? `Le ${value}` : 'Choisir un jour'}
@@ -878,39 +883,6 @@ function DayInputPicker({ value, onChange }) {
   );
 }
 
-function DayChip({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const [anchorRect, setAnchorRect] = useState(null);
-  const btnRef = useRef(null);
-  const handleOpen = (e) => {
-    e.stopPropagation();
-    if (open) { setOpen(false); return; }
-    if (btnRef.current) setAnchorRect(btnRef.current.getBoundingClientRect());
-    setOpen(true);
-  };
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        className="recurring-day-chip"
-        onClick={handleOpen}
-        title={value ? `Jour du mois : ${value}` : 'Définir un jour'}
-      >
-        {value ? `Le ${value}` : '—'}
-      </button>
-      {open && (
-        <DayPickerPopover
-          selectedDay={value}
-          onPick={(d) => { onChange(d); setOpen(false); }}
-          onClose={() => setOpen(false)}
-          anchorRect={anchorRect}
-        />
-      )}
-    </>
-  );
-}
-
 // Popup compacte pour choisir un jour du mois (1-31). Hérite du style
 // visuel du DatePickerPopover (sans entêtes L/M/M/J/V/S/D ni nav de
 // mois). Positionnement, clamping et portail sont identiques.
@@ -922,36 +894,29 @@ function DayPickerPopover({ selectedDay, onPick, onClose, anchorRect = null }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Mêmes constantes que DatePickerPopover, mais hauteur moindre car
-  // on n'a pas d'entête semaine ni de footer.
-  const POPOVER_HEIGHT = 290;
-  const POPOVER_WIDTH = 300;
   const MARGIN = 8;
-  const fixedStyle = (() => {
-    if (!anchorRect) return null;
-    const viewportH = window.innerHeight;
-    const viewportW = window.innerWidth;
-    let top = anchorRect.bottom + MARGIN;
-    const fitsBelow = top + POPOVER_HEIGHT + MARGIN <= viewportH;
-    const fitsAbove = anchorRect.top - POPOVER_HEIGHT - MARGIN >= MARGIN;
-    if (!fitsBelow && fitsAbove) {
-      top = anchorRect.top - POPOVER_HEIGHT - MARGIN;
-    }
-    top = Math.max(MARGIN, Math.min(top, viewportH - POPOVER_HEIGHT - MARGIN));
-    const centerX = anchorRect.left + anchorRect.width / 2;
-    const halfW = POPOVER_WIDTH / 2;
-    const left = Math.max(MARGIN + halfW, Math.min(centerX, viewportW - halfW - MARGIN));
-    return {
-      position: 'fixed',
-      top, left,
-      transform: 'translateX(-50%)',
-      zIndex: 2000,
-    };
-  })();
+  // 🔴 PLUS AUCUNE HAUTEUR DEVINÉE (07/08/2026) : ce bloc estimait
+  //  `POPOVER_HEIGHT = 290`, et son commentaire disait « mêmes constantes que
+  //  DatePickerPopover, mais hauteur moindre » — deux estimations qui devaient
+  //  rester d'accord avec deux mises en page qu'elles ne mesuraient pas.
+  //  Même défaut et même correctif que les deux autres calendriers : cf. le
+  //  pavé de `DatePickerPopover` (checking.js) et `placerPopover` (utils.js),
+  //  fonction pure et testée.
+  const styleInitial = anchorRect ? {
+    position: 'fixed',
+    top: anchorRect.bottom + MARGIN,
+    left: MARGIN,
+    maxWidth: `calc(100vw - ${2 * MARGIN}px)`,
+    zIndex: 2000,
+  } : null;
+  const refPlacement = (node) => {
+    ref.current = node;
+    appliquerPlacement(node, anchorRect);
+  };
 
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
   const content = (
-    <div ref={ref} className="date-picker-popover day-picker-popover" style={fixedStyle || undefined}>
+    <div ref={refPlacement} className="date-picker-popover day-picker-popover" style={styleInitial || undefined}>
       <div className="year-nav" style={{ justifyContent: 'center' }}>
         <span style={{ width: 28 }} />
         <div className="year-label">Jour du mois</div>
@@ -976,7 +941,7 @@ function DayPickerPopover({ selectedDay, onPick, onClose, anchorRect = null }) {
       </div>
     </div>
   );
-  if (fixedStyle && typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) {
+  if (styleInitial && typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) {
     return ReactDOM.createPortal(content, document.body);
   }
   return content;

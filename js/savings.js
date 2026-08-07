@@ -554,6 +554,21 @@ function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete }) {
   const [label, setLabel] = useState(initial?.label || '');
   const [amount, setAmount] = useState(initial?.amount ?? '');
 
+  // Détection de modification pour la confirmation de fermeture du Modal.
+  // 🔴 OBLIGATOIRE dès qu'un formulaire porte un contrôle à CLIC : le champ
+  // Date est un `<button>` qui ouvre un calendrier, il n'émet ni `input` ni
+  // `change`, donc l'heuristique générique du Modal est aveugle — on modifiait
+  // la date, on fermait, et la saisie était jetée SANS AUCUNE CONFIRMATION
+  // (signalé par l'utilisateur le 07/08/2026). Le même défaut avait déjà été
+  // trouvé et corrigé en v535 sur la modale Réglages, sans être généralisé.
+  // On ignore le 1er rendu pour ne pas marquer « modifié » à la simple ouverture.
+  const markDirty = React.useContext(ModalDirtyContext);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (markDirty) markDirty();
+  }, [type, date, label, amount]);
+
   const types = [
     { id: 'in',       label: 'Versement', icon: 'arrowDown', color: COLORS.success, bg: 'var(--success-light)', desc: 'Cash entrant' },
     { id: 'out',      label: 'Retrait',   icon: 'arrowUp',   color: COLORS.danger,  bg: 'var(--danger-light)',  desc: 'Cash sortant' },

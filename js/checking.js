@@ -160,6 +160,24 @@ function NewCheckingAccountForm({ onSubmit, existingNames = [] }) {
   const [initialBalanceMonth, setInitialBalanceMonth] = useState(currentMonthKey());
   const [error, setError] = useState('');
 
+  // Détection de modification pour la confirmation de fermeture du Modal.
+  // 🔴 OBLIGATOIRE dès qu'un formulaire porte un contrôle à CLIC : le « mois de
+  // référence » est un `MonthInputPicker`, donc un `<button>` — il n'émet ni
+  // `input` ni `change`, et l'heuristique générique du Modal est aveugle.
+  // Défaut déjà trouvé et corrigé en v535 sur la modale Réglages (dont le
+  // commentaire le décrit), jamais généralisé ; relevé par l'utilisateur le
+  // 07/08/2026 sur l'épargne.
+  // ⚠️ `error` est EXCLU des dépendances : un refus de validation n'est pas une
+  // modification de l'utilisateur, et l'y mettre marquerait « modifié » sur une
+  // simple tentative d'enregistrement.
+  // On ignore le 1er rendu pour ne pas marquer « modifié » à la simple ouverture.
+  const markDirty = React.useContext(ModalDirtyContext);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (markDirty) markDirty();
+  }, [name, initialBalance, initialBalanceMonth]);
+
   // Normalisation pour comparaison : trim + lowercase. Évite les noms
   // doublons à la casse / espaces près ("Boursorama" vs "boursorama  ").
   const normalize = (s) => (s || '').trim().toLowerCase();
@@ -1111,10 +1129,10 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
   // ou de titre), via ResizeObserver sur la ligne (resize, rotation) et
   // au chargement de la police — même mécanique éprouvée que la goutte
   // de la barre d'onglets.
-  // Majuscule posée en JS : FRENCH_MONTHS_SHORT est en minuscules et le
-  // `text-transform: capitalize` du CSS n'est pas réappliqué par WebKit
-  // sur un span rendu visible par rotation (« août 26 » sans majuscule).
-  const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  // Majuscule posée en JS via `capFirst` (utils.js), qui porte le pourquoi :
+  // WebKit ne réapplique pas `text-transform: capitalize` sur un span rendu
+  // visible par rotation. Helper PARTAGÉ depuis le 07/08/2026 — la barre de
+  // période de la recherche affiche le même libellé court.
   const [useShort, setUseShort] = useState(false);
   const rootRef = useRef(null);
   const measureRef = useRef(null);
@@ -1209,22 +1227,24 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
   // l'écran (largeur + centrage bornés), ouverture vers le haut si pas la
   // place en bas. Rendu via portal (cf. MonthInputPicker) pour échapper aux
   // overflow/contextes de la modale.
-  const fixedStyle = anchorRect ? (() => {
-    const w = Math.min(360, window.innerWidth - 16);
-    const half = w / 2;
-    let cx = anchorRect.left + anchorRect.width / 2;
-    cx = Math.max(half + 8, Math.min(cx, window.innerWidth - half - 8));
-    const estH = 260;
-    const openUp = anchorRect.bottom + estH > window.innerHeight && anchorRect.top > estH;
-    return {
-      position: 'fixed',
-      top: openUp ? Math.max(8, anchorRect.top - estH) : anchorRect.bottom + 8,
-      left: cx, transform: 'translateX(-50%)',
-      width: w, zIndex,
-    };
-  })() : null;
+  // 🔴 PLUS AUCUNE HAUTEUR DEVINÉE (07/08/2026) : ce bloc estimait `estH = 260`,
+  //  d'où une bascule vers le haut décidée sur une hauteur fausse. Même défaut
+  //  et même correctif que `DatePickerPopover` — cf. son pavé, et `placerPopover`
+  //  (utils.js), pure et testée. La LARGEUR, elle, reste bornée ici : c'est une
+  //  contrainte qu'on impose, pas une estimation qu'on devine.
+  const styleInitial = anchorRect ? {
+    position: 'fixed',
+    top: anchorRect.bottom + 8,
+    left: 8,
+    width: Math.min(360, window.innerWidth - 16),
+    zIndex,
+  } : null;
+  const refPlacement = (node) => {
+    ref.current = node;
+    appliquerPlacement(node, anchorRect);
+  };
   return (
-    <div ref={ref} className="month-picker-popover" style={fixedStyle || undefined}>
+    <div ref={refPlacement} className="month-picker-popover" style={styleInitial || undefined}>
       <div className="year-nav">
         <button className="btn-icon" type="button" onClick={() => setYear(year - 1)}>‹</button>
         <div className="year-label">{year}</div>
@@ -1304,6 +1324,8 @@ function DateInputPicker({ value, onChange }) {
         type="button"
         className="input"
         style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--surface)' }}
+        // ⚠️ OBLIGATOIRE, cf. le pavé de MonthChip (même défaut, 07/08/2026).
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={handleOpen}
       >
         {value ? fmtDateLong(value) : 'Choisir une date'}
@@ -1340,37 +1362,32 @@ function DatePickerPopover({ year, month, setYear, setMonth, selectedDate, onPic
   //     position de scroll de la page.
   //  4. Idem horizontalement : on clampe `left` pour qu'il ne sorte pas
   //     par les bords gauche/droit.
-  const POPOVER_HEIGHT = 340;
-  const POPOVER_WIDTH = 300;
   const MARGIN = 8;
-  const fixedStyle = (() => {
-    if (!anchorRect) return null;
-    const viewportH = window.innerHeight;
-    const viewportW = window.innerWidth;
-
-    // Position verticale
-    let top = anchorRect.bottom + MARGIN;
-    const fitsBelow = top + POPOVER_HEIGHT + MARGIN <= viewportH;
-    const fitsAbove = anchorRect.top - POPOVER_HEIGHT - MARGIN >= MARGIN;
-    if (!fitsBelow && fitsAbove) {
-      top = anchorRect.top - POPOVER_HEIGHT - MARGIN;
-    }
-    // Clamp final pour garantir la visibilité quoi qu'il arrive
-    top = Math.max(MARGIN, Math.min(top, viewportH - POPOVER_HEIGHT - MARGIN));
-
-    // Position horizontale : centrée sur l'ancre, clampée aux bords du viewport
-    const centerX = anchorRect.left + anchorRect.width / 2;
-    const halfW = POPOVER_WIDTH / 2;
-    const left = Math.max(MARGIN + halfW, Math.min(centerX, viewportW - halfW - MARGIN));
-
-    return {
-      position: 'fixed',
-      top,
-      left,
-      transform: 'translateX(-50%)',
-      zIndex: 2000,
-    };
-  })();
+  // 🔴 PLUS AUCUNE HAUTEUR DEVINÉE (07/08/2026). Ce bloc calculait sa position
+  //  à partir d'un `POPOVER_HEIGHT = 340` écrit en dur : le recadrage
+  //  garantissait donc que 340 px restaient à l'écran, pas la VRAIE hauteur.
+  //  Un mois à 6 rangées plus le pied « Aujourd'hui » dépasse l'estimation, et
+  //  le calendrier sortait de l'écran — signalé par l'utilisateur sur la modale
+  //  d'une opération d'épargne. D'où le « parfois » : seuls les mois qui
+  //  commencent tard débordaient.
+  //  ⚠️ Et il manquait la TROISIÈME branche : quand ça ne tient ni dessous ni
+  //  dessus, l'ancien code restait dessous et débordait. Voir `placerPopover`
+  //  (utils.js), fonction pure et testée, et `appliquerPlacement` (ui.js) qui
+  //  mesure le nœud avant la peinture.
+  const styleInitial = anchorRect ? {
+    position: 'fixed',
+    top: anchorRect.bottom + MARGIN,
+    left: MARGIN,
+    maxWidth: `calc(100vw - ${2 * MARGIN}px)`,
+    zIndex: 2000,
+  } : null;
+  // Le `ref` fait DEUX choses : garder le nœud pour le test de clic extérieur,
+  // et poser le placement mesuré. React l'appelle pendant le commit, donc avant
+  // la peinture : le popover n'est jamais vu à sa position provisoire.
+  const refPlacement = (node) => {
+    ref.current = node;
+    appliquerPlacement(node, anchorRect);
+  };
   const prevMonth = () => {
     if (lockedMonth) return;
     if (month === 0) { setMonth(11); setYear(year - 1); }
@@ -1414,7 +1431,7 @@ function DatePickerPopover({ year, month, setYear, setMonth, selectedDate, onPic
     });
   }
   const content = (
-    <div ref={ref} className="date-picker-popover" style={fixedStyle || undefined}>
+    <div ref={refPlacement} className="date-picker-popover" style={styleInitial || undefined}>
       <div className="year-nav">
         {lockedMonth ? <span style={{ width: 28 }} /> : <button className="btn-icon" type="button" onClick={prevMonth}>‹</button>}
         <div className="year-label" style={{ textTransform: 'capitalize' }}>{FRENCH_MONTHS[month]} {year}</div>
@@ -1464,7 +1481,7 @@ function DatePickerPopover({ year, month, setYear, setMonth, selectedDate, onPic
   // problématiques (transform, overflow:hidden, etc.) — notamment la
   // .modal qui clippait le calendrier en bas. Sans anchor (fallback CSS
   // absolute), on garde le rendu inline classique.
-  if (fixedStyle && typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) {
+  if (styleInitial && typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) {
     return ReactDOM.createPortal(content, document.body);
   }
   return content;
@@ -1472,7 +1489,12 @@ function DatePickerPopover({ year, month, setYear, setMonth, selectedDate, onPic
 
 // Bouton-input qui ouvre un MonthPicker en mode simple — pour les formulaires
 // qui ont besoin de choisir un mois (ex: "Mois de référence" du Solde initial)
-function MonthInputPicker({ value, onChange, placeholder = 'Choisir un mois', className = 'input', style = null, zIndex = 2000 }) {
+// `formatLabel` : comment écrire le mois sur le bouton. Par défaut `monthLabel`
+// (« Septembre 2026 »), donc les appelants existants ne changent pas d'un
+// caractère. La barre de période de la recherche y passe `monthLabelShort` quand
+// la place manque (07/08/2026) — c'est l'appelant qui décide, pas le composant :
+// lui n'a aucun moyen de connaître la largeur dont il dispose.
+function MonthInputPicker({ value, onChange, placeholder = 'Choisir un mois', className = 'input', style = null, zIndex = 2000, formatLabel = null }) {
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState(null);
   const btnRef = useRef(null);
@@ -1490,9 +1512,16 @@ function MonthInputPicker({ value, onChange, placeholder = 'Choisir un mois', cl
         type="button"
         className={className}
         style={style || { textAlign: 'left', cursor: 'pointer', background: 'var(--surface)' }}
+        // ⚠️ OBLIGATOIRE, cf. le pavé de MonthChip : sans ce stopPropagation, le
+        // handler de « clic extérieur » du popover (document, mousedown) ferme le
+        // calendrier juste avant que le click ne rappelle handleOpen — qui le
+        // rouvre aussitôt, `open` étant déjà repassé à false. Le re-clic ne
+        // fermait donc JAMAIS (signalé par l'utilisateur le 07/08/2026 sur les
+        // bornes « début » / « fin » de la recherche). Seul le toggle décide.
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={handleOpen}
       >
-        {value ? monthLabel(value) : placeholder}
+        {value ? (formatLabel || monthLabel)(value) : placeholder}
       </button>
       {open && ReactDOM.createPortal(
         <MonthPicker
@@ -2228,68 +2257,6 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
         </button>
       )}
     </div>
-  );
-}
-
-// Étiquette compacte JJ/MM cliquable qui ouvre le DatePickerPopover
-// (le même que celui utilisé dans les Investissements), mais avec le
-// mois VERROUILLÉ sur le mois de la ligne (mKey). Affiche "—/—" si
-// aucune date n'est saisie.
-function DateChip({ value, mKey, onChange }) {
-  const [open, setOpen] = useState(false);
-  const [anchorRect, setAnchorRect] = useState(null);
-  const btnRef = useRef(null);
-  // Mois ouvert dans le popover. Initialisé sur le mois de la ligne (mKey),
-  // mais la navigation prev/next est libre — utile pour saisir une date
-  // en différé (jour du mois suivant) ou rétroactive (mois précédent).
-  // Si une date est déjà saisie, on ouvre sur le mois de cette date pour
-  // que l'utilisateur la voie sélectionnée.
-  const initialFromKey = (key) => {
-    const y = parseInt(key.slice(0, 4), 10);
-    const m = parseInt(key.slice(5, 7), 10) - 1;
-    return { y, m };
-  };
-  const initialKey = value ? value.slice(0, 7) : mKey;
-  const initial = initialFromKey(initialKey);
-  const [year, setYear] = useState(initial.y);
-  const [month, setMonth] = useState(initial.m);
-  const handleOpen = (e) => {
-    e.stopPropagation();
-    if (open) { setOpen(false); return; }
-    if (btnRef.current) setAnchorRect(btnRef.current.getBoundingClientRect());
-    // À chaque ouverture, on repositionne le popover sur le mois pertinent
-    // (mois de la date si renseignée, sinon mois de la ligne).
-    const k = value ? value.slice(0, 7) : mKey;
-    const { y, m } = initialFromKey(k);
-    setYear(y);
-    setMonth(m);
-    setOpen(true);
-  };
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        className="tx-date-chip"
-        onClick={handleOpen}
-        title={value ? `Date : ${formatDayMonth(value)}` : 'Définir une date'}
-      >
-        <span className="tx-date-chip-label">{value ? formatDayMonth(value) : '—/—'}</span>
-      </button>
-      {open && (
-        <DatePickerPopover
-          year={year}
-          month={month}
-          setYear={setYear}
-          setMonth={setMonth}
-          selectedDate={value}
-          onPick={(d) => { onChange(d); setOpen(false); }}
-          onClose={() => setOpen(false)}
-          anchorRect={anchorRect}
-          allowClear={true}
-        />
-      )}
-    </>
   );
 }
 

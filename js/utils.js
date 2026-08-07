@@ -96,6 +96,12 @@ const monthLabelDe = (key) => {
   const l = monthLabel(key);
   return /^[AÂEÉÈÊIÎOÔUÙÛ]/.test(l) ? `d'${l}` : `de ${l}`;
 };
+// Majuscule initiale, posée en JS et NON par `text-transform: capitalize`.
+// ⚠️ Raison iOS, découverte sur la chip de mois : WebKit ne RÉAPPLIQUE pas
+// `capitalize` sur un span rendu visible par une rotation ou un changement de
+// media-query — on obtenait « août 26 » sans majuscule. `FRENCH_MONTHS_SHORT`
+// étant en minuscules, tout affichage d'un libellé court passe par ici.
+const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 const prevMonthKey = (key) => { const { year, monthIdx } = parseMonth(key); return monthIdx === 0 ? monthKey(year - 1, 11) : monthKey(year, monthIdx - 1); };
 const nextMonthKey = (key) => { const { year, monthIdx } = parseMonth(key); return monthIdx === 11 ? monthKey(year + 1, 0) : monthKey(year, monthIdx + 1); };
 const currentMonthKey = () => { const d = new Date(); return monthKey(d.getFullYear(), d.getMonth()); };
@@ -195,14 +201,6 @@ function checkingModuleLabel(profile) {
   return profile?.modulesEnabled?.multiCheckingAccounts ? 'Comptes courants' : 'Compte courant';
 }
 
-// Format compact "JJ/MM" à partir d'une date ISO YYYY-MM-DD.
-// Renvoie '' si la date est absente ou invalide.
-function formatDayMonth(iso) {
-  if (!iso || typeof iso !== 'string') return '';
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return '';
-  return `${m[3]}/${m[2]}`;
-}
 
 // Le toggle "Gestion des dates" est-il activé sur le profil ?
 function checkingDatesEnabled(profile) {
@@ -301,4 +299,90 @@ function sortItemsBySortKey(items, getKey) {
   const dated = indexed.filter(x => has(x.k)).sort(cmp);
   const undated = indexed.filter(x => !has(x.k));
   return [...dated, ...undated].map(x => x.it);
+}
+
+// ============================================================
+//  placerPopover — où poser un popover par rapport à son ancre.
+//
+//  PURE : ne touche pas au DOM, ne lit ni `window` ni un élément. Toutes les
+//  tailles arrivent en argument, MESURÉES par l'appelant.
+//
+//  🔴 Pourquoi cette fonction existe (07/08/2026). Les trois popovers de
+//  l'app — calendrier de date, sélecteur de mois, sélecteur de jour —
+//  devinaient leur hauteur avec une CONSTANTE écrite en dur (340, 260, 290).
+//  Leur recadrage garantissait donc que *cette* hauteur restait à l'écran,
+//  pas la vraie : un mois à 6 rangées dépasse l'estimation et le pied du
+//  calendrier sortait de l'écran. Signalé par l'utilisateur sur la modale
+//  d'une opération d'épargne. D'où le « parfois » du symptôme — seuls les
+//  mois qui commencent tard débordent.
+//  ⚠️ Et il leur manquait TOUS LES TROIS la troisième branche : quand ça ne
+//  tient ni dessous ni dessus, ils restaient dessous et débordaient.
+//  `InfoTip` (ui.js) faisait déjà les choses correctement — mesurer puis
+//  recadrer, avec épinglage et défilement interne. C'est son motif qui est
+//  généralisé ici.
+//  ⚠️ Sortie de la vue à dessein (§10) : « si une condition décide quelque
+//  chose, elle sort de la vue ». Le placement est une DÉCISION, et aucune des
+//  trois n'était testable tant qu'elle vivait dans un composant.
+//
+//  ancre    : { top, bottom, left, width }  — le rect du déclencheur
+//  taille   : { largeur, hauteur }          — MESURÉE, jamais devinée
+//  viewport : { largeur, hauteur }
+//  ancrage  : 'centre' (les calendriers) | 'droite' (bord droit aligné)
+//  Renvoie  : { top, left, maxHeight, place }
+//             place = 'dessous' | 'dessus' | 'epingle'
+//             maxHeight vaut null sauf en 'epingle' (défilement interne)
+// ============================================================
+function placerPopover({ ancre, taille, viewport, marge = 8, ancrage = 'centre' }) {
+  // 🔴 ON RAMÈNE D'ABORD L'ANCRE DANS L'ÉCRAN. Trouvé le 07/08/2026 par le
+  //  balayage exhaustif des tests, et manqué par les douze cas écrits à la
+  //  main : une ancre située AU-DESSUS de l'écran (page défilée après la
+  //  capture du rect) donne un `bottom` NÉGATIF, ce qui gonfle la place
+  //  « disponible dessous » au-delà de la hauteur de l'écran — et le popover
+  //  débordait par le bas. Contre-exemple : écran 420, popover 500,
+  //  ancre à −150 → la place calculée valait 532, donc « ça tient dessous ».
+  //  Borner l'ancre AVANT tout calcul ferme le cas à la racine, plutôt que de
+  //  rattraper chaque branche après coup.
+  const bas = Math.min(Math.max(ancre.bottom, marge), viewport.hauteur - marge);
+  const placeDessous = viewport.hauteur - bas - marge;
+  const hauteurUtile = viewport.hauteur - 2 * marge;
+
+  let top, place, maxHeight = null;
+  if (taille.hauteur <= placeDessous) {
+    top = bas + marge;
+    place = 'dessous';
+  } else if (taille.hauteur <= hauteurUtile) {
+    // 🔴 ON REMONTE DU STRICT MINIMUM, on ne BASCULE PAS au-dessus.
+    //  Décision de l'utilisateur, 07/08/2026, après avoir vu le résultat à
+    //  l'écran. La bascule complète (`flip` de Floating UI) est pensée pour des
+    //  menus COURTS ; ici les trois popovers font 227, 297 et 367 px, soit la
+    //  moitié de la hauteur utile d'une modale sur iPhone — les basculer les
+    //  envoie d'autant plus loin du champ qu'ils sont grands. Mesuré sur le cas
+    //  signalé : la bascule posait le calendrier à 35 px du haut alors que son
+    //  champ était à 410, donc collé en haut de l'écran et visuellement
+    //  détaché. En remontant du minimum, il reste au contact du champ.
+    //  ⚠️ Contrepartie ASSUMÉE : le popover peut recouvrir son propre champ.
+    //  C'est sans conséquence sur un sélecteur de date ou de mois — la valeur
+    //  courante est déjà montrée DANS le popover. Ne pas généraliser cette
+    //  règle à un menu d'actions, où le champ recouvert porterait une
+    //  information qu'on perdrait.
+    top = Math.max(marge, viewport.hauteur - taille.hauteur - marge);
+    place = 'remonte';
+  } else {
+    // Plus haut que l'écran : là seulement on épingle, avec défilement
+    // interne. Il n'y a pas d'autre choix, et c'est la branche qui manquait
+    // aux trois popovers — sans elle, on débordait.
+    top = marge;
+    maxHeight = Math.max(0, hauteurUtile);
+    place = 'epingle';
+  }
+
+  // Horizontal. Si le popover est plus large que l'écran, on le colle à la
+  // marge gauche : mieux vaut tronquer à droite que le centrer hors cadre.
+  let left = ancrage === 'droite'
+    ? ancre.left + ancre.width - taille.largeur
+    : ancre.left + ancre.width / 2 - taille.largeur / 2;
+  const maxLeft = viewport.largeur - taille.largeur - marge;
+  left = maxLeft < marge ? marge : Math.max(marge, Math.min(left, maxLeft));
+
+  return { top, left, maxHeight, place };
 }
