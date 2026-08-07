@@ -805,6 +805,54 @@ async function importPatrimoineData(ctx, data, io = {}) {
 }
 
 // ============================================================
+//  Un compte courant porte-t-il du TRAVAIL HUMAIN ?
+//
+//  Sert à la garde de l'auto-sauvegarde ci-dessous. Le critère n'est
+//  PAS « ce compte existe-t-il » : l'app en sème un par défaut à la
+//  première connexion (`_seedDefaultCheckingAccount`, adapter.js), donc
+//  il en existe TOUJOURS au moins un et les compter ne dit rien.
+//
+//  🔴 POURQUOI LES COMPTES COURANTS SONT LES SEULS TRAITÉS À PART —
+//  à lire avant toute « harmonisation ». Ils sont la seule collection
+//  SEMÉE AUTOMATIQUEMENT (vérifié : `_seedDefaultCheckingAccount` est
+//  l'unique semis de l'app). Pour l'épargne, les investissements et les
+//  actifs physiques, un document n'existe que si l'utilisateur l'a créé :
+//  les compter est donc une bonne question, et leur garde reste inchangée.
+//
+//  Trois branches, chacune pour un cas réel :
+//   - un mois ouvert           → l'usage courant ;
+//   - un récurrent enregistré  → quelqu'un qui a saisi ses abonnements
+//     sans avoir encore ouvert de mois. On VEUT le sauvegarder : c'est
+//     ce cas qui disqualifie le critère plus simple « compter les mois » ;
+//   - un solde initial non nul → il a forcément été saisi, le semis pose 0.
+//
+//  ⚠️ NE PAS remplacer par « ce compte diffère-t-il du modèle semé ».
+//  Le modèle porte `currentMonth` et `initialBalanceMonth` calés sur le
+//  mois de la CRÉATION : un compte semé en juillet différerait du modèle
+//  recalculé en août, et la garde se dégraderait toute seule avec le temps.
+//  C'est le défaut déjà corrigé sur le garde-fou TR en v621 (§10) — un
+//  critère juste le jour où on l'écrit, puis qui dérive sans rien casser
+//  de visible.
+//
+//  ⚠️ Limite assumée : modifier le seul taux TR (préchargé à la création)
+//  ne compte pas comme du travail. Sans perte réelle — il n'y a rien à
+//  sauver qu'un nouveau semis ne recrée à l'identique.
+//
+//  ⚠️ Erreur ASYMÉTRIQUE, et c'est ce qui a tranché : trop strict, une
+//  sauvegarde manque alors qu'il y avait du travail (perte possible) ;
+//  trop large, on garde un instantané inutile dans une rotation à 10
+//  (sans danger). En cas de doute, sauvegarder.
+// ============================================================
+function porteDuTravail(compte) {
+  if (!compte) return false;
+  const settings = compte.settings || {};
+  const solde = Number(compte.initialBalance);
+  return Object.keys(compte.months || {}).length > 0
+    || (settings.recurringOperations || []).length > 0
+    || (Number.isFinite(solde) && solde !== 0);
+}
+
+// ============================================================
 //  Auto-sauvegarde hebdomadaire (fenêtre glissante 7 jours)
 //  Appelée au chargement. Silencieuse. Hors ligne : l'écriture
 //  Firestore est mise en file et se synchronisera (pas d'échec).
@@ -819,7 +867,11 @@ async function maybeAutoBackup(user, dataObj) {
     }
     // Garde « données non vides » : inutile de poser un instantané auto pour
     // un compte tout neuf encore vide (rotation à 10 → sans danger, juste inutile).
-    const hasData = (dataObj.checkingAccounts || []).length
+    // ⚠️ Les comptes courants ne se COMPTENT pas — l'app en sème un par défaut,
+    // donc `.length` valait 1 dès la première connexion et cette garde ne mordait
+    // JAMAIS (relevé le 31/07/2026, corrigé le 06/08). Cf. `porteDuTravail`, qui
+    // explique aussi pourquoi les trois autres collections restent comptées.
+    const hasData = (dataObj.checkingAccounts || []).some(porteDuTravail)
       || (dataObj.savings || []).length
       || (dataObj.portfolios || []).length
       || (dataObj.physical || []).length;
