@@ -1097,15 +1097,6 @@ input[type="month"] {
 .tx-check.checked::after { content: '✓'; font-size: 12px; font-weight: bold; }
 
 
-/* Variante de la grille .tx-row quand le mode "dates" est actif :
-   on insère une 3ème colonne pour la chip JJ/MM, sans casser le reste. */
-.tx-row.with-date {
-  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px);
-}
-.tx-row.composite-row.with-date {
-  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px);
-}
-
 /* Variante avec le crayon (.tx-edit) en dernière colonne (la suppression est
    passée dans la modale d'édition, plus de croix sur la ligne). */
 .tx-row.with-edit {
@@ -1114,14 +1105,8 @@ input[type="month"] {
 /* v577 : ligne TR (popup) — pas de colonne de pointage. Le libellé (1fr)
    récupère la place libérée par la case à cocher. */
 .tx-row.tr-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px; }
-.tx-row.with-edit.with-date {
-  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px) 24px;
-}
 .tx-row.composite-row.with-edit {
   grid-template-columns: 28px 24px 1fr var(--amt-w, 130px) 24px;
-}
-.tx-row.composite-row.with-edit.with-date {
-  grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px) 24px;
 }
 
 
@@ -1632,23 +1617,14 @@ input[type="month"] {
   border-bottom: 1px solid var(--border);
   position: relative;
 }
-/* Variante "mode dates" : DayChip ("Le 5") inséré entre l'icône et le libellé. */
-.recurring-row.with-date {
-  grid-template-columns: 28px 56px 1fr var(--amt-w, 130px);
-}
 /* Variante avec le crayon (.tx-edit) en dernière colonne (delete passé en modale). */
 .recurring-row.with-edit {
   grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px;
 }
-.recurring-row.with-edit.with-date {
-  grid-template-columns: 28px 56px 1fr var(--amt-w, 130px) 24px;
-}
 /* Récurrent composite : colonne montant en `auto` (comme le composite du mois)
    pour ne pas tronquer le total signé (« − 1 329.97 »). */
 .recurring-row.composite-row { grid-template-columns: 28px 1fr var(--amt-w, 130px); }
-.recurring-row.composite-row.with-date { grid-template-columns: 28px 56px 1fr var(--amt-w, 130px); }
 .recurring-row.composite-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px; }
-.recurring-row.composite-row.with-edit.with-date { grid-template-columns: 28px 56px 1fr var(--amt-w, 130px) 24px; }
 .recurring-row:last-child { border-bottom: none; }
 .recurring-row:hover { background: var(--surface-alt); }
 .recurring-row input {
@@ -3069,25 +3045,17 @@ input[type="month"] {
      place pour le montant (96→112 / 80→96), ce qui évite la coupure des
      montants signés à 4 chiffres (« + 3 149.96 »). */
   .tx-row { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 10px; }
-  .tx-row.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px); }
-  .tx-row.composite-row.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px); }
   /* Variantes avec crayon (.tx-edit) en dernière colonne (22px). */
   .tx-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px) 22px; }
   .tx-row.tr-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; } /* v577 : TR sans colonne de pointage (mobile) */
-  .tx-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px) 22px; }
   .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px) 22px; }
-  .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px) 22px; }
   .tx-icon { width: 20px; height: 20px; }
   /* Récurrents (modales Entrées/Sorties dans le menu ⋯) : mêmes colonnes et paddings que tx-row */
   .recurring-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 10px; }
-  .recurring-row.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px); }
   .recurring-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; }
-  .recurring-row.with-edit.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px) 22px; }
   /* Récurrent composite : colonne montant `auto` (cf. desktop). */
   .recurring-row.composite-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); }
-  .recurring-row.composite-row.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px); }
   .recurring-row.composite-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; }
-  .recurring-row.composite-row.with-edit.with-date { grid-template-columns: 20px 44px 1fr var(--amt-w, 96px) 22px; }
   /* (la règle font-size: 13px qui était ici causait le zoom iOS sur les récurrents — retirée) */
   /* Composantes : aligné strictement avec .tx-row mobile (padding 0 horizontal car composite-comps gère le bord droit) */
   .composite-comp-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 0; }
@@ -3380,8 +3348,6 @@ input[type="month"] {
 .frozen-month .tx-row.with-edit,
 .frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 28px 24px 1fr var(--amt-w, 130px); }
 .frozen-month .tx-row.tr-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px); } /* v577 : TR figé sans pointage ni crayon */
-.frozen-month .tx-row.with-edit.with-date,
-.frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 28px 24px 56px 1fr var(--amt-w, 130px); }
 .frozen-month .composite-comp-row.with-edit { grid-template-columns: 22px 1fr var(--amt-w, 130px); }
 .frozen-month .composite-comp-row.with-edit > span[aria-hidden] { display: none; }
 /* Déclinaison MOBILE : mêmes gabarits compacts que les lignes sans crayon
@@ -3392,8 +3358,6 @@ input[type="month"] {
   .frozen-month .tx-row.with-edit,
   .frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px); }
   .frozen-month .tx-row.tr-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px); } /* v577 : TR figé (mobile) */
-  .frozen-month .tx-row.with-edit.with-date,
-  .frozen-month .tx-row.composite-row.with-edit.with-date { grid-template-columns: 20px 20px 44px 1fr var(--amt-w, 96px); }
   .frozen-month .composite-comp-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px); }
 }
 /* Cases de pointage ATTÉNUÉES en mois figé (v576) : même coche que l'active
