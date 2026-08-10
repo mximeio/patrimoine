@@ -234,28 +234,45 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
 // ============================================================
 function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod = 'monthly' }) {
   const isEdit = !!initial;
-  // Fréquence : 'monthly' (montant mensuel) ou 'annual' (montant annuel ÷ 12).
-  const [period, setPeriod] = useState(initial ? (initial.period === 'annual' ? 'annual' : 'monthly') : (defaultPeriod === 'annual' ? 'annual' : 'monthly'));
+  // Valeurs de DÉPART, calculées UNE SEULE FOIS : elles initialisent les états
+  // ET servent de référence à la garde « modifications non enregistrées » plus
+  // bas. Source unique volontaire — les écrire deux fois les ferait diverger au
+  // premier champ ajouté, et c'est la garde qui mentirait sans que rien ne le
+  // signale.
+  //  · Fréquence : 'monthly' (montant mensuel) ou 'annual' (montant annuel ÷ 12).
+  //  · 'half' (legacy) et tout mode inconnu → 'percent' (50/50 modifiable).
+  //  · Charge annuelle « à provisionner » : par défaut oui (et rétrocompatible :
+  //    une ancienne charge annuelle sans le flag est considérée comme provisionnée).
+  const departRef = useRef(null);
+  if (departRef.current === null) {
+    const a = {}, o = {};
+    people.forEach(p => {
+      a[p.id] = initial?.split?.amounts?.[p.id] ?? 0;
+      o[p.id] = initial?.split?.pct?.[p.id] ?? Math.round(100 / people.length);
+    });
+    departRef.current = {
+      period: initial ? (initial.period === 'annual' ? 'annual' : 'monthly') : (defaultPeriod === 'annual' ? 'annual' : 'monthly'),
+      label: initial?.label || '',
+      mode: ['prorata', 'perso', 'percent'].includes(initial?.split?.mode) ? initial.split.mode : 'percent',
+      total: initial?.total ?? 0,
+      amounts: a,
+      pct: o,
+      mensuel: !!initial?.joint,
+      provision: initial?.provision !== false,
+    };
+  }
+  const depart = departRef.current;
+  const [period, setPeriod] = useState(depart.period);
   const annual = period === 'annual';
-  // 'half' (legacy) et tout mode inconnu → 'percent' (50/50 modifiable).
-  const initMode = ['prorata', 'perso', 'percent'].includes(initial?.split?.mode) ? initial.split.mode : 'percent';
-  const [label, setLabel] = useState(initial?.label || '');
-  const [mode, setMode] = useState(initMode);
-  const [total, setTotal] = useState(initial?.total ?? 0);
-  const [amounts, setAmounts] = useState(() => {
-    const a = {};
-    people.forEach(p => { a[p.id] = initial?.split?.amounts?.[p.id] ?? 0; });
-    return a;
-  });
-  const [pct, setPct] = useState(() => {
-    const o = {};
-    people.forEach(p => { o[p.id] = initial?.split?.pct?.[p.id] ?? Math.round(100 / people.length); });
-    return o;
-  });
-  const [mensuel, setMensuel] = useState(!!initial?.joint);
-  // Charge annuelle « à provisionner » : par défaut oui (et rétrocompatible :
-  // une ancienne charge annuelle sans le flag est considérée comme provisionnée).
-  const [provision, setProvision] = useState(initial?.provision !== false);
+  const [label, setLabel] = useState(depart.label);
+  const [mode, setMode] = useState(depart.mode);
+  const [total, setTotal] = useState(depart.total);
+  // Copies : l'état ne doit JAMAIS partager sa référence avec `depart`, sinon une
+  // mutation en place rendrait la comparaison aveugle.
+  const [amounts, setAmounts] = useState(() => ({ ...depart.amounts }));
+  const [pct, setPct] = useState(() => ({ ...depart.pct }));
+  const [mensuel, setMensuel] = useState(depart.mensuel);
+  const [provision, setProvision] = useState(depart.provision);
 
   // Pour 2 personnes : ajuster une part met l'autre à 100 − part.
   const setPctFor = (id, val) => {
@@ -272,20 +289,68 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
     : { mode: 'percent', pct };
   const tempCharge = { total: mode === 'perso' ? 0 : (Number(total) || 0), split: buildSplit() };
 
+  // La charge telle qu'elle SERAIT écrite, à partir d'un jeu de valeurs — sans
+  // `id`, qui n'appartient pas à la comparaison (un `uid()` neuf en création
+  // rendrait le formulaire « modifié » dès l'ouverture, cf. le piège des
+  // composantes au §10). Une seule fonction pour l'enregistrement ET pour la
+  // garde : c'est ce qui garantit que la garde juge exactement ce qui sera écrit.
+  // Mensuelle → toggle « Virement mensuel (compte joint) » (joint).
+  // Annuelle  → toggle « Provision mensuelle (livret) » (provision), pas de virement.
+  const construire = (v) => {
+    const est = v.period === 'annual';
+    const base = { label: (v.label || '').trim() || 'Charge',
+      ...(est ? { period: 'annual', joint: false, provision: v.provision } : { joint: v.mensuel }) };
+    // 🔴 Coercition « vide → 0 » ICI, à l'écriture (chantier du 10/08/2026) :
+    // `AmountInput` propage désormais '' sur un champ vidé, et une CHAÎNE dans un
+    // champ montant de `joint/main` casserait tous les calculs qui le lisent.
+    const montants = {};
+    Object.keys(v.amounts || {}).forEach(k => { montants[k] = r2(parseFloat(v.amounts[k]) || 0); });
+    return v.mode === 'perso'
+      ? { ...base, total: 0, split: { mode: 'perso', amounts: montants } }
+      : { ...base, total: Number(v.total) || 0,
+          split: v.mode === 'prorata' ? { mode: 'prorata' } : { mode: 'percent', pct: v.pct } };
+  };
+
+  // 🔴 Garde « modifications non enregistrées ». Ce formulaire n'en avait AUCUNE
+  // avant le 10/08/2026 — `charges.js` ne contenait pas un seul `markDirty` —, il
+  // retombait donc sur l'heuristique générique de `Modal` et cumulait les DEUX
+  // directions du défaut décrit au §10 :
+  //  · l'heuristique ne se démarque jamais → modifier puis revenir à la valeur
+  //    d'origine réclamait une confirmation alors qu'il n'y avait plus rien à perdre ;
+  //  · surtout, elle est AVEUGLE AUX CONTRÔLES À CLIC : « Fréquence » et
+  //    « Répartition » sont des <button>, qui n'émettent ni `input` ni `change`.
+  //    Passer une charge de mensuelle à annuelle puis fermer jetait donc la
+  //    modification SANS RIEN DEMANDER. C'est la direction grave — une perte
+  //    silencieuse, pas une confirmation de trop.
+  // ⚠️ On compare la charge CONSTRUITE, pas les états bruts : en mode « perso »
+  // le total n'est pas écrit (forcé à 0), et le comparer ferait signaler une
+  // modification qui n'en serait pas une.
+  // ⚠️ Les montants s'arrondissent au centime avant comparaison (§10 : sinon
+  // 12 ≠ 12.00) et les parts s'entièrent.
+  const empreinte = (v) => {
+    const c = construire(v);
+    return JSON.stringify({
+      label: c.label,
+      period: c.period || 'monthly',
+      joint: !!c.joint,
+      provision: c.period === 'annual' ? !!c.provision : null,
+      mode: c.split.mode,
+      total: r2(Number(c.total) || 0),
+      amounts: people.map(p => r2(Number(c.split.amounts?.[p.id]) || 0)),
+      pct: people.map(p => Math.round(Number(c.split.pct?.[p.id]) || 0)),
+    });
+  };
+  const markDirty = React.useContext(ModalDirtyContext);
+  const formDirty = empreinte({ period, label, mode, total, amounts, pct, mensuel, provision }) !== empreinte(depart);
+  useEffect(() => { if (markDirty) markDirty(formDirty); }, [formDirty]); // eslint-disable-line
+
   const submit = (e) => {
     e.preventDefault();
-    // Mensuelle → toggle « Virement mensuel (compte joint) » (joint).
-    // Annuelle  → toggle « Provision mensuelle (livret) » (provision), pas de virement.
-    const base = { id: initial?.id || uid(), label: (label || '').trim() || 'Charge',
-      ...(annual ? { period: 'annual', joint: false, provision } : { joint: mensuel }) };
-    const charge = mode === 'perso'
-      ? { ...base, total: 0, split: { mode: 'perso', amounts } }
-      : { ...base, total: Number(total) || 0, split: buildSplit() };
-    onSubmit(charge);
+    onSubmit({ id: initial?.id || uid(), ...construire({ period, label, mode, total, amounts, pct, mensuel, provision }) });
   };
 
   return (
-    <form className="charge-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form noValidate className="charge-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <label className="label">Libellé</label>
         <input className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex. Loyer, Internet…" />
@@ -390,9 +455,26 @@ function ChargesModal({ ctx, onClose }) {
   useEffect(() => {
     if (skipFirstWrite.current) { skipFirstWrite.current = false; return; }
     const t = setTimeout(() => {
+      // 🔴 COERCITION « vide → 0 » AVANT d'écrire, et c'est le SEUL endroit
+      // possible : ce chemin n'a pas de submit (effet debouncé à 700 ms), et
+      // `AmountInput` propage désormais '' sur un champ vidé (10/08/2026).
+      // Sans ça, la chaîne '' partirait dans le document PARTAGÉ, où tous les
+      // calculs « au prorata des salaires nets » la liraient comme un montant.
+      // ⚠️ Ne PAS remonter cette coercition dans `setIncome` : ce setter nourrit
+      // aussi l'affichage, et le champ se remplirait d'un 0 au blur.
+      const scenarios = (data.scenarios || []).map(sc => {
+        const incomes = {};
+        Object.keys(sc.incomes || {}).forEach(pid => {
+          const src = sc.incomes[pid] || {};
+          const dst = {};
+          Object.keys(src).forEach(k => { dst[k] = r2(parseFloat(src[k]) || 0); });
+          incomes[pid] = dst;
+        });
+        return { ...sc, incomes };
+      });
       ctx.updateJoint({
         people: data.people,
-        scenarios: data.scenarios,
+        scenarios,
         baselineScenarioId: data.baselineScenarioId,
       });
     }, 700);
@@ -442,6 +524,11 @@ function ChargesModal({ ctx, onClose }) {
       ? { ...c, split: { mode: 'perso', amounts: { ...(c.split?.amounts || {}), [personId]: val } } }
       : c));
 
+  // ⚠️ AUCUNE coercition ici, et c'est VOULU : ce setter alimente aussi
+  // l'AFFICHAGE du champ. Y forcer « vide → 0 » remettait « 0 » dans la case dès
+  // le blur (l'effet de resynchronisation d'`AmountInput` relit `value`), donc
+  // ramenait exactement le défaut qu'on corrige. La coercition se fait à
+  // l'ÉCRITURE, dans l'effet debouncé ci-dessous.
   const setIncome = (personId, field, val) =>
     patchActive({ incomes: { ...active.incomes, [personId]: { ...(active.incomes?.[personId] || {}), [field]: val } } });
   const setPersonLabel = (personId, label) =>

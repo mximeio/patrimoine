@@ -58,7 +58,7 @@ function SavingsView({ ctx }) {
         </div>
         {showCreate && (
           <Modal title="Nouveau compte d'épargne" onClose={() => setShowCreate(false)}>
-            <NewSavingsForm onSubmit={handleCreate} />
+            <NewSavingsForm showToast={showToast} onSubmit={handleCreate} />
           </Modal>
         )}
       </div>
@@ -92,7 +92,7 @@ function SavingsView({ ctx }) {
 //  VUE LISTE CONSOLIDÉE
 // ============================================================
 function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCreate }) {
-  const { savings } = ctx;
+  const { savings, showToast } = ctx;
   const totalBalance = savings.reduce((s, a) => s + computeSavingsBalance(a), 0);
   const totalInterest = savings.reduce((s, a) => s + computeSavingsStats(a).interets, 0);
 
@@ -150,7 +150,7 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
 
       {showCreate && (
         <Modal title="Nouveau compte d'épargne" onClose={() => setShowCreate(false)}>
-          <NewSavingsForm onSubmit={onCreate} />
+          <NewSavingsForm showToast={showToast} onSubmit={onCreate} />
         </Modal>
       )}
     </div>
@@ -191,18 +191,30 @@ function SavingsListRow({ saving, colorIndex, onClick }) {
 }
 
 // Formulaire de création d'un livret (nom + solde initial).
-function NewSavingsForm({ onSubmit }) {
+function NewSavingsForm({ onSubmit, showToast }) {
   const [name, setName] = useState('');
   const [balance, setBalance] = useState('');
   const [busy, setBusy] = useState(false);
+  // Garde « modifications non enregistrées » — même défaut, à la ligne près, que
+  // `NewPortfolioForm` (cf. son commentaire) : aucun signalement, donc repli
+  // silencieux sur l'heuristique générique de `Modal`, qui ne sait pas se
+  // démarquer. On compare à l'état de DÉPART.
+  // ⚠️ Le solde se compare NUMÉRIQUEMENT, et ce n'est pas un détail de style :
+  // `AmountInput` écrit `onChange(0)` au blur d'un champ vidé (§10), donc un
+  // champ seulement VISITÉ passe de '' à 0. Un `balance !== ''` salirait le
+  // formulaire sans qu'on ait rien saisi.
+  const markDirty = React.useContext(ModalDirtyContext);
+  const formDirty = name.trim() !== '' || (parseFloat(balance) || 0) !== 0;
+  useEffect(() => { if (markDirty) markDirty(formDirty); }, [formDirty]); // eslint-disable-line
   const submit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    // Refus ANNONCÉ (10/08/2026, cf. `REFUS` dans utils.js) : bouton actif, toast au clic.
+    if (!name.trim()) return refuser(showToast, REFUS.nomObligatoire);
     setBusy(true);
     try { await onSubmit(name.trim(), parseFloat(balance) || 0); } finally { setBusy(false); }
   };
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
         <label className="label">Nom du compte d'épargne</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="ex: Livret A (Boursorama)" required />
@@ -212,6 +224,11 @@ function NewSavingsForm({ onSubmit }) {
         <AmountInput value={balance} onChange={(n) => setBalance(n)} className="input" placeholder="0.00" />
         <div className="field-hint">Le solde affiché sera calculé : ce solde initial + tes opérations (versements, retraits, intérêts).</div>
       </div>
+      {/* Grisé tant que le nom est vide — aligné sur la création d'un compte
+          courant (`!trimmed || isDuplicate`), la référence de l'app. Sans ça le
+          bouton restait plein alors que le submit ne pouvait pas aboutir.
+          Pas de phrase : un champ « Nom » vide en face d'un bouton gris se
+          comprend seul, et la référence n'en a pas non plus. */}
       <button type="submit" className="btn btn-accent btn-lg" disabled={busy}>{busy ? 'Création…' : 'Créer'}</button>
     </form>
   );
@@ -371,7 +388,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
 
       {modal === 'add' && (
         <Modal title="Nouvelle opération" onClose={() => setModal(null)}>
-          <SavingsOperationForm defaultType="in" onSubmit={handleAddOp} />
+          <SavingsOperationForm showToast={showToast} defaultType="in" onSubmit={handleAddOp} />
         </Modal>
       )}
       {modal === 'history-ops' && (
@@ -386,6 +403,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
       {editingOp && (
         <Modal title="Modifier l'opération" onClose={() => setEditingOpId(null)}>
           <SavingsOperationForm
+            showToast={showToast}
             initial={editingOp}
             onSubmit={(patch) => handleUpdateOp(editingOp.id, patch)}
             onDelete={async () => { if (await handleDeleteOp(editingOp)) setEditingOpId(null); }}
@@ -395,6 +413,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
       {modal === 'configure' && (
         <Modal title="Réglages" onClose={closeReglages}>
           <SavingsConfigureForm
+            showToast={showToast}
             saving={saving}
             onUpdateName={handleRename}
             onUpdateInitial={handleUpdateInitial}
@@ -410,34 +429,43 @@ function SavingsDetailView({ ctx, saving, onBack }) {
 // Nom du livret éditable in-place dans la hero card.
 
 // Formulaire Réglages d'un livret : nom + solde initial + zone supprimer.
-function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyChange, onDelete }) {
+function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyChange, onDelete, showToast }) {
   const [name, setName] = useState(saving.name || '');
   const initial = saving.initialBalance ?? saving.balance ?? 0;
   const [initialBalance, setInitialBalance] = useState(initial);
 
   // Détection des changements non sauvegardés (cf. Compte courant) : le parent
   // l'utilise pour demander confirmation à la fermeture de la modale.
+  // Calculé AU RENDU : il sert à la confirmation de fermeture ET au grisé du
+  // bouton — un formulaire dont rien n'a bougé ne propose pas d'enregistrer.
+  const trimmedName = (name || '').trim();
+  const dirty = !!(
+    (trimmedName && trimmedName !== (saving.name || ''))
+    || r2(parseFloat(initialBalance) || 0) !== r2(initial || 0)
+  );
   useEffect(() => {
     if (!onDirtyChange) return;
-    const trimmed = (name || '').trim();
-    const dirty = (
-      (trimmed && trimmed !== (saving.name || ''))
-      || r2(parseFloat(initialBalance) || 0) !== r2(initial || 0)
-    );
     onDirtyChange(dirty);
-  }, [name, initialBalance]); // eslint-disable-line
+  }, [dirty]); // eslint-disable-line
 
   const submit = (e) => {
     e.preventDefault();
+    // Refus ANNONCÉS (10/08/2026). « rien n'a changé » d'abord : rien à corriger.
+    if (!dirty) return refuser(showToast, REFUS.rienChange);
     const trimmed = (name || '').trim();
+    if (!trimmed) return refuser(showToast, REFUS.nomObligatoire);
     if (trimmed && trimmed !== saving.name) onUpdateName(trimmed);
-    const parsed = parseFloat(initialBalance);
-    if (Number.isFinite(parsed) && parsed !== initial) onUpdateInitial(r2(parsed));
+    // ⚠️ « vide = 0 à la sauvegarde » (arbitrage du 10/08/2026) : sans le `|| 0`,
+    // un champ vidé donnait NaN, donc `Number.isFinite` faux, donc l'appel était
+    // SAUTÉ — c'était la sémantique inverse (« vide = inchangé »), celle que
+    // l'utilisateur a écartée.
+    const parsed = parseFloat(initialBalance) || 0;
+    if (parsed !== initial) onUpdateInitial(r2(parsed));
     if (onDirtyChange) onDirtyChange(false);
   };
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
         <label className="label">Nom du compte d'épargne</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" required />
@@ -548,7 +576,7 @@ function SavingsHistoryOpsTable({ ops, onEdit, onDelete }) {
 // Style aligné sur AddOperationForm des Investissements : grand sélecteur
 // de type (icône colorée + libellé + description), suivi de la date,
 // du libellé et du montant.
-function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete }) {
+function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete, showToast }) {
   const [type, setType] = useState(initial?.type || defaultType || 'in');
   const [date, setDate] = useState(initial?.date || todayIso());
   const [label, setLabel] = useState(initial?.label || '');
@@ -561,13 +589,25 @@ function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete }) {
   // la date, on fermait, et la saisie était jetée SANS AUCUNE CONFIRMATION
   // (signalé par l'utilisateur le 07/08/2026). Le même défaut avait déjà été
   // trouvé et corrigé en v535 sur la modale Réglages, sans être généralisé.
-  // On ignore le 1er rendu pour ne pas marquer « modifié » à la simple ouverture.
+  // 🔴 COMPARAISON EXACTE plutôt qu'un marquage à SENS UNIQUE (09/08/2026) :
+  // avant, revenir aux valeurs d'origine laissait la confirmation de fermeture
+  // se déclencher quand même. L'état de DÉPART est l'opération d'origine en
+  // édition, les valeurs par défaut en création. Montants comparés au centime.
   const markDirty = React.useContext(ModalDirtyContext);
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    if (!mountedRef.current) { mountedRef.current = true; return; }
-    if (markDirty) markDirty();
-  }, [type, date, label, amount]);
+  const memeMontant = (a, b) => r2(parseFloat(a) || 0) === r2(parseFloat(b) || 0);
+  const opDirty = type !== (initial?.type || defaultType || 'in')
+    || date !== (initial?.date || todayIso())
+    || (label || '').trim() !== (initial?.label || '').trim()
+    || !memeMontant(amount, initial?.amount);
+  useEffect(() => { if (markDirty) markDirty(opDirty); }, [opDirty]); // eslint-disable-line
+
+  // 🔴 RÈGLE DU CHAMP PORTEUR (arbitrage de l'utilisateur, 10/08/2026) — commentaire
+  // complet dans `OperationForm` (checking.js). Ici il n'y a ni composite ni TR auto,
+  // donc le critère est direct : ni libellé, ni montant ⇒ la ligne serait vide.
+  // ⚠️ Le libellé est marqué « (optionnel) » sur cet écran, ce qui dit bien que le
+  // montant est le porteur habituel — mais l'inverse reste permis, et c'est le sens
+  // de la règle : on exige l'un OU l'autre.
+  const videDePorteur = !(label || '').trim() && (parseFloat(amount) || 0) === 0;
 
   const types = [
     { id: 'in',       label: 'Versement', icon: 'arrowDown', color: COLORS.success, bg: 'var(--success-light)', desc: 'Cash entrant' },
@@ -581,8 +621,11 @@ function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete }) {
     // compte courant et les récurrents. Seul un montant négatif est refusé.
     const a = parseFloat(amount);
     const safeAmount = Number.isFinite(a) ? r2(a) : 0;
-    if (safeAmount < 0) return;
-    if (!date) return;
+    // Refus ANNONCÉS (10/08/2026, cf. `REFUS` dans utils.js).
+    if (!!initial && !opDirty) return refuser(showToast, REFUS.rienChange);
+    if (videDePorteur) return refuser(showToast, REFUS.libelleOuMontant);
+    if (safeAmount < 0) return refuser(showToast, REFUS.montantNegatif);
+    if (!date) return refuser(showToast, REFUS.dateObligatoire);
     onSubmit({ type, date, label: (label || '').trim(), amount: safeAmount });
   };
 
@@ -592,7 +635,7 @@ function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete }) {
                          : 'ex: Versement depuis le compte courant';
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Sélecteur de type — grille 2 colonnes, mimétique avec
           AddOperationForm des Investissements. Avec 3 items, le dernier
           (Intérêts) prend toute la largeur via grid-column: span 2. */}

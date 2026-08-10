@@ -23,6 +23,14 @@ const ModalDirtyContext = React.createContext(null);
 // pas rend exactement le même DOM qu'avant (28 appelants au 09/08/2026, aucun
 // touché). Ne jamais en faire le défaut : c'est ce qui garantit qu'on ne migre
 // que ce qu'on a éprouvé.
+// 🔴 AUCUN APPELANT AUJOURD'HUI, ET C'EST DÉLIBÉRÉ — ne pas retirer cette prop.
+// La mise à jour groupée l'a utilisée le 09/08/2026 (v957) puis y a renoncé le
+// même jour (v965) : sur des données réelles sa fenêtre NE DÉFILE PAS, le pied
+// ne rendait donc le bouton ni plus ni moins atteignable, et il ne restait qu'un
+// motif unique sur 28 modales. La prop reste parce que le chantier « calculer un
+// versement » en aura besoin — son récapitulatif et son message d'état n'ont
+// d'intérêt que visibles en permanence. ⚠️ Le motif est ÉPROUVÉ, y compris le
+// verdict iPhone (§10) : ce qui a été retiré est son usage, pas sa validité.
 // 🔴 UN PIÈGE À CONNAÎTRE AVANT D'Y METTRE UN BOUTON DE SOUMISSION : le pied est
 // un FRÈRE de `children`, donc un `type="submit"` posé dedans est HORS du
 // <form> qui vit dans `children` — il ne soumet rien, sans erreur ni message
@@ -46,7 +54,13 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
   const downOnBackdropRef = useRef(false);
   // Stable (deps []) : sûr à utiliser comme valeur de contexte et en dépendance
   // de useEffect côté formulaires sans provoquer de re-déclenchements.
-  const markDirty = useCallback(() => { dirtyRef.current = true; }, []);
+  // markDirty() marque « modifié ». markDirty(false) DÉMARQUE — ajouté le
+  // 09/08/2026 : sans ça un formulaire ne pouvait que se salir, jamais se
+  // nettoyer. Revenir à la valeur d'origine laissait donc la confirmation de
+  // fermeture se déclencher alors qu'il n'y avait plus rien à perdre (relevé par
+  // l'utilisateur sur la modification d'une opération). Les appelants historiques
+  // écrivent `markDirty()` sans argument et gardent exactement leur comportement.
+  const markDirty = useCallback((v = true) => { dirtyRef.current = v !== false; }, []);
   const attemptClose = () => {
     // noDirtyGuard : modales en auto-enregistrement (ex. Paramètres) où il n'y a
     // jamais de « modifications non enregistrées » à abandonner.
@@ -561,21 +575,32 @@ function AmountInput({
     if (Number.isFinite(n)) onChange(n, hadMinus);
   };
 
+  // 🔴 UN CHAMP VIDÉ RESTE VIDE — il ne se remplit PLUS d'un 0 (10/08/2026,
+  // relevé par l'utilisateur : « pourquoi est-ce qu'on affiche ça là ? »).
+  // Avant, ce blur faisait `onChange(0)` + `setRaw('0')`, et c'était la cause
+  // directe d'un défaut documenté au §10 : effacer un montant pour retaper le
+  // nouveau prix, puis cliquer ailleurs, ÉCRIVAIT 0. C'est ainsi que le
+  // récurrent `iCloud` est resté à 0 € pendant des semaines, sur PROD et DEV.
+  // ⚠️ La règle est « vide = 0 À LA SAUVEGARDE », pas « vide = valeur
+  // inchangée » — arbitrage de l'utilisateur du 10/08/2026, sans exception :
+  // sinon on ne pourrait plus remettre un montant à zéro en vidant le champ.
+  // ⇒ On propage donc `''`, et c'est à CHAQUE chemin d'écriture de coercer.
+  // La plupart le faisaient déjà (`Number.isFinite(a) ? r2(a) : 0`,
+  // `parseFloat(x) || 0`) ; ceux qui ne le faisaient pas ont été corrigés avec
+  // ce chantier — les chercher au `grep` avant d'ajouter un appelant.
+  // 🔴 Ne JAMAIS écrire `''` dans Firestore : un champ montant doit rester un
+  // nombre. Le seul chemin sans submit (les revenus nets des charges) coerce
+  // donc au moment de l'écriture.
   const handleBlur = (e) => {
     focusedRef.current = false;
     const normalized = raw.replace(',', '.').replace(/\.$/, '');
-    if (normalized === '' || normalized === '-') {
-      onChange(0);
-      setRaw('0');
+    const n = parseFloat(normalized);
+    if (normalized === '' || normalized === '-' || !Number.isFinite(n)) {
+      onChange('');
+      setRaw('');
     } else {
-      const n = parseFloat(normalized);
-      if (Number.isFinite(n)) {
-        onChange(n);
-        setRaw(String(n));
-      } else {
-        onChange(0);
-        setRaw('0');
-      }
+      onChange(n);
+      setRaw(String(n));
     }
     if (onBlur) onBlur(e);
   };

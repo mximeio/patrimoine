@@ -82,12 +82,13 @@ function PhysicalView({ ctx }) {
 
       {showNew && (
         <Modal title="Nouvel actif physique" onClose={() => setShowNew(false)}>
-          <PhysicalForm onSubmit={handleCreate} />
+          <PhysicalForm showToast={showToast} onSubmit={handleCreate} />
         </Modal>
       )}
       {editing && (
         <Modal title="Modifier l'actif" onClose={() => setEditId(null)}>
           <PhysicalForm
+            showToast={showToast}
             initial={editing}
             onSubmit={(p) => handleUpdate(editing.id, p)}
             onDelete={async () => { if (await handleDelete(editing.id)) setEditId(null); }}
@@ -125,18 +126,61 @@ function PhysicalRow({ item, onEdit, onDelete }) {
   );
 }
 
-function PhysicalForm({ initial, onSubmit, onDelete }) {
+function PhysicalForm({ initial, onSubmit, onDelete, showToast }) {
   const [name, setName] = useState(initial?.name || '');
   const [quantity, setQuantity] = useState(initial?.quantity ?? 1);
   const [unitPurchasePrice, setPurchase] = useState(initial?.unitPurchasePrice ?? '');
   const [unitCurrentPrice, setCurrent] = useState(initial?.unitCurrentPrice ?? '');
+
+  // Ce que le submit enverrait, construit une seule fois et réutilisé pour la
+  // comparaison : sans ça, « 1 » et « 1.0 » compteraient comme un changement.
+  const aEnvoyer = {
+    name: name.trim(),
+    quantity: parseFloat(quantity) || 0,
+    unitPurchasePrice: parseFloat(unitPurchasePrice) || 0,
+    unitCurrentPrice: parseFloat(unitCurrentPrice) || 0,
+  };
+  // 🔴 EN ÉDITION, on n'enregistre pas une non-modification — et ce n'est pas
+  // cosmétique : `Adapter.updatePhysical` pose `priceUpdatedAt = todayIso()` dès
+  // que le champ est présent dans le patch, or ce formulaire l'envoie TOUJOURS.
+  // Rouvrir un actif et valider le REDATAIT donc, sans que rien n'ait changé —
+  // exactement le défaut corrigé le même jour sur les enveloppes.
+  // ⚠️ Jamais en création : il n'y a pas d'état « inchangé » quand on part de
+  // rien, et la garde utile y est le nom vide (déjà présente).
+  // ⚠️ Les DEUX côtés sont normalisés pareil, ce qui neutralise au passage le
+  // 0-au-blur d'`AmountInput` (§10) : un prix absent qu'on effleure devient 0
+  // des deux côtés, donc « inchangé ».
+  // État de DÉPART : l'actif d'origine en édition, le formulaire vide en création.
+  const depart = {
+    name: String(initial?.name || '').trim(),
+    quantity: initial ? (parseFloat(initial.quantity) || 0) : 1,
+    unitPurchasePrice: initial ? (parseFloat(initial.unitPurchasePrice) || 0) : 0,
+    unitCurrentPrice: initial ? (parseFloat(initial.unitCurrentPrice) || 0) : 0,
+  };
+  const formDirty = aEnvoyer.name !== depart.name
+    || aEnvoyer.quantity !== depart.quantity
+    || aEnvoyer.unitPurchasePrice !== depart.unitPurchasePrice
+    || aEnvoyer.unitCurrentPrice !== depart.unitCurrentPrice;
+  // 🔴 On alimente la garde de fermeture avec cette comparaison EXACTE. Sans ça,
+  // ce formulaire retombait sur l'heuristique générique du Modal (onInput), qui
+  // est à SENS UNIQUE : taper puis effacer laissait la confirmation se
+  // déclencher. Troisième famille du même défaut, trouvée au navigateur le
+  // 09/08/2026 — les deux autres étaient `markDirty()` et l'absence de détection.
+  const markDirty = React.useContext(ModalDirtyContext);
+  useEffect(() => { if (markDirty) markDirty(formDirty); }, [formDirty]); // eslint-disable-line
+  const inchange = !!initial && !formDirty;
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (!name.trim()) return; onSubmit({
-      name: name.trim(),
-      quantity: parseFloat(quantity) || 0,
-      unitPurchasePrice: parseFloat(unitPurchasePrice) || 0,
-      unitCurrentPrice: parseFloat(unitCurrentPrice) || 0,
-    }); }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <form noValidate onSubmit={(e) => {
+      e.preventDefault();
+      // 🔴 Refus ANNONCÉS (10/08/2026, cf. `REFUS` dans utils.js) : le bouton reste
+      // actif, c'est le toast qui dit pourquoi. Avant, ce `return` était nu et le
+      // bouton grisé — d'où une fenêtre qui bougeait au premier caractère tapé.
+      // ⚠️ « rien n'a changé » d'abord : c'est le seul cas où l'on n'a rien à corriger.
+      if (inchange) return refuser(showToast, REFUS.rienChange);
+      if (!name.trim()) return refuser(showToast, REFUS.nomObligatoire);
+      onSubmit(aEnvoyer);
+    }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
         <label className="label">Nom</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="ex: 20 Francs - Napoléon" required />

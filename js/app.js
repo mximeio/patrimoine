@@ -65,9 +65,19 @@ function App() {
     return () => window.removeEventListener('patrimoine:sw-update', onSwUpdate);
   }, []);
 
-  const showToast = useCallback((message, type = 'info') => {
+  // 3ᵉ argument `duree` ajouté le 10/08/2026 pour le chantier « refuser par un
+  // message » : les refus de SAISIE tiennent 4 000 ms, le toast paraissant en haut
+  // de l'écran (`top: 20px`) alors que le bouton pressé est en bas d'une modale.
+  // Les appelants historiques n'en passent pas et gardent exactement 2 500 ms.
+  // ⚠️ Le minuteur est mémorisé et ANNULÉ à chaque nouveau toast. Sans ça, des
+  // durées mélangées se marchent dessus : un toast de 2 500 ms affiché avant un
+  // toast de 4 000 ms effaçait le second au bout de 2,5 s. Le défaut n'existait
+  // pas tant que toutes les durées étaient égales — il naît de ce paramètre.
+  const toastTimerRef = useRef(null);
+  const showToast = useCallback((message, type = 'info', duree = 2500) => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 2500);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), duree);
   }, []);
 
   // Indicateur réseau (v523, maquettes Mockup-Pilule-Offline*.html) :

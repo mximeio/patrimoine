@@ -62,7 +62,7 @@ function InvestmentsView({ ctx }) {
         </div>
         {showCreate && (
           <Modal title="Nouvelle enveloppe" onClose={() => setShowCreate(false)}>
-            <NewPortfolioForm onSubmit={handleCreate} />
+            <NewPortfolioForm showToast={showToast} onSubmit={handleCreate} />
           </Modal>
         )}
       </div>
@@ -98,7 +98,7 @@ function InvestmentsView({ ctx }) {
 //  VUE LISTE CONSOLIDÉE
 // ============================================================
 function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCreate }) {
-  const { portfolios } = ctx;
+  const { portfolios, showToast } = ctx;
   // Mise à jour groupée des valorisations (09/08/2026). Hook déclaré ici, en
   // tête : ce composant n'a aucun retour anticipé, et le §8 exige que tout hook
   // précède le premier (erreur React #310 déposée le 31/07/2026).
@@ -257,7 +257,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
 
       {showCreate && (
         <Modal title="Nouvelle enveloppe" onClose={() => setShowCreate(false)}>
-          <NewPortfolioForm onSubmit={onCreate} />
+          <NewPortfolioForm showToast={showToast} onSubmit={onCreate} />
         </Modal>
       )}
 
@@ -306,22 +306,40 @@ function PortfolioListRow({ portfolio, colorIndex, total, onClick }) {
   );
 }
 
-function NewPortfolioForm({ onSubmit }) {
+function NewPortfolioForm({ onSubmit, showToast }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  // Garde « modifications non enregistrées » — TROISIÈME famille du §10, celle
+  // qui ne se voit pas à la lecture : ce formulaire ne signalait RIEN, donc il
+  // retombait sur l'heuristique générique de `Modal`, qui passe à « modifié » au
+  // premier input et n'en revient JAMAIS. Taper un nom puis l'effacer réclamait
+  // donc une confirmation alors qu'il n'y avait plus rien à perdre — le bouton,
+  // lui, se grisait correctement, les deux mécanismes étant indépendants.
+  // Relevé par l'utilisateur le 10/08/2026 ; même défaut que `PhysicalForm` le
+  // 09/08, resté ici faute d'avoir cherché les frères au grep.
+  // On compare donc à l'état de DÉPART — ici le champ vide.
+  const markDirty = React.useContext(ModalDirtyContext);
+  const formDirty = name.trim() !== '';
+  useEffect(() => { if (markDirty) markDirty(formDirty); }, [formDirty]); // eslint-disable-line
   const submit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    // Refus ANNONCÉ (10/08/2026, cf. `REFUS` dans utils.js) : bouton actif, toast au clic.
+    if (!name.trim()) return refuser(showToast, REFUS.nomObligatoire);
     setBusy(true);
     try { await onSubmit(name.trim()); } finally { setBusy(false); }
   };
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
         <label className="label">Nom de l'enveloppe</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="ex: PEA (XTB)" required />
         <div className="field-hint">Tu pourras ajouter et configurer les supports une fois l'enveloppe créée.</div>
       </div>
+      {/* Grisé tant que le nom est vide — aligné sur la création d'un compte
+          courant (`!trimmed || isDuplicate`), la référence de l'app. Sans ça le
+          bouton restait plein alors que le submit ne pouvait pas aboutir.
+          Pas de phrase : un champ « Nom » vide en face d'un bouton gris se
+          comprend seul, et la référence n'en a pas non plus. */}
       <button type="submit" className="btn btn-accent btn-lg" disabled={busy}>{busy ? '…' : 'Créer'}</button>
     </form>
   );
@@ -360,11 +378,20 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   const etfCount = (data.etfs || []).length;
   const showDonut = SHOW_ALLOCATION_DONUT && etfCount >= ALLOCATION_MIN_SUPPORTS && !donutHidden;
 
+  // 🔴 REND un verdict — et ses appelants DOIVENT l'attendre. Avant le
+  // 09/08/2026 il avalait l'erreur et ne renvoyait rien : les appelants
+  // fermaient la modale et posaient leur toast de succès **sans attendre**, si
+  // bien qu'un échec produisait « Valeurs mises à jour » PUIS « Erreur de
+  // sauvegarde », la saisie étant perdue entre les deux. Reproduit en simulant
+  // une panne d'Adapter. ⇒ Le succès ne s'annonce qu'une fois l'écriture faite,
+  // et **on ne ferme pas** en cas d'échec : la saisie reste à l'écran, donc
+  // rejouable.
   const handleUpdateData = async (newData) => {
     try {
       await Adapter.updatePortfolioData(user.uid, portfolio.id, newData);
       await refreshPortfolios();
-    } catch (e) { console.error(e); showToast('Erreur de sauvegarde', 'error'); }
+      return true;
+    } catch (e) { console.error(e); showToast('Erreur de sauvegarde', 'error'); return false; }
   };
 
   const handleRename = async (newName) => {
@@ -520,27 +547,32 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         onShowAll={() => setModal('history-ops')}
         onAdd={() => setModal('add')}
         onEdit={(op) => setEditingOpId(op.id)}
-        onDelete={(id) => {
-          handleUpdateData({ ...data, operations: data.operations.filter(o => o.id !== id) });
-          showToast('Opération supprimée');
+        onDelete={async (id) => {
+          if (await handleUpdateData({ ...data, operations: data.operations.filter(o => o.id !== id) })) {
+            showToast('Opération supprimée');
+          }
         }}
       />
 
       {/* MODALES */}
       {modal === 'add' && (
         <Modal title="Nouvelle opération" onClose={() => setModal(null)}>
-          <AddOperationForm data={data} onSubmit={(newData) => { handleUpdateData(newData); setModal(null); showToast('Opération ajoutée', 'success'); }} />
+          <AddOperationForm showToast={showToast} data={data} onSubmit={async (newData) => {
+            if (await handleUpdateData(newData)) { setModal(null); showToast('Opération ajoutée', 'success'); }
+          }} />
         </Modal>
       )}
       {modal === 'values' && (
         <Modal title="Mettre à jour les valeurs" dirty={valuesDirty}
           onClose={() => { setValuesDirty(false); setModal(null); }}>
           <UpdateValuesForm
+            showToast={showToast}
             data={data}
             onDirtyChange={setValuesDirty}
-            onSubmit={(newData) => {
-              setValuesDirty(false); handleUpdateData(newData); setModal(null);
-              showToast('Valeurs mises à jour');
+            onSubmit={async (newData) => {
+              if (await handleUpdateData(newData)) {
+                setValuesDirty(false); setModal(null); showToast('Valeurs mises à jour');
+              }
             }} />
         </Modal>
       )}
@@ -550,9 +582,10 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
             stats={stats}
             data={data}
             onEdit={(op) => setEditingOpId(op.id)}
-            onDelete={(id) => {
-              handleUpdateData({ ...data, operations: data.operations.filter(o => o.id !== id) });
-              showToast('Opération supprimée');
+            onDelete={async (id) => {
+              if (await handleUpdateData({ ...data, operations: data.operations.filter(o => o.id !== id) })) {
+                showToast('Opération supprimée');
+              }
             }}
           />
         </Modal>
@@ -563,14 +596,18 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         return (
           <Modal title="Modifier l'opération" onClose={() => setEditingOpId(null)}>
             <AddOperationForm
+              showToast={showToast}
               data={data}
               initial={opToEdit}
-              onSubmit={(newData) => { handleUpdateData(newData); setEditingOpId(null); showToast('Opération modifiée'); }}
-              onDelete={() => {
+              onSubmit={async (newData) => {
+                if (await handleUpdateData(newData)) { setEditingOpId(null); showToast('Opération modifiée'); }
+              }}
+              onDelete={async () => {
                 if (!confirm('Supprimer cette opération ?')) return;
-                handleUpdateData({ ...data, operations: data.operations.filter(o => o.id !== opToEdit.id) });
-                setEditingOpId(null);
-                showToast('Opération supprimée');
+                if (await handleUpdateData({ ...data, operations: data.operations.filter(o => o.id !== opToEdit.id) })) {
+                  setEditingOpId(null);
+                  showToast('Opération supprimée');
+                }
               }}
             />
           </Modal>
@@ -579,12 +616,13 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
       {modal === 'configure' && (
         <Modal title="Réglages" dirty={configureDirty} onClose={closeConfigure} size="lg">
           <PortfolioConfigureForm
+            showToast={showToast}
             data={data}
             portfolioName={portfolio.name}
             onDirtyChange={setConfigureDirty}
             onPersistData={handleUpdateData}
-            onSubmit={(draftData, draftName) => {
-              handleUpdateData(draftData);
+            onSubmit={async (draftData, draftName) => {
+              if (!(await handleUpdateData(draftData))) return;
               if (draftName && draftName !== portfolio.name) handleRename(draftName);
               setConfigureDirty(false);
               setModal(null);
@@ -605,10 +643,12 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
 // Épargne) : nom + supports édités sur une copie locale, commit uniquement au
 // clic sur « Enregistrer ». La fermeture avec modifications non enregistrées
 // déclenche une confirmation (via onDirtyChange côté parent).
-function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, onDelete, onPersistData }) {
+function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, onDelete, onPersistData, showToast }) {
   const [draft, setDraft] = useState(data);
   const [name, setName] = useState(portfolioName || '');
 
+  // Hissé au rendu : sert à la confirmation de fermeture ET au grisé du bouton.
+  const nameDirty = !!((name || '').trim() && (name || '').trim() !== portfolioName);
   useEffect(() => {
     if (!onDirtyChange) return;
     // v590 : les supports persistent immédiatement (onPersistData) → le
@@ -617,21 +657,22 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
     // brouillon/donnée pour les supports : cette comparaison donnait un faux
     // positif après édition d'un support (la relecture Firestore re-normalise
     // l'objet → JSON différent alors que tout est sauvé).
-    const trimmed = (name || '').trim();
-    const nameDirty = !!(trimmed && trimmed !== portfolioName);
     onDirtyChange(nameDirty);
-  }, [name]); // eslint-disable-line
+  }, [nameDirty]); // eslint-disable-line
 
   const submit = (e) => {
     e.preventDefault();
     // Chaque support doit avoir au moins un ticker OU un libellé.
     const orphan = (draft.etfs || []).find(x => !(x.ticker || '').trim() && !(x.label || '').trim());
-    if (orphan) { alert('Chaque support doit avoir au moins un ticker ou un libellé.'); return; }
+    // Refus ANNONCÉS (10/08/2026, cf. `REFUS` dans utils.js) — `alert` remplacé, et
+    // son texte divergeait de celui du formulaire de support (« nom court »).
+    if (!nameDirty) return refuser(showToast, REFUS.nomEnveloppeInchange);
+    if (orphan) return refuser(showToast, REFUS.tickerOuNom);
     onSubmit(draft, (name || '').trim());
   };
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <label className="label">Nom de l'enveloppe</label>
         <input
@@ -645,10 +686,15 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
 
       <div>
         <h3 className="settings-group-title">Supports</h3>
-        <EtfsList data={draft} onUpdate={setDraft} onPersist={onPersistData} />
+        <EtfsList data={draft} onUpdate={setDraft} onPersist={onPersistData} showToast={showToast} />
       </div>
 
       <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+      {/* 🔴 PHRASE INDISPENSABLE ICI, et pas la même qu'ailleurs. Sur cet écran le
+          bouton ne sauve QUE le nom : depuis la v590 les supports persistent au
+          fil de la saisie (onPersistData). Griser sans expliquer ferait croire
+          qu'une modification de support n'a pas été prise, alors qu'elle est
+          déjà en base. La phrase transforme le piège en information. */}
 
       {/* Zone de danger : suppression du portefeuille */}
       <div style={{ height: 1, background: COLORS.border, margin: '6px 0 0' }} />
@@ -832,7 +878,7 @@ function OperationsJournal({ stats, onShowAll, onAdd, onEdit, onDelete }) {
 //    - dividend : support distribuant + montant reçu
 //    - sale     : support + montant récupéré + coût d'acquisition vendu
 // ============================================================
-function AddOperationForm({ data, initial, onSubmit, onDelete }) {
+function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
   const today = todayIso();
   // editing=true → on remplace l'opération existante au submit (par id).
   // currentValues ne sont PAS ajustées en édition (l'utilisateur peut
@@ -852,13 +898,32 @@ function AddOperationForm({ data, initial, onSubmit, onDelete }) {
   // la date, on fermait, et la saisie était jetée SANS AUCUNE CONFIRMATION.
   // Défaut déjà trouvé et corrigé en v535 sur la modale Réglages, jamais
   // généralisé ; relevé par l'utilisateur le 07/08/2026 sur l'épargne.
-  // On ignore le 1er rendu pour ne pas marquer « modifié » à la simple ouverture.
+  // 🔴 COMPARAISON EXACTE, et non plus un marquage à sens unique. Avant le
+  // 09/08/2026 ce formulaire appelait `markDirty()` sans jamais pouvoir se
+  // démarquer : on modifiait, on revenait à la valeur d'origine, et la
+  // confirmation de fermeture se déclenchait quand même — alors qu'il n'y avait
+  // plus rien à perdre. Relevé par l'utilisateur.
+  // ⚠️ L'état de DÉPART est l'opération d'origine en édition, et les valeurs par
+  // défaut en création : sans ça, une création intacte serait vue comme modifiée.
+  // ⚠️ Les montants se comparent ARRONDIS AU CENTIME — sinon `12` et `12.00`
+  // compteraient comme un changement.
   const markDirty = React.useContext(ModalDirtyContext);
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    if (!mountedRef.current) { mountedRef.current = true; return; }
-    if (markDirty) markDirty();
-  }, [opType, date, amount, marketValue, costBasis, etf]);
+  const memeMontant = (a, b) => r2(parseFloat(a) || 0) === r2(parseFloat(b) || 0);
+  const depart = {
+    type: editing ? (initial.type || 'deposit') : 'deposit',
+    date: editing ? (initial.date || today) : today,
+    amount: editing ? initial.amount : '',
+    marketValue: editing ? initial.marketValue : '',
+    costBasis: editing ? initial.costBasis : '',
+    etf: editing ? (initial.etf || data.etfs[0]?.id || '') : (data.etfs[0]?.id || ''),
+  };
+  const opDirty = opType !== depart.type
+    || date !== depart.date
+    || !memeMontant(amount, depart.amount)
+    || !memeMontant(marketValue, depart.marketValue)
+    || !memeMontant(costBasis, depart.costBasis)
+    || etf !== depart.etf;
+  useEffect(() => { if (markDirty) markDirty(opDirty); }, [opDirty]); // eslint-disable-line
 
   // Liste des supports distribuants pour le filtre "dividende"
   const distributingEtfs = (data.etfs || []).filter(e => (e.kind || 'capitalizing') === 'distributing');
@@ -891,6 +956,14 @@ function AddOperationForm({ data, initial, onSubmit, onDelete }) {
 
   const submit = (e) => {
     e.preventDefault();
+    // 🔴 REFUS ANNONCÉS (10/08/2026, cf. `REFUS` dans utils.js). Ce formulaire n'a
+    // PAS de libellé : le montant y est le seul porteur d'information, donc il est
+    // obligatoire. ⚠️ `montantVide` interroge `marketValue` pour « Réception » et
+    // `amount` pour les six autres types — son message NOMME le champ affiché, ce
+    // qui donne un seul texte pour les 7 types.
+    if (editing && !opDirty) return refuser(showToast, REFUS.rienChange);
+    if (montantVide) return refuser(showToast, REFUS.champObligatoire(nomDuMontant));
+    if (needsEtf && !etf) return refuser(showToast, REFUS.supportObligatoire);
     // En édition : on garde l'id existant et on remplace l'op par id.
     // En ajout : nouvel id + append à la liste.
     const op = { id: editing ? initial.id : uid(), date, type: opType };
@@ -939,9 +1012,30 @@ function AddOperationForm({ data, initial, onSubmit, onDelete }) {
                       : opType === 'fee' ? 'Montant des frais (€)'
                       : 'Montant (€)';
   const dividendNoEtf  = opType === 'dividend' && distributingEtfs.length === 0;
+  // 🔴 RÈGLE DU CHAMP PORTEUR (arbitrage de l'utilisateur, 10/08/2026). Ce
+  // formulaire N'A PAS DE LIBELLÉ — ni champ, ni état : le montant y est donc le
+  // SEUL porteur d'information, et il devient obligatoire. Ce n'est pas une règle
+  // plus dure que celle des autres formulaires, c'est la même appliquée à un écran
+  // qui n'a qu'un porteur.
+  // ⚠️ LE CHAMP MONTANT DE « Réception » (`gift`) EST `marketValue`, PAS `amount` —
+  // c'est ce que dit `needsAmount` juste au-dessus. Les 7 types affichent bien un
+  // montant à l'écran ; c'est la variable derrière qui change. Une garde écrite sur
+  // `amount` seul laisserait « Réception » grisé EN PERMANENCE.
+  // ⚠️ Exclu quand `dividendNoEtf` : le champ montant n'est alors même pas rendu, le
+  // bouton est déjà grisé, et son bandeau orange explique déjà quoi faire. Ajouter
+  // une seconde phrase contredirait la première.
+  // Nom du champ montant, ARTICULÉ pour entrer dans « … est obligatoire. » : les
+  // libellés d'écran sont sans article (« Montant reçu »), et « Réception » a un
+  // féminin (« La valeur de marché… »). Sans ça la phrase serait bancale.
+  const nomDuMontant = needsAmount
+    ? 'Le ' + amountLabel.replace(/\s*\(€\)\s*$/, '').toLowerCase()
+    : 'La valeur de marché à la réception';
+  const montantVide = !dividendNoEtf && (needsAmount
+    ? (parseFloat(amount) || 0) === 0
+    : (parseFloat(marketValue) || 0) === 0);
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Sélecteur de type — grille 2 cols */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {types.map(t => {
@@ -1156,7 +1250,9 @@ function UpdateAllValuesModal({ ctx, onClose }) {
   const totalGeneral = ordonnees.reduce((a, p) => a + sousTotal(p), 0);
 
   const enregistrer = async () => {
-    if (!modifiees.length || busy) return;
+    if (busy) return;
+    // Refus ANNONCÉ (10/08/2026) : remplace un `return` nu, donc un clic mort.
+    if (!modifiees.length) return refuser(showToast, REFUS.valorisationsInchangees);
     setBusy(true);
     // Une écriture par enveloppe, puis UN SEUL refreshPortfolios (spec §1.4).
     // On continue après un échec et on NOMME l'enveloppe fautive : pas d'échec
@@ -1172,31 +1268,42 @@ function UpdateAllValuesModal({ ctx, onClose }) {
     }
     await refreshPortfolios();
     setBusy(false);
-    if (echecs.length) showToast(`Échec sur : ${echecs.join(', ')}`, 'error');
-    else showToast(`${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''} mise${modifiees.length > 1 ? 's' : ''} à jour`, 'success');
+    // ⚠️ On ne ferme QUE si tout est passé : sinon la saisie des enveloppes en
+    // échec resterait perdue. Celles qui ont réussi cessent d'elles-mêmes d'être
+    // « modifiées » (l'abonnement temps réel remonte leur nouvelle valeur), donc
+    // la fenêtre ne montre plus que ce qui reste à enregistrer.
+    if (echecs.length) { showToast(`Échec sur : ${echecs.join(', ')}`, 'error'); return; }
+    showToast(`${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''} mise${modifiees.length > 1 ? 's' : ''} à jour`, 'success');
     onClose();
   };
 
-  const pied = (
-    <>
+  // Zone d'actions EN FIN DE CORPS, comme les 27 autres modales de l'app.
+  // *Un PIED FIGÉ a été livré ici du 09/08/2026 (v957) au même jour (v965), puis
+  // retiré — décision de l'utilisateur. Motif : sur des données réelles la
+  // fenêtre NE DÉFILE PAS (corps 635 px pour 683 disponibles), donc le pied ne
+  // rendait le bouton ni plus ni moins atteignable ; il ne restait qu'un motif
+  // unique sur 28 modales, c'est-à-dire la sous-généralisation que le §10
+  // reproche au projet. ⚠️ La prop `footer` de `Modal` est CONSERVÉE et testée :
+  // le chantier « calculer un versement » en aura besoin, lui dont le
+  // récapitulatif et le message d'état n'ont d'intérêt que visibles en
+  // permanence. C'est là que le motif se décidera pour de bon.*
+  const actions = (
+    <div className="maj-actions">
       <div className="maj-total"><span>Total général</span><b className="num">{fmt(totalGeneral)} €</b></div>
-      <button type="button" className="btn btn-accent btn-lg" disabled={!modifiees.length || busy} onClick={enregistrer}>
+      <button type="button" className="btn btn-accent btn-lg" disabled={busy} onClick={enregistrer}>
         {busy ? 'Enregistrement…'
           : modifiees.length ? `Enregistrer ${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''}`
           : 'Enregistrer'}
       </button>
-      <div className="maj-note">
-        {modifiees.length
-          ? 'Seules les enveloppes modifiées seront écrites et redatées.'
-          : "Aucune modification : rien ne sera écrit, aucune date rafraîchie."}
-      </div>
-    </>
+      {/* Note PERMANENTE — indépendante de l'état du bouton, donc sans mouvement. */}
+      <div className="maj-note">Seules les enveloppes modifiées seront écrites et redatées.</div>
+    </div>
   );
 
   return (
     // dirty CONTRÔLÉ : il retombe à faux si l'on retape la valeur d'origine,
     // ce que l'heuristique générique de Modal ne sait pas faire.
-    <Modal title="Mettre à jour les valeurs" size="lg" dirty={modifiees.length > 0} onClose={onClose} footer={pied}>
+    <Modal title="Mettre à jour les valeurs" size="lg" dirty={modifiees.length > 0} onClose={onClose}>
       {ordonnees.map((p, i) => {
         const couleur = PORTFOLIO_PALETTE[i % PORTFOLIO_PALETTE.length];
         const etfs = (p.data && p.data.etfs) || [];
@@ -1262,6 +1369,7 @@ function UpdateAllValuesModal({ ctx, onClose }) {
           </div>
         );
       })}
+      {actions}
     </Modal>
   );
 }
@@ -1286,7 +1394,7 @@ function UpdateAllValuesModal({ ctx, onClose }) {
 // le même geste, c'est exactement ce que cet alignement corrige. On passe donc au
 // champ contrôlé en chaîne, avec le même filtre de frappe et la même sélection au
 // focus.
-function UpdateValuesForm({ data, onSubmit, onDirtyChange }) {
+function UpdateValuesForm({ data, onSubmit, onDirtyChange, showToast }) {
   const [saisie, setSaisie] = useState({});
   const [busy, setBusy] = useState(false);
   // MÊME fonction pure que la fenêtre groupée (compute.js), sur une liste d'un
@@ -1316,15 +1424,15 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange }) {
   const deltaSupports = r2(totalSupports - sommeDe(data.currentValues || {}));
   const submit = (e) => {
     e.preventDefault();
-    // Garde en profondeur : le bouton est déjà désactivé, mais un submit peut
-    // aussi partir à la touche Entrée.
-    if (!change || busy) return;
+    if (busy) return;
+    // Refus ANNONCÉ (10/08/2026) : remplace un `return` nu, donc un clic mort.
+    if (!change) return refuser(showToast, REFUS.valorisationsInchangees);
     setBusy(true);
     onSubmit({ ...data, currentValues: modifiees[0].currentValues, currentValuesDate: todayIso() });
   };
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* MÊME mise en page de ligne que la fenêtre groupée (.maj-sup) : pastille,
           ticker, nom court, champ à droite. Harmonisation demandée par
           l'utilisateur le 09/08/2026 — deux fenêtres qui font le même travail
@@ -1367,14 +1475,11 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange }) {
           </div>
         )}
       </div>
-      <button type="submit" className="btn btn-accent btn-lg" disabled={!change || busy}>Enregistrer</button>
-      {/* 🔴 Cette note accompagne OBLIGATOIREMENT le bouton désactivé : grisé
-          seul, ce serait le « clic sans effet ni explication » que le §10 refuse. */}
-      <div className="maj-note">
-        {change
-          ? 'La valorisation et sa date seront enregistrées.'
-          : "Aucune modification : rien ne sera écrit, la date ne sera pas rafraîchie."}
-      </div>
+      <button type="submit" className="btn btn-accent btn-lg" disabled={busy}>Enregistrer</button>
+      {/* Note PERMANENTE : elle décrit ce que fera l'enregistrement, elle ne dépend
+          plus de l'état du bouton — donc elle ne fait plus bouger la fenêtre. Le refus,
+          lui, passe par un toast (cf. `REFUS` dans utils.js). */}
+      <div className="maj-note">La valorisation et sa date seront enregistrées si une valeur a changé.</div>
     </form>
   );
 }

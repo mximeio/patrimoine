@@ -3,7 +3,7 @@
 // ============================================================
 
 function SettingsView({ ctx }) {
-  const { profile, updateProfile, checkingAccounts, renameCheckingAccount } = ctx;
+  const { profile, updateProfile, checkingAccounts, renameCheckingAccount, showToast } = ctx;
   const modules = profile.modulesEnabled;
   const setModule = (key, val) => updateProfile({ modulesEnabled: { ...modules, [key]: val } });
   // Par défaut, le compte courant est activé (compatibilité avec l'ancien
@@ -19,8 +19,7 @@ function SettingsView({ ctx }) {
 
   const toggleChecking = (checked) => {
     if (!checked && accountsCount > 1) {
-      alert(`Tu as actuellement ${accountsCount} comptes courants. Supprime-les pour ne garder qu'un seul compte avant de désactiver le module.`);
-      return;
+      return refuser(showToast, REFUS.plusieursComptes(accountsCount));
     }
     if (!confirmToggle(checked, 'Compte courant')) return;
     if (!checked) {
@@ -35,12 +34,10 @@ function SettingsView({ ctx }) {
 
   const toggleMulti = (checked) => {
     if (!checkingEnabled) {
-      alert("Active d'abord le module Compte courant.");
-      return;
+      return refuser(showToast, REFUS.compteCourantRequis);
     }
     if (!checked && accountsCount > 1) {
-      alert(`Tu as actuellement ${accountsCount} comptes courants. Supprime-les pour ne garder qu'un seul compte avant de désactiver cette option.`);
-      return;
+      return refuser(showToast, REFUS.plusieursComptes(accountsCount));
     }
     if (!confirmToggle(checked, 'Plusieurs comptes courants')) return;
     // À l'activation : si l'utilisateur a un compte unique sans nom,
@@ -95,8 +92,7 @@ function SettingsView({ ctx }) {
             enabled={!!modules.checkingDates}
             onChange={(v) => {
               if (!checkingEnabled) {
-                alert("Active d'abord le module Compte courant.");
-                return;
+                return refuser(showToast, REFUS.compteCourantRequis);
               }
               if (!confirmToggle(v, 'Gestion des dates sur le compte courant')) return;
               setModule('checkingDates', v);
@@ -193,7 +189,7 @@ function PasswordChangeCard({ ctx }) {
 // au lieu d'une ligne inline. La liste affiche des lignes compactes cliquables
 // (couleur + nom + cible + crayon) ; le clic ouvre SupportForm. Nouveaux champs
 // optionnels par support : fullName (nom exact), isin, target (cible en %).
-function EtfsList({ data, onUpdate, onPersist }) {
+function EtfsList({ data, onUpdate, onPersist, showToast }) {
   const [editing, setEditing] = useState(null); // etf en cours d'édition, ou {__new:true}, ou null
   const [editDirty, setEditDirty] = useState(false); // modifs non enregistrées dans la modale support
 
@@ -215,7 +211,7 @@ function EtfsList({ data, onUpdate, onPersist }) {
   };
 
   const removeEtf = (id) => {
-    if ((data.operations || []).some(o => o.etf === id)) { alert('Impossible : support utilisé dans des opérations'); return; }
+    if ((data.operations || []).some(o => o.etf === id)) return refuser(showToast, REFUS.supportUtilise);
     const cv = { ...data.currentValues }; delete cv[id];
     const newData = { ...data, etfs: (data.etfs || []).filter(e => e.id !== id), currentValues: cv };
     onUpdate(newData);
@@ -274,6 +270,7 @@ function EtfsList({ data, onUpdate, onPersist }) {
           dirty={editDirty}
         >
           <SupportForm
+            showToast={showToast}
             etf={editing}
             onSubmit={upsert}
             onDelete={editing.__new ? null : () => removeEtf(editing.id)}
@@ -287,7 +284,7 @@ function EtfsList({ data, onUpdate, onPersist }) {
 
 // Formulaire d'un support dans une modale. Coquille + boutons alignés sur
 // « Modifier une opération » (form-actions : Modifier/Ajouter + Supprimer).
-function SupportForm({ etf, onSubmit, onDelete, onDirtyChange }) {
+function SupportForm({ etf, onSubmit, onDelete, onDirtyChange, showToast }) {
   const [kind, setKind] = useState(etf.kind === 'distributing' ? 'distributing' : 'capitalizing');
   const [ticker, setTicker] = useState(etf.ticker || '');
   const [label, setLabel] = useState(etf.label || '');
@@ -300,25 +297,31 @@ function SupportForm({ etf, onSubmit, onDelete, onDirtyChange }) {
   // Modifications non enregistrées → alimente la prop `dirty` de la Modale
   // (confirmation avant fermeture, comme le reste de l'app). On compare chaque
   // champ à sa valeur d'origine.
+  // Calculé AU RENDU (et non plus seulement dans l'effet) : il sert désormais à
+  // deux choses — la confirmation de fermeture, et le grisé du bouton. Un
+  // formulaire dont rien n'a bougé ne doit pas proposer d'enregistrer (09/08/2026).
+  const norm = (v) => (v || '').trim();
+  const origTarget = etf.target != null && etf.target !== '' ? String(etf.target) : '';
+  const dirty =
+    kind !== (etf.kind === 'distributing' ? 'distributing' : 'capitalizing')
+    || norm(ticker) !== norm(etf.ticker)
+    || norm(label) !== norm(etf.label)
+    || norm(fullName) !== norm(etf.fullName)
+    || norm(isin) !== norm(etf.isin)
+    || color !== (etf.color || PORTFOLIO_PALETTE[0])
+    || (target || '').trim() !== origTarget;
   useEffect(() => {
     if (!onDirtyChange) return;
-    const norm = (s) => (s || '').trim();
-    const origTarget = etf.target != null && etf.target !== '' ? String(etf.target) : '';
-    const dirty =
-      kind !== (etf.kind === 'distributing' ? 'distributing' : 'capitalizing')
-      || norm(ticker) !== norm(etf.ticker)
-      || norm(label) !== norm(etf.label)
-      || norm(fullName) !== norm(etf.fullName)
-      || norm(isin) !== norm(etf.isin)
-      || color !== (etf.color || PORTFOLIO_PALETTE[0])
-      || (target || '').trim() !== origTarget;
     onDirtyChange(dirty);
-  }, [kind, ticker, label, fullName, isin, color, target]); // eslint-disable-line
+  }, [dirty]); // eslint-disable-line
 
   const submit = () => {
+    // Refus ANNONCÉS (10/08/2026, cf. `REFUS` dans utils.js). Remplace un `alert`
+    // en tutoiement, qui était le seul de sa forme dans ce formulaire.
+    if (isEdit && !dirty) return refuser(showToast, REFUS.rienChange);
     const tk = (ticker || '').trim().toUpperCase();
     const lb = (label || '').trim();
-    if (!tk && !lb) { alert('Renseigne au moins un ticker ou un nom court.'); return; }
+    if (!tk && !lb) return refuser(showToast, REFUS.tickerOuNom);
     const tRaw = (target || '').trim().replace(',', '.');
     const t = tRaw === '' ? null : r2(parseFloat(tRaw));
     onSubmit({
@@ -418,7 +421,7 @@ function ModuleToggleRow({ icon, label, hint, enabled, onChange }) {
 //  Le crayon ouvre RecurringForm pour modifier le type/libellé/etc.
 //  Le bouton "+" ouvre la même RecurringForm en création.
 // ============================================================
-function RecurringList({ items, onChange, trEnabled, datesMode }) {
+function RecurringList({ items, onChange, trEnabled, datesMode, showToast }) {
   const [expanded, setExpanded] = useState({});
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -467,7 +470,7 @@ function RecurringList({ items, onChange, trEnabled, datesMode }) {
   };
 
   const addTrRefund = () => {
-    if (items.some(hasTRInItem)) { alert('Un remboursement TR existe déjà'); return; }
+    if (items.some(hasTRInItem)) return refuser(showToast, REFUS.trDejaPresent);
     onChange([...items, { id: uid(), label: 'Tickets resto', amount: 0, type: 'out', isTRRefund: true }]);
   };
 
@@ -519,6 +522,7 @@ function RecurringList({ items, onChange, trEnabled, datesMode }) {
       {showForm && (
         <Modal title={editing ? 'Modifier une opération récurrente' : 'Nouvelle opération récurrente'} onClose={() => { setShowForm(false); setEditing(null); }}>
           <RecurringForm
+            showToast={showToast}
             initial={editing}
             onSubmit={submitForm}
             datesMode={datesMode}
@@ -546,7 +550,7 @@ function RecurringList({ items, onChange, trEnabled, datesMode }) {
 //  Sélecteur Entrée/Sortie + libellé + montant + jour du mois
 //  (si datesMode actif) + toggle composite avec composantes.
 // ============================================================
-function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasGlobalTRRefund }) {
+function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasGlobalTRRefund, showToast }) {
   const isEdit = !!initial;
   const isTRAuto = isEdit && initial.isTRRefund && !initial.isComposite;
   const initIsComposite = !!(initial?.isComposite || (initial?.components || []).length > 0);
@@ -569,15 +573,45 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
 
   // Détection de modification pour la confirmation de fermeture du Modal : couvre
   // aussi les changements non captés par input/change (sélecteur de type, jour du
-  // mois, ajout/suppression de composante…). On ignore le 1er rendu (montage)
-  // pour ne pas marquer « modifié » à la simple ouverture.
+  // mois, ajout/suppression de composante…).
+  // 🔴 COMPARAISON EXACTE plutôt qu'un marquage à SENS UNIQUE (09/08/2026) :
+  // avant, revenir aux valeurs d'origine laissait la confirmation de fermeture
+  // se déclencher quand même.
+  // ⚠️ Les COMPOSANTES se comparent par une sérialisation qui EXCLUT leur `id` :
+  // celui d'une composante neuve est un `uid()` aléatoire, donc le comparer
+  // rendrait le formulaire « modifié » dès l'ouverture. Montants au centime.
   const markDirty = React.useContext(ModalDirtyContext);
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    if (!mountedRef.current) { mountedRef.current = true; return; }
-    if (markDirty) markDirty();
-  }, [type, label, amount, dayOfMonth, isComposite, components]);
+  const serieComposantes = (arr) => JSON.stringify((arr || []).map(c => ({
+    label: (c.label || '').trim(),
+    amount: r2(parseFloat(c.amount) || 0),
+    isTRRefund: !!c.isTRRefund,
+  })));
+  const departComposantes = (initIsComposite && initial.components)
+    ? initial.components : [{ label: '', amount: '' }];
+  const recDirty = type !== (initial?.type || 'out')
+    || (label || '').trim() !== (initial?.label || '').trim()
+    || r2(parseFloat(amount) || 0) !== r2(parseFloat(initial?.amount) || 0)
+    || (dayOfMonth || null) !== (initial?.dayOfMonth || null)
+    || isComposite !== initIsComposite
+    || serieComposantes(components) !== serieComposantes(departComposantes);
+  useEffect(() => { if (markDirty) markDirty(recDirty); }, [recDirty]); // eslint-disable-line
 
+  // 🔴 Un composite SANS AUCUNE composante utilisable ne peut pas être soumis :
+  // le submit filtre les composantes vides et fait `return` si la liste est vide
+  // — un refus SILENCIEUX, le « clic sans effet ni explication » que le §10
+  // refuse ailleurs. On grise le bouton et on dit pourquoi. Le filtre est
+  // exactement celui du submit : une composante compte si elle a un libellé, un
+  // montant non nul, ou si c'est un remboursement TR.
+  const composantesUtiles = (components || []).filter(
+    c => (c.label || '').trim() || (parseFloat(c.amount) || 0) !== 0 || c.isTRRefund).length;
+  const compositeVide = isComposite && composantesUtiles === 0;
+  // 🔴 RÈGLE DU CHAMP PORTEUR (arbitrage de l'utilisateur, 10/08/2026) — mêmes
+  // raisons, mêmes exclusions que dans `OperationForm` (checking.js), où le
+  // commentaire complet vit : le libellé seul reste suffisant, le composite est
+  // jugé par `compositeVide`, et `isTRAuto` est exclu (montant `readOnly`, un 0
+  // y est légitime).
+  const videDePorteur = !isTRAuto && !isComposite
+    && !(label || '').trim() && (parseFloat(amount) || 0) === 0;
   const compTotal = r2(components.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0));
   const hasTRInComponents = components.some(c => c.isTRRefund);
   // Le bouton "+ Tickets resto (auto)" s'affiche dans la section composantes
@@ -594,11 +628,21 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
 
   const submit = (e) => {
     e.preventDefault();
+    // 🔴 REFUS ANNONCÉS (10/08/2026, cf. `REFUS` dans utils.js). Le bouton reste
+    // ACTIF ; c'est ici qu'on refuse. ⚠️ L'ORDRE compte : « rien n'a changé »
+    // d'abord, seul cas où l'on n'a rien à corriger.
+    if (isEdit && !recDirty) return refuser(showToast, REFUS.rienChange);
+    if (isComposite) {
+      if (compositeVide) return refuser(showToast, REFUS.composanteVide);
+    } else if (videDePorteur) {
+      return refuser(showToast, REFUS.libelleOuMontant);
+    }
     if (isComposite) {
       const cleanComps = components
         .filter(c => (c.label || '').trim() || (parseFloat(c.amount) || 0) !== 0 || c.isTRRefund)
         .map(c => ({ id: c.id || uid(), label: (c.label || '').trim(), amount: r2(parseFloat(c.amount) || 0), ...(c.isTRRefund ? { isTRRefund: true } : {}) }));
-      if (cleanComps.length === 0) return;
+      // Filet : `compositeVide` a déjà refusé plus haut, avec son message.
+      if (cleanComps.length === 0) return refuser(showToast, REFUS.composanteVide);
       onSubmit({ type, label: (label || '').trim(), isComposite: true, components: cleanComps, dayOfMonth });
     } else {
       // Montant vide → 0 (au lieu de bloquer le submit silencieusement).
@@ -618,7 +662,7 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
   ];
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Sélecteur de type */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {types.map((t) => {

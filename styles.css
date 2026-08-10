@@ -247,6 +247,15 @@ input[type="month"] {
 /* Pied FIGÉ optionnel (prop `footer` de Modal, 09/08/2026) : symétrique de
    .modal-header — même flex-shrink, même fond, un liseré côté corps. Il n'existe
    que si la prop est passée, donc aucune modale existante n'est affectée.
+   🔴 AUCUN APPELANT AUJOURD'HUI — ET C'EST VOULU : ne pas la supprimer.
+   La seule modale qui la passait (mise à jour groupée) est revenue à une zone
+   d'actions en fin de corps le 09/08/2026, la fenêtre ne défilant pas sur des
+   données réelles. La prop et cette règle sont CONSERVÉES pour le chantier
+   « calculer un versement », dont le récapitulatif et le message d'état n'ont
+   d'intérêt que visibles en permanence — c'est lui qui décidera du motif.
+   ⚠️ Un balayage de classes mortes la trouvera et la croira supprimable : elle
+   ne l'est pas. La retirer casserait ce chantier EN SILENCE, la prop continuant
+   d'exister sans sa mise en forme. Cf. la fiche « le pied figé » de BACKLOG.md.
    ⚠️ Pas de safe-area en bas, et c'est VÉRIFIÉ, pas oublié : en portrait
    l'overlay pose 14px tout autour, la modale flotte et ne touche jamais le home
    indicator (voir le commentaire de .modal-body en media-query 768px). */
@@ -2523,6 +2532,30 @@ input[type="month"] {
   padding: 10px 18px; font-size: 13px; font-weight: 500;
   border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
   z-index: 2000; animation: slideDown 0.2s ease;
+  /* 🔴 `text-align` et `max-width` ajoutés le 10/08/2026, sur capture iPhone de
+     l'utilisateur. La BOÎTE était déjà centrée (`left:50%` + `translateX`), mais le
+     texte héritait de l'alignement à gauche du document : invisible sur une ligne,
+     où la boîte épouse le texte — flagrant dès qu'il passe à DEUX lignes, la
+     seconde restant collée à gauche.
+     ⚠️ Ce n'est PAS une régression du CSS, inchangé depuis la v522 : c'est le
+     chantier des refus (v974) qui a changé la NATURE des messages. Tous les toasts
+     d'avant étaient courts (« Enveloppe créée », « Mois figé ») ; les refus sont des
+     phrases. Même famille que le piège de la bulle `InfoTip` au §10 — un composant
+     calibré pour une étiquette, à qui l'on donne une phrase.
+     `max-width` : sans lui, « Aucune modification du nom. Les supports sont
+     enregistrés au fil de la saisie. » s'étire d'un bord à l'autre sur desktop.
+     🔴 `width: max-content` est INDISPENSABLE, et ce n'est pas cosmétique — mesuré :
+     sans lui la boîte plafonne à la MOITIÉ de l'écran (200 px sur 400), et le
+     `max-width` ne sert à rien. Cause : un élément `position: fixed` avec `left: 50%`
+     et `width: auto` est en shrink-to-fit, or l'espace disponible ne va que de `left`
+     au bord droit — donc 50 % au maximum. C'est ce qui faisait replier le message sur
+     QUATRE lignes sur un écran de 400 px. `max-content` ignore cet espace disponible,
+     puis `max-width` borne le résultat, et le `translateX(-50%)` recentre.
+     ⚠️ Ne PAS « simplifier » en passant à `left:0; right:0; margin:auto` : l'animation
+     `slideDown` anime `translate(-50%, …)` et se décalerait de la moitié de la boîte. */
+  width: max-content;
+  text-align: center;
+  max-width: min(92vw, 420px);
 }
 .toast.error { background: var(--danger); }
 .toast.success { background: var(--success); }
@@ -2533,10 +2566,27 @@ input[type="month"] {
 .toast.update {
   display: flex; align-items: center; gap: 12px;
   padding-right: 14px; white-space: nowrap; z-index: 1999;
+  /* 🔴 On ANNULE les deux réglages ajoutés à `.toast` le 10/08/2026 : ce bandeau
+     est un `flex` en `nowrap` avec un bouton d'action, pas un message centré.
+     Un `max-width: 420px` l'aurait comprimé (il ne peut pas se replier, d'où
+     débordement), et le `text-align: center` n'a pas de sens sur une rangée flex.
+     ⚠️ Vérifié en le déclenchant réellement (`patrimoine:sw-update`), pas supposé. */
+  max-width: none; text-align: left;
   /* v548 : décalé plus bas que les toasts passagers (top:20px) pour ne
      jamais être recouvert par un « Opération ajoutée » — les deux restent
-     lisibles, empilés. Toast de MàJ persistant tant qu'on n'a pas mis à jour. */
-  top: 64px;
+     lisibles, empilés. Toast de MàJ persistant tant qu'on n'a pas mis à jour.
+     🔴 64px → 96px le 10/08/2026, et le 64 n'était PAS arbitraire : il tenait
+     tant que les toasts passagers faisaient UNE ligne (20 + 37 = 57 < 64). Le
+     chantier des refus (v974) a introduit des PHRASES, donc des toasts de deux à
+     trois lignes — mesuré : 8 px de recouvrement, l'invariant de la v548 était
+     cassé. Trouvé en le déclenchant, pas en le supposant.
+     ⚠️ LE NOMBRE VIENT D'UNE MESURE, à refaire si un message plus long apparaît :
+     sur un écran de 320 px (le plus étroit visé), le plus long message —
+     « Aucune modification du nom. Les supports sont enregistrés au fil de la
+     saisie. » — fait 3 lignes, 68 px de haut, et descend donc à 88 px. 88 + 8 px
+     de respiration = 96. ⇒ **Ajouter un message de refus plus long oblige à
+     revérifier ici** : le seuil ne se déduit d'aucune règle, il se mesure. */
+  top: 96px;
 }
 .toast.update .act {
   border: none; cursor: pointer; font-family: inherit;
@@ -3415,6 +3465,10 @@ input[type="month"] {
    motif que l'en-tête replié : identité à gauche, montant à droite. */
 .maj-sup-lbl .maj-delta { margin-left: auto; flex: none; white-space: nowrap; }
 .maj-vide { color: var(--muted); font-style: italic; font-size: 12.5px; padding: 4px 0 2px; }
+/* Zone d'actions en FIN DE CORPS (total, bouton, note) — la convention des
+   27 autres modales de l'app. Pas de liseré : `.form-actions` n'en a pas non
+   plus, l'espacement suffit à séparer. */
+.maj-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .maj-total { display: flex; justify-content: space-between; align-items: center;
   font-size: 12.5px; color: var(--muted); }
 .maj-total b { font-size: 17px; color: var(--text); }
