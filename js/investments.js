@@ -99,6 +99,10 @@ function InvestmentsView({ ctx }) {
 // ============================================================
 function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCreate }) {
   const { portfolios } = ctx;
+  // Mise à jour groupée des valorisations (09/08/2026). Hook déclaré ici, en
+  // tête : ce composant n'a aucun retour anticipé, et le §8 exige que tout hook
+  // précède le premier (erreur React #310 déposée le 31/07/2026).
+  const [majGroupee, setMajGroupee] = useState(false);
   const consolidated = computeInvestmentsConsolidated(portfolios);
 
   // Carte « À rafraîchir » (v480, maquette Mockup-Card-Arafraichir) : on
@@ -144,7 +148,15 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
             Valeur totale investissements
           </div>
-          <ModuleBadge module="investments" />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <ModuleBadge module="investments" />
+            <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
+              <button className="dropdown-item" onClick={() => setMajGroupee(true)}>
+                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="refresh" size={14} /></span>
+                Mettre à jour les valeurs
+              </button>
+            </Dropdown>
+          </div>
         </div>
         <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(consolidated.totalValue)} €</div>
         <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
@@ -248,6 +260,8 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
           <NewPortfolioForm onSubmit={onCreate} />
         </Modal>
       )}
+
+      {majGroupee && <UpdateAllValuesModal ctx={ctx} onClose={() => setMajGroupee(false)} />}
     </div>
   );
 }
@@ -327,6 +341,11 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   const [donutHidden, setDonutHidden] = useState(false);
   // Garde-fou « modifications non enregistrées » de la modale Réglages.
   const [configureDirty, setConfigureDirty] = useState(false);
+  // Idem pour « Mettre à jour les valeurs » (09/08/2026) : garde CONTRÔLÉE, qui
+  // retombe si l'on retape la valeur d'origine. Hook déclaré ici, avec les
+  // autres — ce composant n'a aucun retour anticipé, et le §8 exige que tout
+  // hook précède le premier.
+  const [valuesDirty, setValuesDirty] = useState(false);
   const closeConfigure = () => {
     // Confirmation « modifications non enregistrées » portée par Modal via la
     // prop dirty={configureDirty} (v535) : calcul exact du formulaire, fiable
@@ -514,8 +533,15 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         </Modal>
       )}
       {modal === 'values' && (
-        <Modal title="Mettre à jour les valeurs" onClose={() => setModal(null)}>
-          <UpdateValuesForm data={data} onSubmit={(newData) => { handleUpdateData(newData); setModal(null); showToast('Valeurs mises à jour'); }} />
+        <Modal title="Mettre à jour les valeurs" dirty={valuesDirty}
+          onClose={() => { setValuesDirty(false); setModal(null); }}>
+          <UpdateValuesForm
+            data={data}
+            onDirtyChange={setValuesDirty}
+            onSubmit={(newData) => {
+              setValuesDirty(false); handleUpdateData(newData); setModal(null);
+              showToast('Valeurs mises à jour');
+            }} />
         </Modal>
       )}
       {modal === 'history-ops' && (
@@ -1014,29 +1040,341 @@ function AddOperationForm({ data, initial, onSubmit, onDelete }) {
   );
 }
 
-function UpdateValuesForm({ data, onSubmit }) {
-  const [values, setValues] = useState(data.currentValues || {});
+// Filtre de frappe d'un champ de montant, repris d'AmountInput (ui.js) : on ne
+// garde que chiffres et séparateurs. Le « - » est retiré — une valorisation ne
+// descend pas sous zéro. ⚠️ Sans ce filtre, taper une lettre laissait le champ
+// afficher du texte que la lecture jugeait « illisible », donc « inchangé » :
+// sûr, mais incompréhensible à l'écran.
+function nettoyerMontant(brut) {
+  return String(brut).replace(/[^\d.,]/g, '');
+}
+
+// Delta d'un montant, dans le langage de couleur de l'app : VERT en hausse,
+// ROUGE en baisse (.value-positive / .value-negative). ⚠️ Choix révisé le
+// 09/08/2026 sur remarque de l'utilisateur : il était en indigo, c'est-à-dire
+// « non enregistré » — l'accent du liseré .maj-env--modifiee. Mais l'app a déjà
+// une convention pour les montants SIGNÉS, et un troisième langage n'avait pas
+// lieu d'être. Le « non enregistré » reste porté par le liseré et par le libellé
+// du bouton. *Pas de pourcentage ici, contrairement à SupportRow : il coûterait
+// la largeur qu'on vient de récupérer.*
+function DeltaMontant({ valeur }) {
+  if (valeur === null || valeur === undefined) return null;
+  return (
+    <span className={`maj-delta num ${valeur >= 0 ? 'value-positive' : 'value-negative'}`}>
+      {valeur >= 0 ? '+' : '−'}{fmt(Math.abs(valeur))} €
+    </span>
+  );
+}
+
+// Libellé d'un support pour les fenêtres de valorisation : NOM COMPLET quand il
+// y a la place, nom court sur téléphone en portrait. La bascule est faite en CSS
+// (.support-name-full / .support-name-short, §9) : les deux sont rendus, la
+// media-query choisit. ⚠️ Motif repris de `SupportRow` — ne pas en réinventer un
+// troisième, c'est le défaut récurrent que décrit le §10.
+function LibelleSupport({ etf }) {
+  const court = (etf.ticker || '').trim() && (etf.label || '').trim() ? etf.label : '';
+  const complet = (etf.fullName || '').trim();
+  if (!complet) return court ? <span className="maj-sup-court">{court}</span> : null;
+  return (
+    <>
+      <span className="maj-sup-court support-name-full">{complet}</span>
+      {court && <span className="maj-sup-court support-name-short">{court}</span>}
+    </>
+  );
+}
+
+// ============================================================
+//  MISE À JOUR GROUPÉE DES VALORISATIONS (09/08/2026)
+// ============================================================
+// Pourquoi ce composant porte lui-même sa <Modal> : le PIED FIGÉ affiche le
+// total, le bouton et sa note, tous dérivés de la saisie en cours. Laisser
+// l'état dans un formulaire enfant obligerait à le remonter par un callback,
+// donc à poser un state pendant un rendu — la boucle infinie du §10.
+//
+// 🔴 CHAMP CONTRÔLÉ EN CHAÎNE, PAS `AmountInput` — et ce n'est pas une
+// négligence. `AmountInput.handleBlur` transforme un champ VIDÉ en `onChange(0)`
+// (§10). Sur une fenêtre qui affiche neuf champs pré-remplis, vider l'un d'eux
+// pour « ne pas y toucher » écrirait donc 0, c'est-à-dire « ce support ne vaut
+// plus rien ». La règle « champ vide = valeur inchangée » exige de garder la
+// chaîne telle quelle. Le refus du négatif, lui, est repris ici.
+function UpdateAllValuesModal({ ctx, onClose }) {
+  const { user, portfolios, refreshPortfolios, showToast } = ctx;
+  // MÊME expression que la liste « Mes enveloppes » : l'ordre et les couleurs
+  // doivent coïncider avec l'écran du dessous, sinon on lit deux listes.
+  const ordonnees = sortByNumber(portfolios, p => computePortfolioStats(p.data).totalValue);
+  const [saisie, setSaisie] = useState({});
+  const [busy, setBusy] = useState(false);
+  // TOUT est déplié à l'ouverture. *La règle « les plus anciennes sont dépliées »
+  // a existé du matin au soir du 09/08/2026, puis a été retirée avec l'affichage
+  // des dates — décision de l'utilisateur. Motif : la date ne servait qu'à
+  // expliquer le repliage, et sur des enveloppes toutes valorisées le même jour
+  // elle n'était que du bruit. ⚠️ Ne pas remettre l'ouverture par ancienneté
+  // SANS remettre la date : c'est la seule combinaison qui laisse un
+  // comportement sans explication visible à l'écran.*
+  // Le repliage MANUEL reste disponible : sur une longue liste, on ferme ce
+  // qu'on a fait. Initialiseur paresseux pour que ce repliage ne soit pas
+  // annulé au rafraîchissement suivant.
+  const [ouvertes, setOuvertes] = useState(() => {
+    const o = {};
+    ordonnees.forEach(p => { o[p.id] = true; });
+    return o;
+  });
+
+  // LE calcul qui décide des écritures — fonction pure, testée (compute.js).
+  const modifiees = enveloppesModifiees(ordonnees, saisie);
+  const estModifiee = (id) => modifiees.some(m => m.id === id);
+
+  const valeurAffichee = (p, etf) => {
+    const s = saisie[p.id] || {};
+    if (s[etf.id] !== undefined) return s[etf.id];
+    const v = (p.data && p.data.currentValues || {})[etf.id];
+    return v === undefined || v === null ? '' : String(v);
+  };
+  const setChamp = (pid, eid, brut) => {
+    setSaisie(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [eid]: nettoyerMontant(brut) } }));
+  };
+  const sousTotal = (p) => {
+    const cur = (p.data && p.data.currentValues) || {};
+    const modif = modifiees.find(m => m.id === p.id);
+    const source = modif ? modif.currentValues : cur;
+    return ((p.data && p.data.etfs) || []).reduce((a, e) => a + (Number(source[e.id]) || 0), 0);
+  };
+  // Delta d'UN support : null s'il n'a pas changé. Sert à montrer, sur la ligne
+  // elle-même, laquelle a bougé — le sous-total seul ne le disait pas (relevé par
+  // l'utilisateur le 09/08/2026 : sur trois supports ça se devine, sur huit non).
+  const deltaDuSupport = (p, etf) => {
+    const v = valeurSaisie((saisie[p.id] || {})[etf.id]);
+    if (v === null) return null;
+    const avant = Number((p.data && p.data.currentValues || {})[etf.id]);
+    if (Number.isFinite(avant) && r2(avant) === r2(v)) return null;
+    return r2(v - (Number.isFinite(avant) ? avant : 0));
+  };
+  const sousTotalInitial = (p) => {
+    const cur = (p.data && p.data.currentValues) || {};
+    return ((p.data && p.data.etfs) || []).reduce((a, e) => a + (Number(cur[e.id]) || 0), 0);
+  };
+  const totalGeneral = ordonnees.reduce((a, p) => a + sousTotal(p), 0);
+
+  const enregistrer = async () => {
+    if (!modifiees.length || busy) return;
+    setBusy(true);
+    // Une écriture par enveloppe, puis UN SEUL refreshPortfolios (spec §1.4).
+    // On continue après un échec et on NOMME l'enveloppe fautive : pas d'échec
+    // silencieux sur un chemin qui écrit.
+    const echecs = [];
+    for (const m of modifiees) {
+      const p = ordonnees.find(x => x.id === m.id);
+      try {
+        await Adapter.updatePortfolioData(user.uid, m.id, {
+          ...(p.data || {}), currentValues: m.currentValues, currentValuesDate: todayIso(),
+        });
+      } catch (e) { console.error(e); echecs.push(p ? p.name : m.id); }
+    }
+    await refreshPortfolios();
+    setBusy(false);
+    if (echecs.length) showToast(`Échec sur : ${echecs.join(', ')}`, 'error');
+    else showToast(`${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''} mise${modifiees.length > 1 ? 's' : ''} à jour`, 'success');
+    onClose();
+  };
+
+  const pied = (
+    <>
+      <div className="maj-total"><span>Total général</span><b className="num">{fmt(totalGeneral)} €</b></div>
+      <button type="button" className="btn btn-accent btn-lg" disabled={!modifiees.length || busy} onClick={enregistrer}>
+        {busy ? 'Enregistrement…'
+          : modifiees.length ? `Enregistrer ${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''}`
+          : 'Enregistrer'}
+      </button>
+      <div className="maj-note">
+        {modifiees.length
+          ? 'Seules les enveloppes modifiées seront écrites et redatées.'
+          : "Aucune modification : rien ne sera écrit, aucune date rafraîchie."}
+      </div>
+    </>
+  );
+
+  return (
+    // dirty CONTRÔLÉ : il retombe à faux si l'on retape la valeur d'origine,
+    // ce que l'heuristique générique de Modal ne sait pas faire.
+    <Modal title="Mettre à jour les valeurs" size="lg" dirty={modifiees.length > 0} onClose={onClose} footer={pied}>
+      {ordonnees.map((p, i) => {
+        const couleur = PORTFOLIO_PALETTE[i % PORTFOLIO_PALETTE.length];
+        const etfs = (p.data && p.data.etfs) || [];
+        const ouverte = !!ouvertes[p.id];
+        const modifiee = estModifiee(p.id);
+        const delta = r2(sousTotal(p) - sousTotalInitial(p));
+        const deltaNode = modifiee ? <DeltaMontant valeur={delta} /> : null;
+
+        return (
+          <div key={p.id} className={`maj-env${modifiee ? ' maj-env--modifiee' : ''}`}>
+            {/* MÊME disposition que la carte à un seul support : le nom à gauche,
+                et à droite ce que l'autre met à cette place — son champ de saisie
+                là-bas, le MONTANT ici, le chevron fermant la ligne. Demande de
+                l'utilisateur le 09/08/2026 : une même information ne doit pas
+                changer de place selon la carte.
+                ⚠️ Dépliée, le montant disparaît d'ici : le sous-total le porte,
+                sous les lignes de support. */}
+            <button type="button" className="maj-env-head" aria-expanded={ouverte}
+              onClick={() => setOuvertes(o => ({ ...o, [p.id]: !o[p.id] }))}>
+              <span className="maj-env-id" style={{ flex: 1 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: couleur, flex: 'none' }} />
+                <span className="maj-env-nom">{p.name}</span>
+              </span>
+              {/* Repliée, la ligne porte le montant ET son delta — comme le
+                  sous-total le fait dépliée, et comme la carte à un support le
+                  fait sur sa ligne de support. Oublié en retirant les dates le
+                  09/08/2026 : le delta vivait sur la ligne de meta supprimée.
+                  La carte n'ayant plus qu'un étage, l'ensemble est centré en
+                  hauteur sans rien demander. */}
+              {!ouverte && (
+                <span className="maj-env-montant num">
+                  <span>{fmt(sousTotal(p))} €</span>
+                  {deltaNode}
+                </span>
+              )}
+              <span className={`maj-chev${ouverte ? ' open' : ''}`}><Icon name="chevronDown" size={12} /></span>
+            </button>
+            {ouverte && (
+              <div style={{ marginTop: 6 }}>
+                {etfs.map(e => (
+                  <div key={e.id} className="maj-sup">
+                    <span className="maj-sup-lbl">
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
+                      <b>{supportName(e)}</b>
+                      <LibelleSupport etf={e} />
+                      <DeltaMontant valeur={deltaDuSupport(p, e)} />
+                    </span>
+                    <input className="input num" inputMode="decimal" enterKeyHint="next"
+                      value={valeurAffichee(p, e)}
+                      onChange={(ev) => setChamp(p.id, e.id, ev.target.value)}
+                      onFocus={(ev) => { const t = ev.target; setTimeout(() => { try { t.select(); } catch (_) {} }, 0); }} />
+                  </div>
+                ))}
+                {!etfs.length && <div className="maj-vide">Aucun support</div>}
+                {!!etfs.length && (
+                  <div className="maj-sous-total">
+                    <span>Sous-total</span>
+                    <b className="num">{fmt(sousTotal(p))} €{deltaNode}</b>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </Modal>
+  );
+}
+
+// ============================================================
+//  MISE À JOUR DES VALEURS D'UNE SEULE ENVELOPPE
+// ============================================================
+// 🔴 ALIGNÉE SUR LA MODALE GROUPÉE LE 09/08/2026 — décision de l'utilisateur,
+// et l'argument porte sur la DONNÉE, pas sur l'ergonomie. Avant, cet écran
+// redatait `currentValuesDate` dès qu'on validait, même sans avoir rien touché.
+// Le champ voulait donc dire deux choses selon la porte qui l'écrivait : « date
+// de la dernière saisie » par la fenêtre groupée, « date du dernier clic » ici.
+// Or c'est ce champ que lit la carte « À rafraîchir » — et un signal qu'on peut
+// éteindre sans rien faire cesse d'être un signal (même famille que le garde-fou
+// TR corrigé en v621 : un critère qui se dégrade tout seul).
+// ⚠️ L'intention « j'ai vérifié, c'est toujours bon » reste légitime, mais elle
+// mérite son propre geste — pas l'effet de bord d'une validation à vide.
+//
+// 🔴 SAISIE ALIGNÉE AUSSI, et pour le MÊME argument : `AmountInput` transforme
+// un champ vidé en 0 au blur (§10). Vider un champ voulait donc dire « inchangé »
+// dans la fenêtre groupée et « ce support ne vaut plus rien » ici. Deux sens pour
+// le même geste, c'est exactement ce que cet alignement corrige. On passe donc au
+// champ contrôlé en chaîne, avec le même filtre de frappe et la même sélection au
+// focus.
+function UpdateValuesForm({ data, onSubmit, onDirtyChange }) {
+  const [saisie, setSaisie] = useState({});
+  const [busy, setBusy] = useState(false);
+  // MÊME fonction pure que la fenêtre groupée (compute.js), sur une liste d'un
+  // seul élément : une seule règle, testée une seule fois.
+  const modifiees = enveloppesModifiees([{ id: 'seule', data }], { seule: saisie });
+  const change = modifiees.length > 0;
+
+  // Garde « modifications non enregistrées » CONTRÔLÉE : elle retombe si l'on
+  // retape la valeur d'origine, ce que l'heuristique générique ne sait pas faire.
+  useEffect(() => { if (onDirtyChange) onDirtyChange(change); }, [change, onDirtyChange]);
+
+  const valeurAffichee = (etf) => {
+    if (saisie[etf.id] !== undefined) return saisie[etf.id];
+    const v = (data.currentValues || {})[etf.id];
+    return v === undefined || v === null ? '' : String(v);
+  };
+  // Même règle que la fenêtre groupée, sur une seule enveloppe.
+  const deltaDuSupportSeul = (etf) => {
+    const v = valeurSaisie(saisie[etf.id]);
+    if (v === null) return null;
+    const avant = Number((data.currentValues || {})[etf.id]);
+    if (Number.isFinite(avant) && r2(avant) === r2(v)) return null;
+    return r2(v - (Number.isFinite(avant) ? avant : 0));
+  };
+  const sommeDe = (src) => (data.etfs || []).reduce((a, e) => a + (Number(src[e.id]) || 0), 0);
+  const totalSupports = sommeDe(change ? modifiees[0].currentValues : (data.currentValues || {}));
+  const deltaSupports = r2(totalSupports - sommeDe(data.currentValues || {}));
   const submit = (e) => {
     e.preventDefault();
-    const newCurrentValues = { ...(data.currentValues || {}) };
-    Object.entries(values).forEach(([etf, val]) => {
-      if (val !== '' && val !== null && !isNaN(parseFloat(val))) newCurrentValues[etf] = parseFloat(val);
-    });
-    onSubmit({ ...data, currentValues: newCurrentValues, currentValuesDate: todayIso() });
+    // Garde en profondeur : le bouton est déjà désactivé, mais un submit peut
+    // aussi partir à la touche Entrée.
+    if (!change || busy) return;
+    setBusy(true);
+    onSubmit({ ...data, currentValues: modifiees[0].currentValues, currentValuesDate: todayIso() });
   };
+
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <p style={{ fontSize: 13, color: COLORS.muted, margin: 0 }}>La date du jour sera enregistrée automatiquement.</p>
-      {(data.etfs || []).map(e => (
-        <div key={e.id}>
-          <label className="label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color }} />
-            {supportName(e)}{(e.ticker || '').trim() && (e.label || '').trim() && <> — <span style={{ color: COLORS.muted }}>{e.label}</span></>}
-          </label>
-          <AmountInput value={values[e.id] ?? ''} onChange={(n) => setValues({ ...values, [e.id]: n })} className="input" />
-        </div>
-      ))}
-      <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+      {/* MÊME mise en page de ligne que la fenêtre groupée (.maj-sup) : pastille,
+          ticker, nom court, champ à droite. Harmonisation demandée par
+          l'utilisateur le 09/08/2026 — deux fenêtres qui font le même travail
+          n'ont pas à se présenter autrement. On reprend l'INTÉRIEUR des cartes,
+          pas la carte elle-même : il n'y a qu'une enveloppe ici, l'encadrer
+          serait un cadre autour du cadre. */}
+      <div>
+        {(data.etfs || []).map(e => (
+          <div key={e.id} className="maj-sup">
+            <span className="maj-sup-lbl">
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
+              <b>{supportName(e)}</b>
+              <LibelleSupport etf={e} />
+              <DeltaMontant valeur={deltaDuSupportSeul(e)} />
+            </span>
+            <input
+              className="input num" inputMode="decimal"
+              value={valeurAffichee(e)}
+              onChange={(ev) => setSaisie(prev => ({ ...prev, [e.id]: nettoyerMontant(ev.target.value) }))}
+              onFocus={(ev) => { const t = ev.target; setTimeout(() => { try { t.select(); } catch (_) {} }, 0); }}
+            />
+          </div>
+        ))}
+        {!(data.etfs || []).length && <div className="maj-vide">Aucun support</div>}
+        {/* Total des SUPPORTS — et le libellé est précis à dessein : il ne
+            somme pas le cash non investi, donc il ne vaut pas la valeur de
+            l'enveloppe qu'annonce le hero (69 centimes d'écart mesurés sur le
+            PEA le 09/08/2026).
+            ⚠️ Ce n'est PAS un défaut à réconcilier : dès qu'on saisit de
+            nouvelles valeurs, ce total diverge du hero par construction — c'est
+            son objet. Afficher le cash pour boucler la somme a été essayé puis
+            ÉCARTÉ (décision de l'utilisateur) : ça coûtait de la hauteur pour
+            réconcilier des chiffres qui n'ont pas à l'être. */}
+        {!!(data.etfs || []).length && (
+          <div className="maj-sous-total">
+            <span>Total des supports</span>
+            <b className="num">{fmt(totalSupports)} €
+              {change && <DeltaMontant valeur={deltaSupports} />}
+            </b>
+          </div>
+        )}
+      </div>
+      <button type="submit" className="btn btn-accent btn-lg" disabled={!change || busy}>Enregistrer</button>
+      {/* 🔴 Cette note accompagne OBLIGATOIREMENT le bouton désactivé : grisé
+          seul, ce serait le « clic sans effet ni explication » que le §10 refuse. */}
+      <div className="maj-note">
+        {change
+          ? 'La valorisation et sa date seront enregistrées.'
+          : "Aucune modification : rien ne sera écrit, la date ne sera pas rafraîchie."}
+      </div>
     </form>
   );
 }

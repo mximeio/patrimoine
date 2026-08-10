@@ -550,3 +550,65 @@ function computeInvestmentsConsolidated(portfolios) {
     aggPositions, portfolioBreakdown
   };
 }
+
+// ============================================================
+//  MISE À JOUR GROUPÉE DES VALORISATIONS — quelles enveloppes ont
+//  RÉELLEMENT changé, et avec quelles valeurs.
+// ============================================================
+// Pourquoi une fonction PURE, et pas une condition dans la vue : elle décide
+// d'une ÉCRITURE. Le harnais de `_precompil/` ne rend pas React, donc une
+// condition laissée dans un composant est hors couverture — on l'a mesuré le
+// 05/08/2026 sur `rubriqueRouge` : la neutraliser laissait la suite verte.
+//
+// Ce qu'elle protège : « seules les enveloppes MODIFIÉES sont écrites, et
+// seules leurs dates sont rafraîchies ». Sans cette règle, ouvrir la fenêtre
+// et valider à vide marquerait TOUTES les enveloppes « à jour d'aujourd'hui »
+// et la carte « À rafraîchir » deviendrait fausse — un signal qu'on peut
+// éteindre sans rien faire cesse d'être un signal.
+//
+//   portefeuilles : [{ id, data: { etfs: [{ id }], currentValues } }]
+//   saisie        : { [portefeuilleId]: { [etfId]: valeur } }
+//                   valeur peut être une chaîne (champ de formulaire).
+//
+// Renvoie [{ id, currentValues }] pour les SEULES enveloppes modifiées, dans
+// l'ordre reçu. `currentValues` est la map COMPLÈTE à écrire : les supports
+// non touchés y gardent leur valeur, sinon l'écriture les effacerait.
+function enveloppesModifiees(portefeuilles, saisie) {
+  const entree = saisie || {};
+  const resultat = [];
+  (portefeuilles || []).forEach((p) => {
+    const actuelles = (p.data && p.data.currentValues) || {};
+    const champs = entree[p.id] || {};
+    const fusion = { ...actuelles };
+    let change = false;
+    ((p.data && p.data.etfs) || []).forEach((etf) => {
+      const brut = champs[etf.id];
+      const valeur = valeurSaisie(brut);
+      // Champ vide ou illisible = « valeur inchangée ». C'est la règle
+      // d'UpdateValuesForm depuis toujours : on la conserve, on ne l'invente pas.
+      if (valeur === null) return;
+      const avant = Number(actuelles[etf.id]);
+      // Comparaison AU CENTIME : r2 des deux côtés. Sans ça, 12940 relu depuis
+      // un champ texte peut différer de 12940 par un epsilon flottant et faire
+      // écrire une enveloppe que personne n'a touchée.
+      if (!Number.isFinite(avant) || r2(avant) !== r2(valeur)) {
+        fusion[etf.id] = r2(valeur);
+        change = true;
+      }
+    });
+    if (change) resultat.push({ id: p.id, currentValues: fusion });
+  });
+  return resultat;
+}
+
+// Lecture d'un champ de montant : renvoie null pour « rien de saisi ».
+// ⚠️ 0 est une VALEUR, pas un vide — un support peut légitimement tomber à
+// zéro, et le §10 rappelle que ce projet signale les montants nuls, il ne les
+// escamote pas.
+function valeurSaisie(brut) {
+  if (brut === null || brut === undefined) return null;
+  const texte = String(brut).trim().replace(',', '.');
+  if (texte === '') return null;
+  const n = parseFloat(texte);
+  return Number.isFinite(n) ? n : null;
+}

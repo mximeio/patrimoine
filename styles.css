@@ -167,6 +167,17 @@ input[type="month"] {
 /* Boutons d'action d'un formulaire d'édition sur une seule ligne :
    le bouton principal (Enregistrer/Modifier) prend la place, « Supprimer » à
    droite à sa largeur de contenu. */
+/* 🔴 AUCUN style de bouton DÉSACTIVÉ n'existait avant le 09/08/2026 — constaté
+   au navigateur : `disabled` était posé, et le bouton gardait l'apparence exacte
+   d'un bouton actif (fond plein, curseur main). Les 9 `disabled` de l'app en
+   dépendaient donc pour rien, sauf auth.js qui pose une opacité EN LIGNE.
+   ⚠️ Conséquence à connaître : cette règle change aussi l'apparence de ces
+   boutons existants — c'est voulu, un bouton qui ne réagit pas doit le dire.
+   *Variante écartée le 09/08/2026, décision de l'utilisateur : atténuer le seul
+   FOND en indigo 50 %, comme les cases de pointage en mois figé (v576). Elle
+   gardait le libellé net ; celle-ci est retenue pour sa simplicité.* */
+.btn:disabled, .btn[disabled] { opacity: 0.45; cursor: default; box-shadow: none; }
+.btn:disabled:hover, .btn[disabled]:hover { box-shadow: none; }
 .form-actions { display: flex; gap: 8px; align-items: stretch; }
 .form-actions > .btn { flex: 1; }
 .form-actions > .btn-delete-line { flex: 0 0 auto; width: auto; }
@@ -233,6 +244,17 @@ input[type="month"] {
 }
 .modal-title { font-size: 15px; font-weight: 600; margin: 0; }
 .modal-body { padding: 24px; overflow-y: auto; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Pied FIGÉ optionnel (prop `footer` de Modal, 09/08/2026) : symétrique de
+   .modal-header — même flex-shrink, même fond, un liseré côté corps. Il n'existe
+   que si la prop est passée, donc aucune modale existante n'est affectée.
+   ⚠️ Pas de safe-area en bas, et c'est VÉRIFIÉ, pas oublié : en portrait
+   l'overlay pose 14px tout autour, la modale flotte et ne touche jamais le home
+   indicator (voir le commentaire de .modal-body en media-query 768px). */
+.modal-foot {
+  border-top: 1px solid var(--border); background: var(--surface);
+  padding: 12px 24px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
 
 .dropdown-menu {
   position: absolute; top: calc(100% + 6px); min-width: 220px;
@@ -3087,6 +3109,7 @@ input[type="month"] {
     padding: 16px;
   }
   .modal-header { padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px 16px; }
+  .modal-foot { padding: 12px 16px; }
 }
 /* En mode PWA standalone (Ajouter à l'écran d'accueil), le titre / X
    ont besoin de plus d'espace sous la status bar pour être visuellement
@@ -3325,6 +3348,81 @@ input[type="month"] {
    en ambre (.tr-utensils, réutilisé) et la date porte un compteur.
    ============================================================ */
 .stat-card-icon.stale-neutral { background: #f1f5f9; color: var(--text-muted); }
+/* ---- Mise à jour groupée des valorisations (09/08/2026) --------------
+   Une enveloppe repliable par bloc. Le liseré gauche indigo signale qu'elle
+   a été MODIFIÉE — c'est la seule qui sera écrite et redatée, et la règle
+   est trop conséquente pour ne se lire que dans un mot. */
+.maj-env {
+  border: 1px solid var(--border); border-left: 1px solid var(--border);
+  border-radius: 11px; padding: 10px 11px; margin-bottom: 9px; background: var(--surface);
+}
+.maj-env--modifiee { border-left: 3px solid var(--accent); }
+/* min-height 44px : cible tactile d'Apple, la ligne entière est le bouton. */
+.maj-env-head {
+  width: 100%; background: transparent; border: 0; padding: 0; font: inherit;
+  text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  min-height: 44px; color: var(--text);
+}
+.maj-env-nom { font-weight: 620; font-size: 14px; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Montant d'une enveloppe repliée : à droite, là où la carte solo met son champ. */
+/* Montant d'une enveloppe repliée, et son delta SOUS lui plutôt qu'à côté :
+   côte à côte, les deux mangeaient la largeur du nom, qui se faisait tronquer
+   (relevé par l'utilisateur le 09/08/2026 sur « PEI (Crédit Agricole) »).
+   ⚠️ La carte gagne une ligne quand elle est repliée ET modifiée — sans
+   conséquence : on ne replie une carte qu'après y avoir saisi, jamais pendant. */
+.maj-env-montant { font-size: 13px; font-weight: 620; color: var(--text); flex: none;
+  display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+.maj-env-montant .maj-delta { margin-left: 0; }
+/* Chevron VECTORIEL, pas un caractère texte : les glyphes « ⌄ » et « › »
+   s'asseyaient bas dans leur ligne et paraissaient décentrés (relevé par
+   l'utilisateur le 09/08/2026). Même motif que .evo-chev (v530) — rotation
+   portée par la classe, trait 2.4, display:block sur le svg. */
+.maj-chev {
+  display: inline-flex; align-items: center; color: var(--text-subtle); flex: none;
+  transition: transform 0.2s ease;
+}
+.maj-chev.open { transform: rotate(180deg); }
+.maj-chev svg { stroke-width: 2.4; display: block; }
+/* Identité d'une enveloppe : pastille + nom, dans l'en-tête de la carte.
+   *Une carte compacte pour les enveloppes à UN SEUL support a existé le
+   09/08/2026, puis a été retirée — décision de l'utilisateur : « même s'il n'y a
+   qu'un support, on fait comme pour les autres, ce sera plus harmonisé ». Elle
+   gagnait de la place mais introduisait trois désalignements mesurés avec la
+   carte ordinaire (colonne de valeur décalée de 20 px par le chevron, delta à
+   une autre place, 2e ligne partant 16 px à gauche du nom). Une seule forme de
+   carte les supprime tous les trois. ⚠️ Ne pas la réintroduire sans reprendre
+   ces trois mesures.* */
+.maj-env-id { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.maj-sup { display: grid; grid-template-columns: 1fr 118px; gap: 9px; align-items: center; padding: 6px 0; }
+.maj-sup-lbl { display: flex; align-items: center; gap: 7px; font-size: 13.5px; min-width: 0; }
+.maj-sup-lbl .maj-sup-court { color: var(--muted); font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maj-sous-total { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);
+  border-top: 1px dashed var(--border); margin-top: 7px; padding-top: 7px; }
+.maj-sous-total b { color: var(--text); }
+/* ⚠️ AUCUNE couleur ici : elle vient de .value-positive / .value-negative, la
+   convention de l'app pour les montants signés (09/08/2026 — l'indigo précédent
+   était un troisième langage). Cette classe ne porte que la typographie. */
+/* Taille et graisse alignées sur `.support-gain` (12 px / 400), la référence de
+   l'app pour un montant SIGNÉ secondaire — face à `.support-name` en 14 px / 600.
+   ⚠️ Il était en 13,5 px hérité et en 700 : plus gros ET plus gras que
+   l'identifiant qu'il accompagne, soit l'inverse de la hiérarchie de l'app.
+   Relevé par l'utilisateur le 09/08/2026 (« 250 et 80 ont l'air écrits en très
+   gros »). La couleur suffit à le faire remarquer, le gras n'y ajoutait rien. */
+.maj-delta { font-size: 12px; font-weight: 400; margin-left: 4px; }
+/* Sur une ligne de support, le delta est repoussé à DROITE du libellé — même
+   motif que l'en-tête replié : identité à gauche, montant à droite. */
+.maj-sup-lbl .maj-delta { margin-left: auto; flex: none; white-space: nowrap; }
+.maj-vide { color: var(--muted); font-style: italic; font-size: 12.5px; padding: 4px 0 2px; }
+.maj-total { display: flex; justify-content: space-between; align-items: center;
+  font-size: 12.5px; color: var(--muted); }
+.maj-total b { font-size: 17px; color: var(--text); }
+/* 🔴 Cette note accompagne OBLIGATOIREMENT le bouton grisé : grisé seul, ce
+   serait le « clic sans effet ni explication » que le projet refuse (§10). */
+.maj-note { font-size: 11px; color: var(--subtle); text-align: center; line-height: 1.45; }
+@media (max-width: 400px) { .maj-sup { grid-template-columns: 1fr 100px; } }
+
 .stale-tag {
   display: inline-block; font-size: 10px; font-weight: 700;
   background: var(--warning-light); color: #b45309;

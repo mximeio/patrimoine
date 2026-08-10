@@ -18,7 +18,22 @@ function Spinner() { return <div className="spinner"></div>; }
 // puis appelle markDirty() (typiquement via un useEffect sur ses états).
 const ModalDirtyContext = React.createContext(null);
 
-function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, dirty }) {
+// `footer` : contenu d'un PIED FIGÉ, rendu sous le corps défilant et symétrique
+// de `.modal-header`. OPTIONNEL par construction — une modale qui ne le passe
+// pas rend exactement le même DOM qu'avant (28 appelants au 09/08/2026, aucun
+// touché). Ne jamais en faire le défaut : c'est ce qui garantit qu'on ne migre
+// que ce qu'on a éprouvé.
+// 🔴 UN PIÈGE À CONNAÎTRE AVANT D'Y METTRE UN BOUTON DE SOUMISSION : le pied est
+// un FRÈRE de `children`, donc un `type="submit"` posé dedans est HORS du
+// <form> qui vit dans `children` — il ne soumet rien, sans erreur ni message
+// (même famille que le <form> imbriqué du §7, bug v587). Les appelants actuels
+// mettent un `onClick`, ce qui évite la question ; celui qui voudra un vrai
+// submit devra donner un `id` à son <form> et poser `form="<id>"` sur le bouton.
+// ⚠️ Le pied est volontairement HORS du `onInput`/`onChange` qui alimente la
+// garde « modifications non enregistrées » : c'est une zone d'ACTIONS, pas de
+// saisie. Un champ qu'on y placerait un jour échapperait donc à cette garde —
+// il faudrait alors passer par `dirty` contrôlé.
+function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, dirty, footer }) {
   // Confirmation avant fermeture si le contenu a été modifié sans enregistrer.
   // dirtyRef passe à true au 1er input/change ; on ne confirme QUE si la modale
   // contient un <form> (les listes, la lecture seule « Toutes les opérations »,
@@ -168,6 +183,7 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
         >
           <ModalDirtyContext.Provider value={markDirty}>{children}</ModalDirtyContext.Provider>
         </div>
+        {footer ? <div className="modal-foot">{footer}</div> : null}
       </div>
     </div>,
     document.body
