@@ -3402,18 +3402,49 @@ input[type="month"] {
    Une enveloppe repliable par bloc. Le liseré gauche indigo signale qu'elle
    a été MODIFIÉE — c'est la seule qui sera écrite et redatée, et la règle
    est trop conséquente pour ne se lire que dans un mot. */
+/* 🔴 RELIFTING DU 11/08/2026 (maquette `_maquettes/valorisations-relifting/`).
+   ⚠️ CARTES BLANCHES, et c'est un ARBITRAGE, pas un oubli. La maquette proposait
+   `--surface-alt` : une carte blanche dans une modale blanche ne se détachant que
+   par son trait, elle voulait la faire reculer pour que les champs ressortent.
+   Écarté par l'utilisateur le 11/08/2026 après avoir vu le résultat — et le
+   raisonnement tient : l'impression de « grille » venait d'abord du TEXTE, qui
+   était intégralement en `--text` faute des cinq variables cassées ci-dessous.
+   La hiérarchie de gris rétablie, le fond gris n'a plus de travail à faire.
+   ⇒ Ne pas le remettre au nom de la maquette : elle décrivait un écran où le
+   texte n'avait qu'un seul ton.
+   ⚠️ Rayon par le BARÈME (`--radius-md`, 10 px) : il était à 11 px, une valeur
+   hors des quatre du projet (6 / 10 / 14 / 20). */
 .maj-env {
-  border: 1px solid var(--border); border-left: 1px solid var(--border);
-  border-radius: 11px; padding: 10px 11px; margin-bottom: 9px; background: var(--surface);
+  position: relative; overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 10px;
+  background: var(--surface);
 }
-.maj-env--modifiee { border-left: 3px solid var(--accent); }
-/* min-height 44px : cible tactile d'Apple, la ligne entière est le bouton. */
+/* 🔴 LISERÉ PORTÉ PAR UN PSEUDO-ÉLÉMENT, PLUS PAR `border-left` — et ce n'est pas
+   une élégance. Mesuré le 11/08/2026 : un `border-left` qui passe de 1 à 3 px
+   DÉCALE le contenu de 2 px vers la droite. La carte sautait donc à la PREMIÈRE
+   FRAPPE, au moment précis où l'on saisit dedans. `box-sizing: border-box`
+   préserve la largeur totale, pas la position du contenu — c'est ce qui rend le
+   défaut discret et permanent. ⚠️ Ne pas revenir à un `border-left`. */
+.maj-env--modifiee::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--accent);
+}
+/* min-height 44px : cible tactile d'Apple, la ligne entière est le bouton.
+   ⚠️ La maquette du relifting proposait 32 px — NON RETENU : elle a été dessinée
+   sur desktop, et cette ligne est la seule cible tactile de la carte. Une cible
+   à 32 px est une régression que rien ne rattrape sur iPhone. */
 .maj-env-head {
   width: 100%; background: transparent; border: 0; padding: 0; font: inherit;
   text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px;
   min-height: 44px; color: var(--text);
 }
-.maj-env-nom { font-weight: 620; font-size: 14px; flex: 1; min-width: 0;
+/* 600, la graisse des titres de l'app (`.support-name`). ⚠️ Était à 620 : cette
+   valeur n'existe PAS dans la police chargée — Inter est appelé en
+   300;400;500;600;700;800, donc 620 était arrondi vers le haut et rendu en 700.
+   Le nom d'enveloppe et son montant étaient plus gras que voulu, sans que la
+   déclaration le laisse voir. */
+.maj-env-nom { font-weight: 600; font-size: 14px; flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Montant d'une enveloppe repliée : à droite, là où la carte solo met son champ. */
 /* Montant d'une enveloppe repliée, et son delta SOUS lui plutôt qu'à côté :
@@ -3421,7 +3452,7 @@ input[type="month"] {
    (relevé par l'utilisateur le 09/08/2026 sur « PEI (Crédit Agricole) »).
    ⚠️ La carte gagne une ligne quand elle est repliée ET modifiée — sans
    conséquence : on ne replie une carte qu'après y avoir saisi, jamais pendant. */
-.maj-env-montant { font-size: 13px; font-weight: 620; color: var(--text); flex: none;
+.maj-env-montant { font-size: 13px; font-weight: 600; color: var(--text); flex: none;
   display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
 .maj-env-montant .maj-delta { margin-left: 0; }
 /* Chevron VECTORIEL, pas un caractère texte : les glyphes « ⌄ » et « › »
@@ -3444,13 +3475,53 @@ input[type="month"] {
    carte les supprime tous les trois. ⚠️ Ne pas la réintroduire sans reprendre
    ces trois mesures.* */
 .maj-env-id { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.maj-sup { display: grid; grid-template-columns: 1fr 118px; gap: 9px; align-items: center; padding: 6px 0; }
+.maj-sup { display: grid; grid-template-columns: 1fr 118px; gap: 12px; align-items: center; padding: 7px 0; }
 .maj-sup-lbl { display: flex; align-items: center; gap: 7px; font-size: 13.5px; min-width: 0; }
-.maj-sup-lbl .maj-sup-court { color: var(--muted); font-size: 12px;
+/* 🔴 `--text-muted`, PAS `--muted` : cette dernière N'EXISTE PAS. Le `:root` définit
+   `--text-muted` / `--text-subtle` ; en JavaScript les mêmes couleurs s'appellent
+   `COLORS.muted` / `COLORS.subtle`, et ce bloc avait été écrit par analogie avec
+   les noms JS. Une variable inconnue rend la déclaration INVALIDE : la couleur
+   était donc simplement héritée, et ces deux fenêtres n'avaient plus qu'un seul
+   ton de texte — tout en `--text`. Cinq déclarations étaient touchées, toutes ici.
+   ⚠️ Rien ne le signalait : ça compile, ça se déploie, ça s'affiche. Relevé à
+   l'œil par l'utilisateur le 11/08/2026 ; un test le verrouille désormais
+   (`_precompil/tests.js`, groupe « variables CSS »). */
+/* 🔴 ORDRE DE CESSION DANS LA LIGNE, quand la place manque — il est posé
+   explicitement parce que les trois éléments se disputent la même colonne :
+     1. le LIBELLÉ secondaire cède d'abord (`flex-shrink: 999` ci-dessous) ;
+     2. le NOM ne se tronque qu'ensuite, avec « … » ;
+     3. le DELTA ne cède JAMAIS (`flex: none` plus bas) — c'est le seul des trois
+        qui porte une information qu'on ne peut pas deviner.
+   Sans cette hiérarchie, le navigateur rétrécit proportionnellement et c'est le
+   ticker qui se tronque le premier (« WPE… » à côté d'un libellé intact), soit
+   l'inverse de ce qu'on veut lire. */
+.maj-sup-lbl .maj-sup-court { color: var(--text-muted); font-size: 12.5px;
+  flex-shrink: 999; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.maj-sous-total { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);
-  border-top: 1px dashed var(--border); margin-top: 7px; padding-top: 7px; }
-.maj-sous-total b { color: var(--text); }
+/* Le ticker : 600 comme `.support-name`. ⚠️ C'est un `<b>` dans le JSX, donc 700
+   par défaut du navigateur si on ne le pose pas — c'était le cas.
+   🔴 PAS DE `flex: none` ICI, et c'est MESURÉ : la maquette du relifting le
+   proposait — légitime pour un ticker de quatre lettres — mais `supportName()`
+   rend le LIBELLÉ ENTIER quand le ticker est vide, ce qui est le cas du support
+   de PEI (« Amundi Actions Internationales ESR - F », 38 caractères). Mesuré le
+   11/08/2026 sur un écran de 390 px : avec `flex: none`, ce nom occupe 255 px
+   dans une colonne de 188 et CHEVAUCHE le champ de saisie.
+   ⇒ Il RÉTRÉCIT donc, et le texte PASSE À LA LIGNE.
+   🔴 UNE ELLIPSIS A ÉTÉ ESSAYÉE PUIS ÉCARTÉE le 11/08/2026 — arbitrage de
+   l'utilisateur, et la raison vaut au-delà du goût : quand le ticker est vide, ce
+   nom est le SEUL identifiant de la ligne. Tronquer le libellé secondaire est
+   anodin (un ticker l'accompagne et identifie) ; tronquer le nom quand il est
+   seul ampute ce qui dit sur quelle ligne on saisit un montant. Même règle qu'au
+   §10 pour la suppression d'un support (v981) : nommer autrement que la ligne
+   qu'on vient de toucher fait douter de ce qu'on touche.
+   ⚠️ Ne pas y remettre `text-overflow: ellipsis` : le prix serait une valorisation
+   saisie sur la mauvaise ligne, contre une ligne de hauteur gagnée. */
+.maj-sup-lbl b { font-weight: 600; }
+.maj-sous-total { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--text-muted);
+  border-top: 1px solid var(--border); margin-top: 8px; padding-top: 9px; }
+/* Trait PLEIN et non pointillé : le pointillé était le seul de l'app. */
+.maj-sous-total b { color: var(--text); font-size: 13px; font-weight: 600; }
 /* ⚠️ AUCUNE couleur ici : elle vient de .value-positive / .value-negative, la
    convention de l'app pour les montants signés (09/08/2026 — l'indigo précédent
    était un troisième langage). Cette classe ne porte que la typographie. */
@@ -3464,17 +3535,27 @@ input[type="month"] {
 /* Sur une ligne de support, le delta est repoussé à DROITE du libellé — même
    motif que l'en-tête replié : identité à gauche, montant à droite. */
 .maj-sup-lbl .maj-delta { margin-left: auto; flex: none; white-space: nowrap; }
-.maj-vide { color: var(--muted); font-style: italic; font-size: 12.5px; padding: 4px 0 2px; }
+.maj-vide { color: var(--text-muted); font-style: italic; font-size: 12.5px; padding: 4px 0 2px; }
 /* Zone d'actions en FIN DE CORPS (total, bouton, note) — la convention des
    27 autres modales de l'app. Pas de liseré : `.form-actions` n'en a pas non
    plus, l'espacement suffit à séparer. */
-.maj-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
-.maj-total { display: flex; justify-content: space-between; align-items: center;
-  font-size: 12.5px; color: var(--muted); }
-.maj-total b { font-size: 17px; color: var(--text); }
-/* 🔴 Cette note accompagne OBLIGATOIREMENT le bouton grisé : grisé seul, ce
-   serait le « clic sans effet ni explication » que le projet refuse (§10). */
-.maj-note { font-size: 11px; color: var(--subtle); text-align: center; line-height: 1.45; }
+.maj-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+.maj-total { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12.5px; color: var(--text-muted); }
+/* PLUS GROS mais MOINS GRAS : 19 px / 600 contre 17 px / 700. Le total gagne son
+   rang de seul point d'accroche avant le bouton sans ajouter d'encre — c'est la
+   lecture de l'utilisateur sur la maquette, et elle est juste. */
+.maj-total b { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+/* Note PERMANENTE, alignée à GAUCHE et juste au-dessus du bouton — le motif des
+   autres modales de l'app (cf. la création d'un compte courant).
+   ⚠️ Elle était centrée, en 11 px et en `--text-subtle` — trois écarts d'un coup.
+   `--text-subtle` (#94a3b8) est en outre à 2,6:1 sur blanc, sous le seuil lisible
+   à cette taille : c'est `--text-muted` qu'il faut ici.
+   ⚠️ Son ancien commentaire disait qu'elle accompagnait « OBLIGATOIREMENT le
+   bouton grisé » — PÉRIMÉ depuis la v974 : le grisé est abandonné dans toute
+   l'application et le refus passe par un toast (`REFUS.valorisationsInchangees`).
+   Cette note ne dépend plus d'aucun état, donc elle ne déplace plus rien. */
+.maj-note { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
 @media (max-width: 400px) { .maj-sup { grid-template-columns: 1fr 100px; } }
 
 .stale-tag {

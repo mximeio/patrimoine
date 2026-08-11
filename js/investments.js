@@ -1307,13 +1307,16 @@ function UpdateAllValuesModal({ ctx, onClose }) {
   const actions = (
     <div className="maj-actions">
       <div className="maj-total"><span>Total général</span><b className="num">{fmt(totalGeneral)} €</b></div>
+      {/* Note PERMANENTE — indépendante de l'état du bouton, donc sans mouvement.
+          ⚠️ AU-DESSUS du bouton depuis le 11/08/2026 : c'est l'ordre des autres
+          modales de l'app (on lit la condition, puis on agit), et le bouton
+          redevient le dernier élément de la fenêtre. */}
+      <div className="maj-note">Seules les enveloppes modifiées seront écrites et redatées.</div>
       <button type="button" className="btn btn-accent btn-lg" disabled={busy} onClick={enregistrer}>
         {busy ? 'Enregistrement…'
           : modifiees.length ? `Enregistrer ${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''}`
           : 'Enregistrer'}
       </button>
-      {/* Note PERMANENTE — indépendante de l'état du bouton, donc sans mouvement. */}
-      <div className="maj-note">Seules les enveloppes modifiées seront écrites et redatées.</div>
     </div>
   );
 
@@ -1365,7 +1368,7 @@ function UpdateAllValuesModal({ ctx, onClose }) {
                     <span className="maj-sup-lbl">
                       <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
                       <b>{supportName(e)}</b>
-                      <LibelleSupport etf={e} />
+                      <LibelleSupport etf={e} prefixe=" — " />
                       <DeltaMontant valeur={deltaDuSupport(p, e)} />
                     </span>
                     <input className="input num" inputMode="decimal" enterKeyHint="next"
@@ -1462,7 +1465,7 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange, showToast }) {
             <span className="maj-sup-lbl">
               <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
               <b>{supportName(e)}</b>
-              <LibelleSupport etf={e} />
+              <LibelleSupport etf={e} prefixe=" — " />
               <DeltaMontant valeur={deltaDuSupportSeul(e)} />
             </span>
             <input
@@ -1492,11 +1495,12 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange, showToast }) {
           </div>
         )}
       </div>
-      <button type="submit" className="btn btn-accent btn-lg" disabled={busy}>Enregistrer</button>
       {/* Note PERMANENTE : elle décrit ce que fera l'enregistrement, elle ne dépend
           plus de l'état du bouton — donc elle ne fait plus bouger la fenêtre. Le refus,
-          lui, passe par un toast (cf. `REFUS` dans utils.js). */}
+          lui, passe par un toast (cf. `REFUS` dans utils.js).
+          ⚠️ AU-DESSUS du bouton depuis le 11/08/2026, comme dans la fenêtre groupée. */}
       <div className="maj-note">La valorisation et sa date seront enregistrées si une valeur a changé.</div>
+      <button type="submit" className="btn btn-accent btn-lg" disabled={busy}>Enregistrer</button>
     </form>
   );
 }
