@@ -612,3 +612,24 @@ function valeurSaisie(brut) {
   const n = parseFloat(texte);
   return Number.isFinite(n) ? n : null;
 }
+
+// Cette opération a-t-elle ajusté la valorisation d'un support à sa CRÉATION ?
+// 🔴 Trois types le font (`AddOperationForm.submit`, investments.js) : `purchase`
+// (+ montant) et `gift` (+ marketValue) la montent, `sale` la baisse — et AUCUN
+// des chemins de suppression ne le défait. La valorisation reste donc gonflée du
+// montant de l'opération supprimée, et RIEN ne le signale : `currentValuesDate`
+// n'étant pas touché, la carte « À rafraîchir » n'a aucune raison de s'allumer.
+// Mesuré au navigateur le 11/08/2026 : `currentValues.RNO` resté à 132,50 € au
+// lieu de 90,00 € après un achat de 42,50 € créé puis supprimé.
+// ⚠️ ON NE RECALCULE PAS, et c'est une décision — 11/08/2026, quatre voies
+// écartées et tracées dans BACKLOG.md. Aucun recalcul ne peut être exact : la
+// date d'une opération est DÉCLARATIVE, il n'existe aucune date d'enregistrement,
+// et `currentValuesDate` vaut pour l'enveloppe ENTIÈRE, pas par support — on ne
+// peut donc jamais savoir si CE support a été revalorisé depuis. On prévient, et
+// le défaut se répare de lui-même à la prochaine « Mise à jour des valeurs ».
+// ⚠️ Cette condition vit ICI et pas dans la vue, bien qu'elle ne décide que d'un
+// message : dans un composant elle serait hors couverture du harnais, qui ne rend
+// rien. C'est la leçon de `rubriqueRouge` (§10).
+function ajusteLaValorisation(type) {
+  return type === 'purchase' || type === 'gift' || type === 'sale';
+}

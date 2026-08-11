@@ -613,7 +613,26 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
                 if (!confirm('Supprimer cette opération ?')) return;
                 if (await handleUpdateData({ ...data, operations: data.operations.filter(o => o.id !== opToEdit.id) })) {
                   setEditingOpId(null);
-                  showToast('Opération supprimée');
+                  // 🔴 La valorisation du support n'est PAS défaite par la suppression
+                  // (achat, vente, réception l'ajustent à la création) : elle reste donc
+                  // gonflée du montant retiré, sans qu'aucun autre signal ne le dise.
+                  // Le POURQUOI on ne recalcule pas est sur `ajusteLaValorisation`
+                  // (compute.js) — quatre voies écartées, tracées dans BACKLOG.md.
+                  // ⚠️ Le message ne porte NI chiffre NI cause : « gonflée de 42,50 € »
+                  // serait faux dès que la valorisation a été ressaisie depuis, et
+                  // « n'a pas été ajustée » ferait découvrir un mécanisme invisible au
+                  // lieu de dire quoi faire.
+                  // ⚠️ Le support est en TÊTE, jamais après « de » : `supportName` peut
+                  // rendre un libellé entier (« Amundi Actions… », 38 car. sur PEI), et
+                  // « de Amundi » exigerait une règle d'élision de plus.
+                  // ⚠️ 4 000 ms comme les refus : le toast paraît en haut de l'écran
+                  // alors que le bouton pressé est en bas d'une modale.
+                  const sup = (data.etfs || []).find(e => e.id === opToEdit.etf);
+                  if (ajusteLaValorisation(opToEdit.type) && sup) {
+                    showToast(`Opération supprimée · ${supportName(sup)} : valorisation à vérifier`, 'info', 4000);
+                  } else {
+                    showToast('Opération supprimée');
+                  }
                 }
               }}
             />
