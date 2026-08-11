@@ -256,17 +256,21 @@ function collectSearchItems(ctx) {
       keywords: p.name,
     });
     for (const e of (p.data?.etfs || [])) {
-      const base = supportName(e);
-      const shortLabel = (e.ticker || '').trim() && (e.label || '').trim() ? e.label : '';
-      const fullLabel = (e.fullName || '').trim();
       // v609 : titre court par défaut ; variante « nom complet » affichée si la
       // place le permet (desktop + paysage), comme sur les lignes de support.
-      const shortTitle = `${base}${shortLabel ? ` — ${shortLabel}` : ''}`;
+      // 🔴 LE CALCUL VIENT DE `nomsDuSupport` DEPUIS LE 11/08/2026 : il était
+      // refait ici à la main — troisième copie de la même règle — et faux sans
+      // ticker, où `titleFull` produisait « nom court — nom complet », soit deux
+      // fois presque la même chose. Ne pas le réécrire à la main.
+      // ⚠️ `titleFull` reste `null` quand les deux formes coïncident : sans ça, la
+      // fenêtre rendrait deux titres identiques dont un masqué pour rien.
+      const titreCourt = nomSupportUneLigne(e, true);
+      const titreLong = nomSupportUneLigne(e, false);
       const kindLbl = (e.kind || 'capitalizing') === 'distributing' ? 'Distribuant' : 'Capitalisant';
       items.push({
         module: 'investments',
-        title: shortTitle,
-        titleFull: fullLabel ? `${base} — ${fullLabel}` : null,
+        title: titreCourt,
+        titleFull: titreLong !== titreCourt ? titreLong : null,
         sub: `${p.name || 'Enveloppe'} · ${kindLbl}`,
         amount: p.data?.currentValues?.[e.id] || 0,
         // Phase 2 : ouvre la sous-page du portefeuille et flashe le support.

@@ -753,24 +753,25 @@ function SupportRow({ position, lastDate }) {
   const targetTip = hasTarget ? `Cible ${position.target} %` : '';
   // v593 : nom complet (nom exact) si la place le permet, nom court sinon —
   // décidé en CSS (media-query) : desktop + paysage = complet ; portrait = court.
-  const shortLabel = (position.ticker || '').trim() && (position.label || '').trim() ? position.label : '';
-  const fullLabel = (position.fullName || '').trim();
+  // 🔴 LE CALCUL A ÉTÉ RETIRÉ D'ICI le 11/08/2026 : c'était la troisième copie de
+  // la même règle (avec `LibelleSupport` et la recherche), et elle était fausse
+  // sans ticker — nom court ET nom complet s'affichaient tous les deux. La règle
+  // vit désormais dans `nomsDuSupport` (utils.js), rendue par `NomSupport` et
+  // `LibelleSupport`. ⚠️ Ne pas la réécrire à la main ici : c'est ce qui l'avait
+  // fait diverger.
   return (
     <div className="support-row" data-locate={`etf-${position.id}`}>
+      {/* ⚠️ L'initiale reste celle de `supportName` (ticker ou nom court), pas du
+          nom principal affiché : elle doit rester stable et courte, et le nom
+          complet commence souvent par le même mot. */}
       <span className="support-icon" style={{ background: (position.color || COLORS.muted) + '26', color: position.color || COLORS.muted }}>
         {supportName(position).charAt(0)}
       </span>
       <div className="support-main">
         <div className="support-name">
-          {supportName(position)}
-          {fullLabel ? (
-            <>
-              <span className="support-name-full" style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }}> — {fullLabel}</span>
-              {shortLabel && <span className="support-name-short" style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }}> — {shortLabel}</span>}
-            </>
-          ) : (
-            shortLabel && <span style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }}> — {shortLabel}</span>
-          )}
+          <NomSupport etf={position} />
+          <LibelleSupport etf={position} className="" prefixe=" — "
+            style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }} />
           {isDist && (
             <span className="kind-badge dist" style={{ marginLeft: 6 }}>Distribuant</span>
           )}
@@ -1103,9 +1104,17 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
         <div>
           <label className="label">Support</label>
           <select value={etf} onChange={e => setEtf(e.target.value)} className="input" required>
+            {/* 🔴 Le nom COMPLET après le tiret, plus le nom court — demande de
+                l'utilisateur du 11/08/2026 : c'est ici qu'on choisit un support,
+                donc ici qu'on veut l'identifier précisément.
+                ⚠️ Un `<option>` ne peut PAS basculer en CSS (son contenu est du
+                texte brut, les spans y sont ignorés) : la bascule se fait donc en
+                JS, par `ecranCompact()`, sur la même condition que la media-query.
+                Sans ticker, `nomSupportUneLigne` ne rend qu'UN nom : plus de
+                doublon « nom court — nom complet ». */}
             {etfsForType.map(e => (
               <option key={e.id} value={e.id}>
-                {supportName(e)}{(e.ticker || '').trim() && (e.label || '').trim() ? ` — ${e.label}` : ''}{(e.kind || 'capitalizing') === 'distributing' ? ' (Dist.)' : ''}
+                {nomSupportUneLigne(e, ecranCompact())}{(e.kind || 'capitalizing') === 'distributing' ? ' (Dist.)' : ''}
               </option>
             ))}
           </select>
@@ -1367,7 +1376,7 @@ function UpdateAllValuesModal({ ctx, onClose }) {
                   <div key={e.id} className="maj-sup">
                     <span className="maj-sup-lbl">
                       <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
-                      <b>{supportName(e)}</b>
+                      <NomSupport etf={e} Balise="b" />
                       <LibelleSupport etf={e} prefixe=" — " />
                       <DeltaMontant valeur={deltaDuSupport(p, e)} />
                     </span>
@@ -1464,7 +1473,7 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange, showToast }) {
           <div key={e.id} className="maj-sup">
             <span className="maj-sup-lbl">
               <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
-              <b>{supportName(e)}</b>
+              <NomSupport etf={e} Balise="b" />
               <LibelleSupport etf={e} prefixe=" — " />
               <DeltaMontant valeur={deltaDuSupportSeul(e)} />
             </span>

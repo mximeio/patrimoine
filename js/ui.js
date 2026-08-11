@@ -457,16 +457,67 @@ function Toast({ toast }) {
 // (settings.js), qui l'avait oublié — relevé par l'utilisateur.
 // Les trois props d'apparence sont **optionnelles et rétrocompatibles** : sans
 // elles, le rendu est exactement celui des fenêtres de valorisation.
+// 🔴 DEPUIS LE 11/08/2026, LA RÈGLE VIENT DE `nomsDuSupport` (utils.js) — ne plus
+// recalculer `court`/`complet` ici ni ailleurs. Motif : ce calcul était refait à
+// la main dans `SupportRow`, dans la recherche et dans le sélecteur d'opération,
+// et il était FAUX sans ticker (le nom court était vide par construction, donc
+// le nom principal et le nom complet s'affichaient tous les deux). Relevé par
+// l'utilisateur.
+// ⚠️ Ce composant ne rend que le libellé SECONDAIRE. Sans ticker il n'y en a
+// plus : c'est `NomSupport` qui porte alors la bascule. Il rend donc `null`, et
+// c'est voulu — c'est exactement ce qui supprime le doublon.
 function LibelleSupport({ etf, className = 'maj-sup-court', prefixe = '', style }) {
-  const court = (etf.ticker || '').trim() && (etf.label || '').trim() ? etf.label : '';
-  const complet = (etf.fullName || '').trim();
-  if (!complet) return court ? <span className={className} style={style}>{prefixe}{court}</span> : null;
+  const { secondaireLong, secondaireCourt } = nomsDuSupport(etf);
+  if (!secondaireLong) return null;
+  if (!secondaireCourt) return <span className={className} style={style}>{prefixe}{secondaireLong}</span>;
   return (
     <>
-      <span className={`${className} support-name-full`} style={style}>{prefixe}{complet}</span>
-      {court && <span className={`${className} support-name-short`} style={style}>{prefixe}{court}</span>}
+      <span className={`${className} support-name-full`} style={style}>{prefixe}{secondaireLong}</span>
+      <span className={`${className} support-name-short`} style={style}>{prefixe}{secondaireCourt}</span>
     </>
   );
+}
+
+// Nom PRINCIPAL d'un support — celui qui identifie la ligne.
+// Avec un ticker, c'est lui et il ne bascule pas. Sans ticker, c'est le nom qui
+// bascule : complet sur desktop et sur téléphone en PAYSAGE, court en portrait
+// (mêmes classes que le libellé secondaire, donc même media-query — §9).
+// ⚠️ `Balise` est une prop parce que les appelants n'ont pas le même besoin
+// sémantique : les fenêtres de valorisation veulent un `<b>` (leur CSS cible
+// `.maj-sup-lbl b`), la table des Réglages et `SupportRow` veulent du texte nu
+// dans un conteneur qui porte déjà sa graisse.
+function NomSupport({ etf, Balise = 'span', className = '', style }) {
+  const { principal, principalCourt } = nomsDuSupport(etf);
+  if (!principalCourt) return <Balise className={className} style={style}>{principal}</Balise>;
+  return (
+    <>
+      <Balise className={`${className} support-name-full`} style={style}>{principal}</Balise>
+      <Balise className={`${className} support-name-short`} style={style}>{principalCourt}</Balise>
+    </>
+  );
+}
+
+// Sommes-nous sur l'écran étroit où les libellés basculent sur leur version
+// courte ? Même condition que la media-query de `.support-name-short` (§9) —
+// donc téléphone en PORTRAIT seulement : en paysage, on lit comme sur desktop.
+// ⚠️ Lu À LA DEMANDE, sans abonnement : c'est le motif déjà employé par
+// `InfoTip` pour `(hover: hover)`, et le projet n'a aucun `matchMedia` réactif.
+// Conséquence connue et acceptée : une rotation de l'appareil ne rafraîchit le
+// texte qu'au rendu suivant. Un abonnement demanderait un state mis à jour sur
+// événement — la famille de code que le §10 déconseille pour un gain nul ici.
+const ecranCompact = () => !!(window.matchMedia
+  && window.matchMedia('(max-width: 640px) and (orientation: portrait)').matches);
+
+// Le nom d'un support en UNE chaîne, pour les contextes qui ne peuvent PAS
+// basculer en CSS : les `<option>` d'une liste déroulante (leur contenu est du
+// texte brut — les spans y sont ignorés) et les textes de dialogue.
+// ⚠️ `compact` est un PARAMÈTRE et non une lecture interne : la fonction reste
+// pure, donc testable. C'est l'appelant qui décide, avec `ecranCompact()`.
+function nomSupportUneLigne(etf, compact = false) {
+  const n = nomsDuSupport(etf);
+  const principal = compact ? (n.principalCourt || n.principal) : n.principal;
+  const secondaire = compact ? (n.secondaireCourt || n.secondaireLong) : n.secondaireLong;
+  return principal + (secondaire ? ` — ${secondaire}` : '');
 }
 
 function CustomTooltip({ active, payload, label, suffix = '€' }) {

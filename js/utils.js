@@ -59,12 +59,49 @@ const todayIso = () => new Date().toISOString().split('T')[0];
 
 // Nom d'affichage d'un support : ticker prioritaire, sinon libellé, sinon
 // l'id interne en dernier recours. `e` peut être un etf ou une position.
+// ⚠️ Ne PAS la modifier pour changer un affichage : elle a plus de dix appelants,
+// dont la recherche et les textes de confirmation. Pour composer l'identité
+// affichée d'un support, c'est `nomsDuSupport` juste en dessous.
 const supportName = (e) => {
   if (!e) return '?';
   const t = (e.ticker || '').trim();
   const l = (e.label || '').trim();
   return t || l || e.id || '?';
 };
+
+// 🔴 LES TROIS TEXTES QUI COMPOSENT L'IDENTITÉ D'UN SUPPORT — source unique,
+// fonction PURE (11/08/2026, sur un défaut relevé par l'utilisateur).
+//
+// Le défaut corrigé : sans ticker, l'app affichait le nom COURT en gras puis le
+// nom COMPLET en gris, soit deux fois presque la même chose — et le nom court,
+// qui doit servir de repli quand la place manque, était vide par construction
+// (`ticker && label ? label : ''`). Donc la bascule ne fonctionnait pas : sur
+// desktop on lisait les deux, sur mobile le nom complet était invisible.
+// Constaté sur « Amundi Actions Internationales — AMUNDI ACTIONS INTERNATIONALES
+// ESR - F (C) », dans QUATRE écrans à la fois.
+//
+// La règle, arbitrée par l'utilisateur :
+//   • AVEC ticker  → le ticker identifie ; le libellé est secondaire et bascule
+//                    (complet si la place le permet, court sinon).
+//   • SANS ticker  → il n'y a PLUS de secondaire : c'est le NOM lui-même qui
+//                    bascule (complet si ça passe, court sinon).
+//
+// ⚠️ Les quatre champs sont rendus même vides : un appelant qui teste
+// `if (secondaireLong)` doit pouvoir le faire sans garde supplémentaire.
+// ⚠️ La bascule reste décidée par une MEDIA-QUERY (`.support-name-full` /
+// `.support-name-short`), pas par la place réelle — proxy assumé, cf. §10.
+function nomsDuSupport(etf) {
+  const e = etf || {};
+  const t = (e.ticker || '').trim();
+  const l = (e.label || '').trim();
+  const f = (e.fullName || '').trim();
+  if (t) {
+    return { principal: t, principalCourt: '',
+      secondaireLong: f || l, secondaireCourt: (f && l) ? l : '' };
+  }
+  return { principal: f || l || e.id || '?', principalCourt: (f && l) ? l : '',
+    secondaireLong: '', secondaireCourt: '' };
+}
 
 const fmtDate = (iso) => {
   if (!iso) return '';
