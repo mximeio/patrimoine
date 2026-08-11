@@ -403,15 +403,22 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
     } catch (e) { console.error(e); showToast('Erreur de renommage', 'error'); }
   };
 
+  // 🔴 RENVOIE UN BOOLÉEN, et ce n'est pas cosmétique : l'appelant ne doit fermer la
+  // modale des Réglages QUE si la suppression a réellement eu lieu. Avant le
+  // 10/08/2026 il faisait `setModal(null); handleDelete();` — donc la fenêtre se
+  // fermait AVANT que le `confirm()` ne soit posé, et « Annuler » laissait
+  // l'utilisateur devant un écran vidé de sa fenêtre sans que rien n'ait été
+  // supprimé. Relevé par l'utilisateur sur iPhone. Idiome repris de `physical.js`.
   const handleDelete = async () => {
-    if (!confirm(`Supprimer l'enveloppe « ${portfolio.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return;
-    if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return;
+    if (!confirm(`Supprimer l'enveloppe « ${portfolio.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return false;
+    if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return false;
     try {
       await Adapter.deletePortfolio(user.uid, portfolio.id);
       await refreshPortfolios();
       showToast('Enveloppe supprimée');
       onBack();
-    } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); }
+      return true;
+    } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); return false; }
   };
 
   return (
@@ -628,7 +635,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
               setModal(null);
               showToast('Réglages enregistrés');
             }}
-            onDelete={() => { setConfigureDirty(false); setModal(null); handleDelete(); }}
+            onDelete={async () => { if (await handleDelete()) { setConfigureDirty(false); setModal(null); } }}
           />
         </Modal>
       )}
@@ -802,7 +809,10 @@ function SupportsAllocationCard({ stats, onHide }) {
           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
             <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} />
             <span style={{ fontWeight: 500 }}>{supportName(p)}</span>
-            {(p.ticker || '').trim() && (p.label || '').trim() && <span style={{ color: COLORS.muted, fontSize: 12 }}>{p.label}</span>}
+            {/* Second oubli du même motif, trouvé en auditant les 11 endroits qui
+                nomment un support (10/08/2026). Une POSITION spread son etf, donc
+                elle porte bien `fullName` — vérifié dans `computePortfolioStats`. */}
+            <LibelleSupport etf={p} className="" style={{ color: COLORS.muted, fontSize: 12 }} />
             <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
               <span className="num" style={{ fontWeight: 600 }}>{fmt(p.current)} €</span>
               <span className="num" style={{ color: COLORS.muted, fontSize: 12, minWidth: 50, textAlign: 'right' }}>{p.weight.toFixed(1)} %</span>
@@ -1160,22 +1170,10 @@ function DeltaMontant({ valeur }) {
   );
 }
 
-// Libellé d'un support pour les fenêtres de valorisation : NOM COMPLET quand il
-// y a la place, nom court sur téléphone en portrait. La bascule est faite en CSS
-// (.support-name-full / .support-name-short, §9) : les deux sont rendus, la
-// media-query choisit. ⚠️ Motif repris de `SupportRow` — ne pas en réinventer un
-// troisième, c'est le défaut récurrent que décrit le §10.
-function LibelleSupport({ etf }) {
-  const court = (etf.ticker || '').trim() && (etf.label || '').trim() ? etf.label : '';
-  const complet = (etf.fullName || '').trim();
-  if (!complet) return court ? <span className="maj-sup-court">{court}</span> : null;
-  return (
-    <>
-      <span className="maj-sup-court support-name-full">{complet}</span>
-      {court && <span className="maj-sup-court support-name-short">{court}</span>}
-    </>
-  );
-}
+// `LibelleSupport` a DÉMÉNAGÉ dans `ui.js` le 10/08/2026 — il sert désormais à
+// QUATRE endroits, dans deux fichiers (§4 : ui.js = composants transverses).
+// Son propre commentaire disait « ne pas en réinventer un troisième » ; le laisser
+// ici aurait obligé settings.js à le dupliquer pour la table des Réglages.
 
 // ============================================================
 //  MISE À JOUR GROUPÉE DES VALORISATIONS (09/08/2026)

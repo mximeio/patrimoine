@@ -275,14 +275,18 @@ function SavingsDetailView({ ctx, saving, onBack }) {
     } catch (e) { console.error(e); showToast('Erreur de sauvegarde', 'error'); }
   };
 
+  // 🔴 RENVOIE UN BOOLÉEN — même défaut et même correctif que l'enveloppe
+  // (investments.js, 10/08/2026) : l'appelant fermait les Réglages AVANT le
+  // `confirm()`, donc « Annuler » emportait la fenêtre sans rien supprimer.
   const handleDelete = async () => {
-    if (!confirm(`Supprimer le compte d'épargne « ${saving.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return;
-    if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return;
+    if (!confirm(`Supprimer le compte d'épargne « ${saving.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return false;
+    if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return false;
     try {
       await Adapter.deleteSavings(user.uid, saving.id);
       showToast("Compte d'épargne supprimé");
       onBack();
-    } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); }
+      return true;
+    } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); return false; }
   };
 
   const handleAddOp = async (op) => {
@@ -418,7 +422,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
             onUpdateName={handleRename}
             onUpdateInitial={handleUpdateInitial}
             onDirtyChange={setReglagesDirty}
-            onDelete={() => { setReglagesDirty(false); setModal(null); handleDelete(); }}
+            onDelete={async () => { if (await handleDelete()) { setReglagesDirty(false); setModal(null); } }}
           />
         </Modal>
       )}

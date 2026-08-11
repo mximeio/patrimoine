@@ -447,6 +447,28 @@ function Toast({ toast }) {
   return <div className={`toast ${toast.type === 'error' ? 'error' : toast.type === 'success' ? 'success' : ''}`}>{toast.message}</div>;
 }
 
+// Libellé secondaire d'un support : NOM COMPLET quand il y a la place, nom court
+// sur téléphone en portrait. La bascule est faite en CSS
+// (.support-name-full / .support-name-short, §9) : les DEUX sont rendus, la
+// media-query choisit. ⚠️ Motif né dans `SupportRow` — **ne pas en réinventer un
+// second**, c'est le défaut récurrent que décrit le §10.
+// ⚠️ Déplacé d'`investments.js` vers ce fichier le 10/08/2026 : il sert à QUATRE
+// endroits dans DEUX fichiers, dont la table des Réglages d'une enveloppe
+// (settings.js), qui l'avait oublié — relevé par l'utilisateur.
+// Les trois props d'apparence sont **optionnelles et rétrocompatibles** : sans
+// elles, le rendu est exactement celui des fenêtres de valorisation.
+function LibelleSupport({ etf, className = 'maj-sup-court', prefixe = '', style }) {
+  const court = (etf.ticker || '').trim() && (etf.label || '').trim() ? etf.label : '';
+  const complet = (etf.fullName || '').trim();
+  if (!complet) return court ? <span className={className} style={style}>{prefixe}{court}</span> : null;
+  return (
+    <>
+      <span className={`${className} support-name-full`} style={style}>{prefixe}{complet}</span>
+      {court && <span className={`${className} support-name-short`} style={style}>{prefixe}{court}</span>}
+    </>
+  );
+}
+
 function CustomTooltip({ active, payload, label, suffix = '€' }) {
   if (!active || !payload || !payload.length) return null;
   return (
