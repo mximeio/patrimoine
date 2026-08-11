@@ -380,21 +380,63 @@ function filterItems(items, query) {
 // ============================================================
 //  Surlignage du match dans le titre
 // ============================================================
-function highlightMatch(text, query) {
+// 🔴 Les BORNES du surlignage, dans les indices du texte ORIGINAL. Fonction PURE,
+// donc testable — c'est tout l'objet de son extraction (rang 5 du backlog, livré le
+// 10/08/2026). Sa fiche disait « impossible à tester dans le harnais » : c'est vrai
+// de `highlightMatch`, qui rend du JSX, mais FAUX de son arithmétique. Même leçon
+// que `rubriqueRouge` au §10 : *si une condition décide quelque chose, elle sort de
+// la vue.*
+//
+// LE DÉFAUT CORRIGÉ, en deux erreurs indépendantes qui se cumulaient :
+//  1. `searchNormalize(text).indexOf(q)` rend un indice dans la chaîne NORMALISÉE,
+//     et l'ancien code découpait le texte ORIGINAL avec — or normaliser RACCOURCIT
+//     un texte décomposé (NFD), puisqu'on retire les accents combinants ;
+//  2. la longueur surlignée était `trimmed.length`, la longueur de la REQUÊTE, alors
+//     que le fragment correspondant dans l'original peut être plus long (« é »
+//     précomposé dans la requête = 1 caractère, décomposé dans le texte = 2).
+// Rendus mesurés avant correctif : `Électricité` décomposé donnait `[Électricit]é`,
+// et `Café` décomposé `[Cafe]́` — l'accent restait hors du surlignage. Le texte
+// n'était jamais perdu : le défaut était purement visuel.
+//
+// ⚠️ On parcourt par POINT DE CODE (`for…of`), pas par indice : `text[i]` couperait
+// une paire de substitution (emoji) en deux. L'offset UTF-16 est suivi à part, car
+// c'est lui que `slice` attend.
+// ⚠️ `norm` est construit PAR LE PARCOURS lui-même, et non par un
+// `searchNormalize(text)` séparé : c'est ce qui garantit que la chaîne et la table
+// de correspondance ne peuvent pas se désynchroniser.
+function bornesSurlignage(text, query) {
+  const src = String(text == null ? '' : text);
   const trimmed = String(query || '').trim();
-  if (!trimmed) return text;
-  const norm = searchNormalize(text);
+  if (!trimmed) return null;
+  let norm = '';
+  const origine = [];          // origine[k] = indice UTF-16 dans `src` du k-ième caractère normalisé
+  let offset = 0;
+  for (const cp of src) {
+    const n = searchNormalize(cp);
+    for (let j = 0; j < n.length; j++) { norm += n[j]; origine.push(offset); }
+    offset += cp.length;
+  }
   const q = searchNormalize(trimmed);
+  if (!q) return null;
   const idx = norm.indexOf(q);
-  if (idx < 0) return text;
-  // On surligne sur la version originale (avec accents) en utilisant les indices
-  // de la version normalisée. Comme NFD ne décompose pas les caractères ASCII,
-  // les indices coïncident en pratique pour les libellés latins courants.
+  if (idx < 0) return null;
+  const debut = origine[idx];
+  // FIN : l'origine du caractère normalisé qui SUIT la correspondance. S'il n'y en a
+  // pas, on va jusqu'au bout — ce qui embarque les accents combinants finaux, et
+  // c'est voulu : ils appartiennent à la dernière lettre reconnue.
+  const fin = idx + q.length < origine.length ? origine[idx + q.length] : src.length;
+  return { debut, fin };
+}
+
+function highlightMatch(text, query) {
+  const bornes = bornesSurlignage(text, query);
+  if (!bornes) return text;
+  const src = String(text == null ? '' : text);
   return (
     <>
-      {text.slice(0, idx)}
-      <mark>{text.slice(idx, idx + trimmed.length)}</mark>
-      {text.slice(idx + trimmed.length)}
+      {src.slice(0, bornes.debut)}
+      <mark>{src.slice(bornes.debut, bornes.fin)}</mark>
+      {src.slice(bornes.fin)}
     </>
   );
 }
