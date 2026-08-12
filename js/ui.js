@@ -497,16 +497,51 @@ function NomSupport({ etf, Balise = 'span', className = '', style }) {
   );
 }
 
+// La condition, écrite UNE fois : `ecranCompact()` et `useEcranCompact()` la
+// partagent, et elle doit rester identique à la media-query de
+// `.support-name-short` (§9) — sinon le JS et le CSS basculent à des largeurs
+// différentes, ce qui est le défaut que ce projet a déjà payé ailleurs.
+const REQUETE_COMPACT = '(max-width: 640px) and (orientation: portrait)';
+
 // Sommes-nous sur l'écran étroit où les libellés basculent sur leur version
-// courte ? Même condition que la media-query de `.support-name-short` (§9) —
-// donc téléphone en PORTRAIT seulement : en paysage, on lit comme sur desktop.
-// ⚠️ Lu À LA DEMANDE, sans abonnement : c'est le motif déjà employé par
-// `InfoTip` pour `(hover: hover)`, et le projet n'a aucun `matchMedia` réactif.
-// Conséquence connue et acceptée : une rotation de l'appareil ne rafraîchit le
-// texte qu'au rendu suivant. Un abonnement demanderait un state mis à jour sur
-// événement — la famille de code que le §10 déconseille pour un gain nul ici.
+// courte ? Donc téléphone en PORTRAIT seulement : en paysage, on lit comme sur
+// desktop.
+// ⚠️ Lu À LA DEMANDE, sans abonnement — motif employé par `InfoTip` pour
+// `(hover: hover)`. Convient à ce qui est relu à chaque rendu ; pour un contenu
+// qui doit SUIVRE la rotation, prendre `useEcranCompact()` juste en dessous.
 const ecranCompact = () => !!(window.matchMedia
-  && window.matchMedia('(max-width: 640px) and (orientation: portrait)').matches);
+  && window.matchMedia(REQUETE_COMPACT).matches);
+
+// Le même booléen, mais RÉACTIF : le composant se re-rend quand l'appareil
+// tourne. C'est le PREMIER `matchMedia` abonné du projet.
+// 🔴 POURQUOI IL EXISTE : la lecture à la demande a été prise en défaut sur
+// iPhone (utilisateur, 11/08/2026) — ouvrir « Nouvelle opération » en portrait,
+// tourner en paysage, et la liste déroulante des supports GARDE son libellé
+// court, faute de rendu. Ce que la CSS fait toute seule partout ailleurs, un
+// `<option>` ne peut pas le faire : son contenu est du texte brut.
+// ⚠️ L'état est un BOOLÉEN, jamais un objet : le §10 rappelle qu'un objet neuf
+// posé en state depuis un effet ne peut pas court-circuiter le rendu et boucle
+// (React #185, écran blanc). Un booléen converge.
+// ⚠️ La relecture au montage n'est pas superflue : l'orientation peut avoir
+// changé entre le premier rendu et la pose de l'abonnement.
+// ⚠️ `addListener` est le repli des Safari < 14, où `addEventListener` n'existe
+// pas sur une MediaQueryList.
+function useEcranCompact() {
+  const [compact, setCompact] = useState(() => ecranCompact());
+  useEffect(() => {
+    if (!window.matchMedia) return undefined;
+    const mq = window.matchMedia(REQUETE_COMPACT);
+    const onChange = () => setCompact(mq.matches);
+    onChange();
+    if (mq.addEventListener) {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
+  }, []);
+  return compact;
+}
 
 // Le nom d'un support en UNE chaîne, pour les contextes qui ne peuvent PAS
 // basculer en CSS : les `<option>` d'une liste déroulante (leur contenu est du

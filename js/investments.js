@@ -920,6 +920,9 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
   const [marketValue, setMarketValue] = useState(initial?.marketValue ?? '');
   const [costBasis, setCostBasis] = useState(initial?.costBasis ?? '');
   const [etf, setEtf] = useState(initial?.etf || data.etfs[0]?.id || '');
+  // Abonné, et pas lu à la demande : la liste déroulante plus bas doit suivre
+  // la rotation de l'appareil (cf. le commentaire de son `<option>`).
+  const compact = useEcranCompact();
 
   // Détection de modification pour la confirmation de fermeture du Modal.
   // 🔴 OBLIGATOIRE dès qu'un formulaire porte un contrôle à CLIC : le champ
@@ -1109,12 +1112,15 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
                 donc ici qu'on veut l'identifier précisément.
                 ⚠️ Un `<option>` ne peut PAS basculer en CSS (son contenu est du
                 texte brut, les spans y sont ignorés) : la bascule se fait donc en
-                JS, par `ecranCompact()`, sur la même condition que la media-query.
+                JS, par `useEcranCompact()`, sur la même condition que la
+                media-query. 🔴 Le hook ABONNÉ, et non `ecranCompact()` lu au
+                rendu : sans abonnement, tourner l'appareil la liste ouverte
+                laissait le libellé court (relevé sur iPhone le 11/08/2026).
                 Sans ticker, `nomSupportUneLigne` ne rend qu'UN nom : plus de
                 doublon « nom court — nom complet ». */}
             {etfsForType.map(e => (
               <option key={e.id} value={e.id}>
-                {nomSupportUneLigne(e, ecranCompact())}{(e.kind || 'capitalizing') === 'distributing' ? ' (Dist.)' : ''}
+                {nomSupportUneLigne(e, compact)}{(e.kind || 'capitalizing') === 'distributing' ? ' (Dist.)' : ''}
               </option>
             ))}
           </select>
