@@ -226,21 +226,37 @@ const Adapter = {
     let usedNewCacheAPI = false;
     try {
       const ns = firebase.firestore;
-      if (typeof ns.persistentLocalCache === 'function' && typeof ns.persistentMultipleTabManager === 'function') {
+      if (typeof ns.persistentLocalCache === 'function') {
         // ⚠️ SANS gestionnaire multi-onglets — même raison que le
         // `enablePersistence()` ci-dessous. Cette branche ne tourne pas
         // aujourd'hui (le build compat n'expose pas `persistentLocalCache`),
         // mais si une version future l'exposait, y remettre
         // `persistentMultipleTabManager()` réintroduirait le blocage.
+        // 🔴 Et c'est pour ça qu'il n'est PAS non plus une condition d'entrée
+        // (retiré le 12/08/2026) : exiger la présence d'une fonction qu'on
+        // refuse d'appeler était illogique, et nous aurait privés du cache
+        // moderne le jour où un SDK l'exposerait sans elle.
         settings.localCache = ns.persistentLocalCache();
         usedNewCacheAPI = true;
       }
     } catch (_) { /* fallback ci-dessous */ }
-    // {merge: true} évite le warning "You are overriding the original host"
-    // en fusionnant nos overrides avec les défauts au lieu de tout écraser.
+    // 🔴 `merge` se passe DANS l'objet, jamais en 2e argument — le SDK COMPAT
+    // n'a qu'UN paramètre et lit `merge` à l'intérieur (vérifié dans
+    // `firebase-firestore-compat.js` 10.14.1). Jusqu'au 12/08/2026 il était
+    // passé à part, donc IGNORÉ : l'avertissement « You are overriding the
+    // original host » que ce commentaire prétendait éviter tombait en fait à
+    // CHAQUE démarrage, la condition du SDK étant `!e.merge && t.host !== e.host`
+    // et nos réglages ne portant jamais `host`.
+    // ⚠️ Le merge ne perd rien : le SDK fusionne les défauts avec notre objet,
+    // donc `localCache` et `experimentalAutoDetectLongPolling` — qui sont
+    // DEDANS — sont conservés.
     try {
-      fbDb.settings(settings, { merge: true });
+      fbDb.settings({ ...settings, merge: true });
     } catch (_) {
+      // Repli sans `merge` : on garde les réglages même si la forme fusionnée
+      // était refusée par un SDK futur. `settings()` ne pouvant être appelée
+      // qu'une fois, ce second appel ne vaut que si le premier a levé AVANT
+      // d'appliquer quoi que ce soit.
       try { fbDb.settings(settings); } catch (__) {}
     }
     // ============================================================
