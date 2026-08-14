@@ -212,7 +212,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
           <div className="stat-card-icon tr"><Icon name="coin" size={14} /></div>
           <div className="stat-card-label">Cash non investi</div>
           <div className="stat-card-value num">{fmt(consolidated.cashRemaining)} €</div>
-          <div className="stat-card-sub">{consolidated.totalDeposited > 0 ? (consolidated.cashRemaining / consolidated.totalDeposited * 100).toFixed(1) : 0} % du versé</div>
+          <div className="stat-card-sub">{consolidated.totalDeposited > 0 ? (consolidated.cashRemaining / consolidated.totalDeposited * 100).toFixed(2) : '0.00'} % du versé</div>
         </div>
         <div className="stat-card">
           <div className={`stat-card-icon ${staleWarn ? 'tr-utensils' : 'stale-neutral'}`}><Icon name="calendar" size={14} /></div>
@@ -448,6 +448,16 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="refresh" size={14} /></span>
                 Mettre à jour les valeurs
               </button>
+              {/* Réglage par ENVELOPPE, absent = éteint : les enveloppes
+                  existantes ne voient donc rien changer. Par enveloppe et non
+                  en réglage général, parce que le calcul n'a de sens que là où
+                  les supports portent des cibles. */}
+              {!!data.contributionPlanner && (
+                <button className="dropdown-item" onClick={() => setModal('contribution')}>
+                  <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="percent" size={14} /></span>
+                  Calculer un versement
+                </button>
+              )}
               <div className="dropdown-separator" />
               <button className="dropdown-item" onClick={() => setModal('configure')}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="settings" size={14} /></span>
@@ -490,7 +500,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
           <div className="stat-card-icon tr"><Icon name="coin" size={14} /></div>
           <div className="stat-card-label">Cash non investi</div>
           <div className="stat-card-value num">{fmt(stats.cashRemaining)} €</div>
-          <div className="stat-card-sub">{stats.totalDeposited > 0 ? (stats.cashRemaining / stats.totalDeposited * 100).toFixed(1) : 0} % du versé</div>
+          <div className="stat-card-sub">{stats.totalDeposited > 0 ? (stats.cashRemaining / stats.totalDeposited * 100).toFixed(2) : '0.00'} % du versé</div>
         </div>
         <div className="stat-card">
           <div className="stat-card-icon income"><Icon name="arrowDown" size={14} /></div>
@@ -582,6 +592,19 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
               }
             }} />
         </Modal>
+      )}
+      {modal === 'contribution' && (
+        <ContributionPlannerModal
+          data={data}
+          stats={stats}
+          showToast={showToast}
+          onClose={() => setModal(null)}
+          /* ⚠️ NE FERME PAS la fenêtre — elle a DEUX enregistrements depuis la
+             refonte en deux étapes : celui des valeurs (étape 1, qui doit laisser
+             la fenêtre ouverte) et celui du versement (étape 2, qui la ferme).
+             C'est donc le composant qui décide, par `onClose`. */
+          onSubmit={handleUpdateData}
+        />
       )}
       {modal === 'history-ops' && (
         <Modal title="Toutes les opérations" onClose={() => setModal(null)} size="lg">
@@ -715,6 +738,26 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
         <EtfsList data={draft} onUpdate={setDraft} onPersist={onPersistData} showToast={showToast} />
       </div>
 
+      {/* Réglage d'enveloppe — persistance IMMÉDIATE, comme les supports depuis
+          la v590 et pour la même raison : sur cet écran, seul le NOM peut être
+          « non enregistré » (cf. le commentaire d'`onDirtyChange` plus haut). Le
+          faire passer par le bouton rallumerait le faux positif de garde que cet
+          écran a mis du temps à éteindre. */}
+      <div>
+        <h3 className="settings-group-title">Versements</h3>
+        <ModuleToggleRow
+          icon="percent"
+          label="Calculer mes versements"
+          hint="Ajoute au menu ⋯ un calcul du nombre de parts à acheter pour coller à tes cibles."
+          enabled={!!draft.contributionPlanner}
+          onChange={(v) => {
+            const neuf = { ...draft, contributionPlanner: v };
+            setDraft(neuf);
+            if (onPersistData) onPersistData(neuf);
+          }}
+        />
+      </div>
+
       <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
       {/* 🔴 PHRASE INDISPENSABLE ICI, et pas la même qu'ailleurs. Sur cet écran le
           bouton ne sauve QUE le nom : depuis la v590 les supports persistent au
@@ -750,7 +793,7 @@ function SupportRow({ position, lastDate }) {
   // v592 : cible de répartition (optionnelle) → icône cible grise + bulle
   // (survol desktop / tap mobile) affichant la cible et l'écart en points.
   const hasTarget = position.target != null && position.target !== '';
-  const targetTip = hasTarget ? `Cible ${position.target} %` : '';
+  const targetTip = hasTarget ? `Cible ${fmt(position.target)} %` : '';
   // v593 : nom complet (nom exact) si la place le permet, nom court sinon —
   // décidé en CSS (media-query) : desktop + paysage = complet ; portrait = court.
   // 🔴 LE CALCUL A ÉTÉ RETIRÉ D'ICI le 11/08/2026 : c'était la troisième copie de
@@ -777,7 +820,17 @@ function SupportRow({ position, lastDate }) {
           )}
         </div>
         <div className="support-sub">
-          {position.weight.toFixed(1)} %
+          {/* DEUX décimales — première application de la règle du 13/08/2026, dont
+              l'énoncé et les motifs vivent dans `utils.js`, près de `fmt`.
+              C'est ici que l'utilisateur l'a relevée : ce poids s'affichait « 65.0 % »
+              alors que la fenêtre « calculer un versement » montre **le même nombre**
+              avec deux décimales et le compare à une cible elle aussi à deux décimales.
+              ⚠️ **CE COMMENTAIRE A ÉTÉ CORRIGÉ UNE HEURE APRÈS AVOIR ÉTÉ ÉCRIT.** Il
+              affirmait que « les autres `toFixed(1)` de l'app RESTENT », au motif qu'ils
+              ne sont comparés à rien — un raisonnement cas par cas que l'utilisateur a
+              écarté au profit d'une règle globale, après un audit des 17 fichiers.
+              Il n'y a plus AUCUN `toFixed(1)` dans le code. */}
+          {position.weight.toFixed(2)} %
           {hasTarget && <>{' '}<InfoTip iconName="target" label={targetTip} /></>}
           {lastDate ? ` · ${fmtDateNumeric(lastDate)}` : ''}
           {isDist && position.dividendsReceived > 0 && (
@@ -835,7 +888,7 @@ function SupportsAllocationCard({ stats, onHide }) {
             <LibelleSupport etf={p} className="" style={{ color: COLORS.muted, fontSize: 12 }} />
             <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
               <span className="num" style={{ fontWeight: 600 }}>{fmt(p.current)} €</span>
-              <span className="num" style={{ color: COLORS.muted, fontSize: 12, minWidth: 50, textAlign: 'right' }}>{p.weight.toFixed(1)} %</span>
+              <span className="num" style={{ color: COLORS.muted, fontSize: 12, minWidth: 50, textAlign: 'right' }}>{p.weight.toFixed(2)} %</span>
             </span>
           </div>
         ))}
@@ -961,8 +1014,40 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
   // Liste des supports distribuants pour le filtre "dividende"
   const distributingEtfs = (data.etfs || []).filter(e => (e.kind || 'capitalizing') === 'distributing');
 
+  // 🔴 « DIVIDENDE » EST MASQUÉ QUAND AUCUN SUPPORT NE DISTRIBUE — proposition de
+  // l'utilisateur du 13/08/2026, et elle répare DEUX entorses à la doctrine du
+  // projet plutôt que de seulement gagner de la place :
+  //  • le bouton « Enregistrer » était GRISÉ (`disabled`), le motif abandonné le
+  //    10/08 — « le grisé apporte visuellement un point de crispation » ;
+  //  • un panneau ambre de 74 px APPARAISSAIT à la sélection, donc la fenêtre
+  //    bougeait — l'autre moitié du même grief.
+  // Gain mesuré au navigateur : la grille passe de 240 à **178 px** (7 types dans
+  // deux colonnes laissaient une cellule orpheline ; à 6 elle tombe juste et
+  // « Frais » monte), plus les 74 px du panneau dans le cas dividende.
+  // ⚠️ **CE QU'ON PERD, et c'est assumé** : le panneau ne refusait pas, il
+  // EXPLIQUAIT et donnait le remède (« ouvre Réglages et bascule un support en
+  // Distribuant »). Un bouton qui manque ne dit rien. Le risque reste faible parce
+  // que la cause est LISIBLE à côté : un support distribuant porte un badge
+  // « Distribuant » sur sa ligne et « (Dist.) » dans les listes déroulantes.
+  // ⚠️ Effet de bord à connaître : le chemin de découverte s'inverse — on bascule
+  // un support en « Distribuant », et le bouton apparaît.
+  //
+  // 🔴 L'EXCEPTION, ET ELLE N'EST PAS COSMÉTIQUE : on garde le bouton quand on ÉDITE
+  // un dividende existant. Sinon un dividende saisi avant que son support ne
+  // redevienne capitalisant deviendrait **impossible à modifier** — on amputerait la
+  // correction d'une opération qui existe.
+  const editeUnDividende = editing && (initial.type === 'dividend');
+  const dividendePossible = distributingEtfs.length > 0 || editeUnDividende;
+
   // Détermine si le sous-ensemble de supports actuel est compatible avec l'op
-  const etfsForType = opType === 'dividend' ? distributingEtfs : (data.etfs || []);
+  // ⚠️ En édition d'un dividende, le support de l'opération est AJOUTÉ à la liste
+  // même s'il ne distribue plus : sans lui la liste serait vide et l'exception
+  // ci-dessus serait creuse — bouton visible, mais plus aucun support à choisir.
+  const etfsForType = opType === 'dividend'
+    ? (editeUnDividende && initial.etf && !distributingEtfs.find(e => e.id === initial.etf)
+      ? [...distributingEtfs, ...(data.etfs || []).filter(e => e.id === initial.etf)]
+      : distributingEtfs)
+    : (data.etfs || []);
   // Si le support sélectionné n'est plus dans la liste filtrée, on bascule sur le premier
   useEffect(() => {
     if (etfsForType.length > 0 && !etfsForType.find(e => e.id === etf)) {
@@ -985,7 +1070,10 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
     { id: 'gift',       label: 'Réception',  icon: 'gift',      color: '#ec4899',      bg: '#fdf2f8',              desc: 'Cadeau, parrainage' },
     { id: 'dividend',   label: 'Dividende',  icon: 'coin',      color: COLORS.info,    bg: 'var(--info-light)',    desc: 'Cash perçu' },
     { id: 'fee',        label: 'Frais',      icon: 'receipt',   color: COLORS.muted,   bg: '#f1f5f9',              desc: 'Frais de tenue de compte' },
-  ];
+    // ⚠️ Le filtre est posé ICI, sur la liste, et non par un `display: none` dans le
+    // rendu : une cellule masquée en CSS occuperait quand même sa place dans la
+    // grille, donc la cellule orpheline resterait et les 62 px seraient perdus.
+  ].filter(t => t.id !== 'dividend' || dividendePossible);
 
   const submit = (e) => {
     e.preventDefault();
@@ -1044,7 +1132,9 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
                       : opType === 'withdrawal' ? 'Montant retiré (€)'
                       : opType === 'fee' ? 'Montant des frais (€)'
                       : 'Montant (€)';
-  const dividendNoEtf  = opType === 'dividend' && distributingEtfs.length === 0;
+  // ⚠️ `dividendNoEtf` A DISPARU le 13/08/2026, avec le panneau ambre et le bouton
+  // grisé qu'il gouvernait : « Dividende » n'est plus proposé quand aucun support ne
+  // distribue, donc cet état n'est plus atteignable. Cf. `dividendePossible`.
   // 🔴 RÈGLE DU CHAMP PORTEUR (arbitrage de l'utilisateur, 10/08/2026). Ce
   // formulaire N'A PAS DE LIBELLÉ — ni champ, ni état : le montant y est donc le
   // SEUL porteur d'information, et il devient obligatoire. Ce n'est pas une règle
@@ -1054,18 +1144,15 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
   // c'est ce que dit `needsAmount` juste au-dessus. Les 7 types affichent bien un
   // montant à l'écran ; c'est la variable derrière qui change. Une garde écrite sur
   // `amount` seul laisserait « Réception » grisé EN PERMANENCE.
-  // ⚠️ Exclu quand `dividendNoEtf` : le champ montant n'est alors même pas rendu, le
-  // bouton est déjà grisé, et son bandeau orange explique déjà quoi faire. Ajouter
-  // une seconde phrase contredirait la première.
   // Nom du champ montant, ARTICULÉ pour entrer dans « … est obligatoire. » : les
   // libellés d'écran sont sans article (« Montant reçu »), et « Réception » a un
   // féminin (« La valeur de marché… »). Sans ça la phrase serait bancale.
   const nomDuMontant = needsAmount
     ? 'Le ' + amountLabel.replace(/\s*\(€\)\s*$/, '').toLowerCase()
     : 'La valeur de marché à la réception';
-  const montantVide = !dividendNoEtf && (needsAmount
+  const montantVide = needsAmount
     ? (parseFloat(amount) || 0) === 0
-    : (parseFloat(marketValue) || 0) === 0);
+    : (parseFloat(marketValue) || 0) === 0;
 
   return (
     <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1103,7 +1190,7 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
       <div><label className="label">Date</label><DateInputPicker value={date} onChange={setDate} /></div>
 
       {/* Support — pour tous sauf deposit */}
-      {needsEtf && !dividendNoEtf && (
+      {needsEtf && (
         <div>
           <label className="label">Support</label>
           <select value={etf} onChange={e => setEtf(e.target.value)} className="input" required>
@@ -1130,15 +1217,8 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
         </div>
       )}
 
-      {/* Message d'erreur quand pas de support distribuant */}
-      {dividendNoEtf && (
-        <div style={{ padding: 12, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, fontSize: 13, color: '#9a3412' }}>
-          Aucun support distribuant configuré dans cette enveloppe. Pour saisir un dividende, ouvre <strong>Réglages</strong> et bascule au moins un support en "Distribuant".
-        </div>
-      )}
-
       {/* Montant — pour deposit / purchase / dividend / sale */}
-      {needsAmount && !dividendNoEtf && (
+      {needsAmount && (
         <div>
           <label className="label">{amountLabel}</label>
           <AmountInput value={amount} onChange={(n) => setAmount(n)} className="input" placeholder="0.00" />
@@ -1165,7 +1245,7 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
       )}
 
       <div className="form-actions" style={{ marginTop: 4 }}>
-        <button type="submit" className="btn btn-accent btn-lg" disabled={dividendNoEtf}>
+        <button type="submit" className="btn btn-accent btn-lg">
           {editing ? 'Modifier' : 'Enregistrer'}
         </button>
         {editing && onDelete && (
@@ -1280,6 +1360,17 @@ function UpdateAllValuesModal({ ctx, onClose }) {
     return ((p.data && p.data.etfs) || []).reduce((a, e) => a + (Number(cur[e.id]) || 0), 0);
   };
   const totalGeneral = ordonnees.reduce((a, p) => a + sousTotal(p), 0);
+  // 🔴 LE DELTA DU TOTAL GÉNÉRAL (13/08/2026, demande de l'utilisateur) : les
+  // sous-totaux montraient le leur, le total général non — donc l'écran disait de
+  // combien chaque enveloppe bougeait, mais pas de combien le patrimoine investi
+  // bougeait en tout.
+  // ⚠️ Il s'affiche dès qu'une enveloppe est modifiée, et NON quand le delta est non
+  // nul : c'est la règle déjà en place sur les sous-totaux, et elle porte une
+  // information de plus — deux enveloppes qui bougent de +X et −X donnent « +0.00 € »,
+  // ce qui dit « ça a changé, mais le total n'a pas bougé ». Aligner les deux règles
+  // évite surtout qu'un lecteur cherche pourquoi l'un s'affiche et l'autre pas.
+  const totalGeneralInitial = ordonnees.reduce((a, p) => a + sousTotalInitial(p), 0);
+  const deltaGeneral = r2(totalGeneral - totalGeneralInitial);
 
   const enregistrer = async () => {
     if (busy) return;
@@ -1321,7 +1412,11 @@ function UpdateAllValuesModal({ ctx, onClose }) {
   // permanence. C'est là que le motif se décidera pour de bon.*
   const actions = (
     <div className="maj-actions">
-      <div className="maj-total"><span>Total général</span><b className="num">{fmt(totalGeneral)} €</b></div>
+      {/* ⚠️ Delta AVANT le montant, comme sur les lignes et les sous-totaux depuis le
+          13/08/2026 : « pour que les deltas soient toujours avant » (utilisateur). */}
+      <div className="maj-total"><span>Total général</span>
+        <b className="num">{modifiees.length > 0 && <DeltaMontant valeur={deltaGeneral} />}{fmt(totalGeneral)} €</b>
+      </div>
       {/* Note PERMANENTE — indépendante de l'état du bouton, donc sans mouvement.
           ⚠️ AU-DESSUS du bouton depuis le 11/08/2026 : c'est l'ordre des autres
           modales de l'app (on lit la condition, puis on agit), et le bouton
@@ -1389,14 +1484,14 @@ function UpdateAllValuesModal({ ctx, onClose }) {
                     <input className="input num" inputMode="decimal" enterKeyHint="next"
                       value={valeurAffichee(p, e)}
                       onChange={(ev) => setChamp(p.id, e.id, ev.target.value)}
-                      onFocus={(ev) => { const t = ev.target; setTimeout(() => { try { t.select(); } catch (_) {} }, 0); }} />
+                      onFocus={selectionnerAuFocus} />
                   </div>
                 ))}
                 {!etfs.length && <div className="maj-vide">Aucun support</div>}
                 {!!etfs.length && (
                   <div className="maj-sous-total">
                     <span>Sous-total</span>
-                    <b className="num">{fmt(sousTotal(p))} €{deltaNode}</b>
+                    <b className="num">{deltaNode}{fmt(sousTotal(p))} €</b>
                   </div>
                 )}
               </div>
@@ -1487,7 +1582,7 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange, showToast }) {
               className="input num" inputMode="decimal"
               value={valeurAffichee(e)}
               onChange={(ev) => setSaisie(prev => ({ ...prev, [e.id]: nettoyerMontant(ev.target.value) }))}
-              onFocus={(ev) => { const t = ev.target; setTimeout(() => { try { t.select(); } catch (_) {} }, 0); }}
+              onFocus={selectionnerAuFocus}
             />
           </div>
         ))}
@@ -1504,8 +1599,8 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange, showToast }) {
         {!!(data.etfs || []).length && (
           <div className="maj-sous-total">
             <span>Total des supports</span>
-            <b className="num">{fmt(totalSupports)} €
-              {change && <DeltaMontant valeur={deltaSupports} />}
+            <b className="num">
+              {change && <DeltaMontant valeur={deltaSupports} />}{fmt(totalSupports)} €
             </b>
           </div>
         )}
@@ -1610,5 +1705,799 @@ function HistoryOpsTable({ stats, data, onEdit, onDelete }) {
         );
       })}
     </div>
+  );
+}
+
+// ============================================================
+//  CALCULER UN VERSEMENT (12/08/2026) — spec §2.5
+// ============================================================
+// Cette fenêtre porte sa propre <Modal>, comme la mise à jour groupée et pour
+// la même raison : la synthèse dérive de la saisie en cours, la remonter par
+// callback obligerait à poser un state pendant un rendu (§10).
+//
+// 🔴 CHAMPS CONTRÔLÉS EN CHAÎNE, PAS `AmountInput` — même règle que les deux
+// fenêtres de valorisation. Ici un prix VIDE a un sens précis : le support sort
+// du calcul et se voit listé comme exclu (spec §2.8). `AmountInput` le
+// transformerait en 0 à la sauvegarde, donc en « prix nul » — un plan
+// silencieusement faux au lieu d'un support explicitement écarté.
+//
+// 🔴 RIEN N'EST ÉCRIT AVANT LE BOUTON : tout le corps est un brouillon local,
+// et il n'est PAS persisté. Un brouillon repris trois jours plus tard rejouerait
+// des prix périmés en donnant l'illusion d'un plan à jour.
+//
+// ⚠️ Le calcul lui-même vit dans `compute.js` (`computeContributionPlan`),
+// fonction pure et testée. Ne rien recalculer ici : une condition laissée dans
+// une vue est hors couverture du harnais.
+function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast }) {
+  const etfs = data.etfs || [];
+  // 🔴 DEUX ÉTAPES (maquette `versement-design-3a`, 12/08/2026) : on relève les
+  // valeurs et les prix, on les VALIDE — les valeurs sont alors écrites en base —
+  // puis on répartit. Motif : la première fenêtre mélangeait un relevé et un
+  // calcul, et sur téléphone elle défilait sans fin.
+  const [etape, setEtape] = useState(1);
+  // 🔴 « L'ÉTAPE 1 A ÉTÉ VALIDÉE » EST UN FAIT, PAS UNE POSITION — relevé par
+  // l'utilisateur le 13/08/2026 : « quand on retourne sur Valeurs, pourquoi la
+  // coche disparaît ? ». Elle se lisait `etape === 2`, c'est-à-dire « je suis à
+  // l'étape 2 » et non « l'étape 1 est faite » — donc revenir en arrière
+  // l'éteignait alors que les valeurs étaient bel et bien ÉCRITES en base.
+  // ⚠️ Cet état ne se remet jamais à faux : une écriture ne se dé-fait pas, et
+  // fermer à l'étape 2 laisse les valeurs enregistrées (décision du 12/08/2026).
+  // C'est `valeursAJour` plus bas qui décide de MONTRER la coche.
+  const [valeursValidees, setValeursValidees] = useState(false);
+  // 🔴 LE VERSEMENT NAÎT À « 0 » — proposition de l'utilisateur du 13/08/2026, et elle
+  // répare une incohérence : le champ était **vide et sans placeholder**, alors que la
+  // carte d'assiette juste à côté annonce « 0.00 € versés ». Deux affichages pour un
+  // même état. ⚠️ Le PLAN ne change pas d'un iota : `valeurSaisie('')` et
+  // `valeurSaisie('0')` donnent tous deux 0, c'est donc purement ce qu'on montre.
+  // ⚠️ Et un versement à 0 n'écrit rien : `enregistrer` ne crée l'opération `deposit`
+  // que si le montant est > 0. Aucun risque de déposer un versement nul.
+  const [versement, setVersement] = useState('0');
+  const [valeurs, setValeurs] = useState({});
+  // 🔴 LES PRIX NE SONT PAS PERSISTÉS — décision du 12/08/2026, et c'est plus sûr
+  // que ce que prévoyait la spec §2.6. Elle les mémorisait pour ouvrir sur un plan
+  // tout prêt, au prix de ce qu'elle nommait elle-même « le principal risque
+  // d'erreur silencieuse de tout l'écran » : un prix périmé pré-rempli, validé sans
+  // être vu. Ne rien mémoriser fait DISPARAÎTRE le risque au lieu de le signaler.
+  // ⚠️ Ne pas relire `etf.lastUnitPrice` ici : le champ existe encore en base
+  // (écrit par la v991) mais il n'est plus ni lu ni écrit.
+  const [prix, setPrix] = useState({});
+  // 🔴 DEUX ÉTATS SÉPARÉS, ET C'EST LE CŒUR DU PIÈGE. Les quantités forcées sont
+  // des NOMBRES (des parts, entières) ; les montants payés sont des CHAÎNES.
+  // Écrit d'abord en stockant le montant parsé, ce qui rendait la virgule
+  // INTAPABLE : « 284, » se parsait en 284, se réaffichait « 284 », et le
+  // séparateur disparaissait à l'instant où on le tapait. Relevé par
+  // l'utilisateur. La chaîne reste la chaîne, on ne parse QU'À L'USAGE.
+  const [qtysForcees, setQtysForcees] = useState({});
+  const [coutsSaisis, setCoutsSaisis] = useState({});
+  const [busy, setBusy] = useState(false);
+
+  // Affichage : la saisie si elle existe, sinon la donnée. On ne pré-remplit pas
+  // le state, sinon tout paraîtrait « modifié » dès l'ouverture.
+  const valeurAffichee = (e) => {
+    if (valeurs[e.id] !== undefined) return valeurs[e.id];
+    const v = (data.currentValues || {})[e.id];
+    return v === undefined || v === null ? '' : String(v);
+  };
+  const prixAffiche = (e) => (prix[e.id] === undefined ? '' : prix[e.id]);
+  const aUneCible = (e) => !(e.target === null || e.target === undefined || e.target === '' || Number(e.target) === 0);
+
+  const supports = etfs.map((e) => ({
+    id: e.id,
+    value: valeurSaisie(valeurAffichee(e)) || 0,
+    price: valeurSaisie(prixAffiche(e)) || 0,
+    // ⚠️ `target` non fixée = `null`, et 0 est une VALEUR : un support à 0 %
+    // reste dans le périmètre, avec un besoin nul.
+    target: (e.target === null || e.target === undefined || e.target === '') ? null : Number(e.target),
+  }));
+
+  // Les overrides passés au calcul : nombres seulement. Un montant vide vaut
+  // « pas d'override », donc retour au montant théorique — c'est ce qui permet
+  // de relâcher un montant forcé en effaçant le champ.
+  const over = {};
+  Object.keys(qtysForcees).forEach((id) => { over[id] = { qty: qtysForcees[id] }; });
+  Object.keys(coutsSaisis).forEach((id) => {
+    const v = valeurSaisie(coutsSaisis[id]);
+    if (v !== null) over[id] = { ...(over[id] || {}), cost: v };
+  });
+
+  const plan = computeContributionPlan({
+    amount: valeurSaisie(versement) || 0,
+    cash: stats.cashRemaining,
+    supports,
+    overrides: over,
+  });
+
+  const etfDe = (id) => etfs.find((e) => e.id === id) || {};
+  const ajustements = plan.steps.filter((s) => s.qtyAdjusted || s.costForced).length;
+  const cibleTotale = plan.targetSum;
+  const moinsCher = plan.steps.length ? Math.min(...plan.steps.map((s) => s.price)) : 0;
+  const ecartMax = plan.steps.reduce((m, s) => Math.max(m, Math.abs(s.gapPts)), 0);
+
+  const totalSaisi = r2(etfs.reduce((a, e) => a + (valeurSaisie(valeurAffichee(e)) || 0), 0));
+  const totalStocke = r2(etfs.reduce((a, e) => a + (Number((data.currentValues || {})[e.id]) || 0), 0));
+  const deltaValeurs = r2(totalSaisi - totalStocke);
+
+  // 🔴 « QU'EST-CE QUI A RÉELLEMENT CHANGÉ » PASSE PAR `enveloppesModifiees` —
+  // pas par une comparaison réécrite ici. Le §10 est formel : cette décision est
+  // une fonction pure de `compute.js`, verrouillée par 21 tests, et « ne pas la
+  // réinliner dans un composant » — une condition laissée dans le JSX est hors
+  // couverture du harnais. Cette fenêtre en est le TROISIÈME appelant, après les
+  // deux fenêtres de valorisation.
+  // ⚠️ Elle attend une LISTE d'enveloppes et une saisie indexée par leur id ;
+  // ici il n'y en a qu'une et le composant ne reçoit pas son id (seulement son
+  // `data`), d'où cette clé locale — elle ne sert qu'à apparier les deux maps.
+  // ⚠️ `currentValues` renvoyé est la map COMPLÈTE à écrire : les supports non
+  // touchés y gardent leur valeur, sinon l'écriture les effacerait.
+  const CLE = 'enveloppe';
+  const modifiees = enveloppesModifiees([{ id: CLE, data }], { [CLE]: valeurs });
+  const valeurModifiee = modifiees.length > 0;
+  // Ce que la coche dit : « les valeurs affichées sont celles de la base ».
+  // 🔴 Elle S'ÉTEINT dès qu'on retouche une valeur, et se rallume à l'écriture —
+  // arbitrage du 13/08/2026. Une coche qu'on ne peut plus éteindre cesse d'être un
+  // signal (même dérive que le garde-fou TR corrigé en v621).
+  const valeursAJour = valeursValidees && !valeurModifiee;
+
+  const aSaisi = etape === 1
+    ? (Object.keys(valeurs).length > 0 || Object.keys(prix).length > 0)
+    // 🔴 COMPARAISON NUMÉRIQUE, ET NON `versement !== ''`. Le champ naissant à « 0 »,
+    // la garde d'origine aurait tenu la fenêtre pour MODIFIÉE dès l'arrivée à l'étape 2,
+    // et fermer aurait toujours demandé confirmation — le défaut exact que le §10 décrit
+    // (« sans ça, ouvrir la modale marque modifié d'emblée »).
+    // ⚠️ C'est aussi la règle du 10/08 : un montant ne se compare JAMAIS à `''`, `''` et
+    // `0` doivent compter comme ÉGAUX. Les deux formes valent donc « rien saisi ».
+    : ((parseFloat(versement) || 0) !== 0
+      || Object.keys(qtysForcees).length > 0 || Object.keys(coutsSaisis).length > 0);
+
+  // Toucher −/+ RELÂCHE le montant forcé de la ligne : sinon on garderait un
+  // montant qui ne correspond plus du tout à la quantité affichée (spec §2.6).
+  // 🔴 UN `+` PUIS UN `−` NE LAISSE PLUS D'ÉPINGLE — règle posée par l'utilisateur le
+  // 14/08/2026 (« c'est chelou, non ? »), et il avait raison : finir verrouillé sur une
+  // valeur qu'on n'a pas quittée est un état que personne n'a demandé, alors qu'il
+  // retire la ligne de la cascade.
+  // ⚠️ Toute la décision vit dans `epingleNecessaire` (`compute.js`), PURE et testée :
+  // ici il ne reste que la pose. Le §10 est formel — une condition laissée dans le JSX
+  // est hors couverture du harnais, et celle-ci RETIRE un ajustement.
+  // ⚠️ Le nombre affiché est le même dans les deux branches, `epingleNecessaire` ne
+  // renvoyant `false` que lorsque épingler ou non donne le même résultat : rien ne peut
+  // bouger sous le doigt (cf. v1002).
+  const poserQty = (id, q) => {
+    const propre = Math.max(0, Math.floor(Number(q) || 0));
+    const params = {
+      amount: valeurSaisie(versement) || 0,
+      cash: stats.cashRemaining,
+      supports,
+      overrides: over,
+    };
+    // 🔴 LES DEUX APPUIS QUI NE PEUVENT RIEN FAIRE S'ANNONCENT — demande de
+    // l'utilisateur du 14/08/2026. ⚠️ Il proposait de rendre le bouton NON CLIQUABLE
+    // avec un message au clic : les deux s'excluent, un élément `disabled` ne peut pas
+    // être tapé (§10, motif de l'abandon du bouton grisé le 10/08). Le bouton reste
+    // donc actif et le refus passe par un toast, ce qui est la doctrine en vigueur.
+    if (q < 0) return refuser(showToast, REFUS.partsNegatives);
+    // ⚠️ Vient APRÈS le plancher et AVANT la pose : depuis que l'épingle est une
+    // contrainte dure, une quantité qu'aucun plan ne peut honorer doit être refusée
+    // plutôt que rabotée en silence.
+    if (!quantiteHonorable(params, id, propre)) return refuser(showToast, REFUS.partDePlusImpossible);
+    const garder = epingleNecessaire(params, id, propre);
+    setQtysForcees((o) => {
+      const n = { ...o };
+      if (garder) n[id] = propre; else delete n[id];
+      return n;
+    });
+    setCoutsSaisis((c) => { const n = { ...c }; delete n[id]; return n; });
+  };
+  // ⚠️ On garde la CHAÎNE telle quelle — pas de parsing ici, sinon la virgule
+  // devient intapable (voir le commentaire des états plus haut).
+  const poserCost = (id, brut) => setCoutsSaisis((c) => ({ ...c, [id]: nettoyerMontant(brut) }));
+
+  // SOURCE UNIQUE du texte : deux gestes annulent les ajustements (revenir aux
+  // valeurs, changer le versement), même conséquence donc même phrase.
+  // ⚠️ Le toast ne part QUE s'il y avait quelque chose à annuler — sans quoi
+  // changer le versement en parlerait à chaque caractère tapé. Dès la première
+  // frappe il n'y a plus rien, donc une seule annonce.
+  const oublierLesAjustements = () => {
+    if (ajustements > 0) {
+      showToast(`${ajustements} ajustement${ajustements > 1 ? 's' : ''} annulé${ajustements > 1 ? 's' : ''} : les propositions seront recalculées.`, 'info', DUREE_REFUS);
+    }
+    setQtysForcees({}); setCoutsSaisis({});
+  };
+
+  // 🔴 « RÉINITIALISER » DEMANDE CONFIRMATION, et la note sous le bouton a disparu
+  // avec ce changement (13/08/2026, proposition de l'utilisateur : « il faut
+  // comprendre que c'est lié au bouton… peut-être qu'on pourrait supprimer ça et
+  // afficher une demande de confirmation avec cette information »).
+  // **Deux défauts dans la note, et il avait raison sur les deux** : elle obligeait à
+  // DEVINER à quoi elle se rattachait, et comme elle vivait dans le bloc conditionné
+  // par `ajustements > 0`, elle apparaissait et disparaissait — donc **elle faisait
+  // bouger la fenêtre**. C'est exactement le grief qui a fait abandonner le bouton
+  // grisé le 10/08 (§10).
+  // ⚠️ **Une confirmation ici n'est PAS une entorse à la doctrine du toast.** Le
+  // projet a remplacé ses REFUS par des toasts, mais il confirme toujours la perte
+  // d'une saisie non enregistrée : c'est ce que fait le garde-fou de `Modal`
+  // (« Des modifications n'ont pas été enregistrées et seront perdues. »), sans
+  // qu'aucune écriture soit en jeu. Réinitialiser détruit la même chose — du travail
+  // fait à la main.
+  // ⚠️ Et cette information est une **réassurance AVANT d'agir**, pas un constat
+  // après : un toast (la voie des deux autres chemins d'annulation) arriverait trop
+  // tard pour servir à quelque chose.
+  // ⚠️ Forme calée sur le garde-fou existant : énoncé, ligne vide, question.
+  const reinitialiser = () => {
+    const n = ajustements;
+    const phrase = n > 1
+      ? `Les ${n} ajustements seront annulés et les propositions recalculées.`
+      : "L'ajustement sera annulé et les propositions recalculées.";
+    if (!window.confirm(`${phrase}\n\nLe versement et les valeurs sont conservés.\n\nRéinitialiser ?`)) return;
+    setQtysForcees({}); setCoutsSaisis({});
+  };
+
+  // 🔴 CHANGER LE VERSEMENT REMET TOUTES LES RÉPARTITIONS À ZÉRO — demande de
+  // l'utilisateur du 13/08/2026, et la sonde a montré que l'état d'avant était
+  // PIRE qu'une remise à zéro plutôt que plus conservateur :
+  //  • une quantité forcée est rabotée en silence par le plafond d'achetable dès
+  //    que l'assiette rétrécit — mesuré, « PUST = 3 parts » s'affichait à 2 à
+  //    200 € de versement, ET l'étiquette « quantité ajustée » disparaissait avec,
+  //    donc plus aucune trace à l'écran que l'ajustement avait existé ;
+  //  • un MONTANT payé forcé, lui, survit tel quel et fait exploser les autres
+  //    lignes — mesuré à cibles constantes, WPEA passait de 0 à 53 parts entre
+  //    1 000 € et 2 000 € de versement.
+  // ⇒ Un ajustement a été choisi contre une assiette donnée : elle change, il ne
+  // veut plus rien dire. On l'annule, et on le DIT.
+  // 🔴 VIDER LE CHAMP Y REMET « 0 » (13/08/2026) : il ne peut plus être vide, donc
+  // l'écran ne montre jamais d'état indéterminé.
+  // ⚠️ ET LE GARDE-FOU QUI VA AVEC, sans quoi la règle ci-dessus se retournerait contre
+  // l'utilisateur : sur un champ affichant « 0 », une touche d'effacement produirait de
+  // nouveau « 0 » — une frappe SANS EFFET — et elle aurait pourtant annulé tous les
+  // ajustements au passage. On sort donc si la valeur propre est inchangée.
+  // ⚠️ Le retour à l'étape 1 puis à l'étape 2 ne passe pas par ici : `versement` est un
+  // état du composant, qui reste monté. Il est donc CONSERVÉ — vérifié au navigateur, et
+  // c'est ce que promet déjà le toast « le versement et les valeurs sont conservés ».
+  const poserVersement = (brut) => {
+    const propre = nettoyerMontant(brut) || '0';
+    if (propre === versement) return;
+    oublierLesAjustements();
+    setVersement(propre);
+  };
+
+  // ---- Étape 1 → 2 : on ÉCRIT les valeurs, puis on répartit -----------------
+  const validerLesValeurs = async () => {
+    if (busy) return;
+    const avecCible = etfs.filter(aUneCible);
+    const sansPrix = avecCible.filter((e) => (valeurSaisie(prixAffiche(e)) || 0) <= 0);
+    // Refus DUR seulement s'il n'y a rien à répartir : sans un seul prix, il n'y
+    // a pas de plan possible.
+    if (sansPrix.length === avecCible.length) {
+      return refuser(showToast, REFUS.prixObligatoire);
+    }
+    // Le passage à l'étape 2, commun aux deux voies (avec ou sans écriture).
+    const passerALaRepartition = () => {
+      // Les valeurs sont en base : le brouillon local n'a plus lieu d'être.
+      setValeurs({});
+      setValeursValidees(true);
+      setEtape(2);
+      // ⚠️ Prévenir quand une part ne sera pas servie : la maquette l'annonce
+      // ainsi, et c'est un CONSTAT (toast neutre), pas une faute à corriger.
+      if (sansPrix.length) {
+        showToast(REFUS.partRedistribuee(sansPrix.map((e) => supportName(e)).join(', ')), 'info', DUREE_REFUS);
+      }
+    };
+    // 🔴 AUCUNE ÉCRITURE SI AUCUNE VALEUR N'A CHANGÉ (13/08/2026). Avant, valider
+    // l'étape 1 écrivait TOUJOURS — donc traverser la fenêtre sans rien toucher
+    // renvoyait les valeurs telles qu'elles étaient à l'OUVERTURE.
+    // ⚠️ Ce que ça règle, et ce que ça ne règle PAS : le backlog note qu'une
+    // valorisation mise à jour ailleurs entre-temps serait écrasée par ce renvoi.
+    // Ne pas écrire quand rien n'a changé ferme le cas le plus probable — celui où
+    // l'on ne fait que passer — mais pas le cas général : retoucher UNE valeur
+    // renvoie encore les autres. Le vrai correctif reste « n'écrire que les valeurs
+    // réellement modifiées », et il n'est pas dans ce lot.
+    // ⚠️ Le garde-fou du prix reste DEVANT : « rien à écrire » ne veut pas dire
+    // « rien à vérifier ».
+    if (!valeurModifiee) return passerALaRepartition();
+    setBusy(true);
+    // 🔴 LA DATE NE BOUGE QUE SI UNE VALEUR A RÉELLEMENT CHANGÉ — `currentValuesDate`
+    // a UN SEUL sens depuis le 09/08/2026 (§10), « date de la dernière saisie
+    // réelle ». Ici on est justement dans la branche où elle a changé.
+    // ⚠️ Firestore refuse `undefined` : si le champ n'existe pas, ne pas l'écrire.
+    const dateValo = todayIso();
+    const ok = await onSubmit({
+      ...data, currentValues: modifiees[0].currentValues,
+      ...(dateValo === undefined ? {} : { currentValuesDate: dateValo }),
+    });
+    setBusy(false);
+    if (!ok) return;
+    passerALaRepartition();
+  };
+
+  const revenirAuxValeurs = () => {
+    // 🔴 Les ajustements sont ANNULÉS au retour, et on le DIT. Les garder serait
+    // pire que les perdre : ils ont été choisis contre un plan qui n'existe plus
+    // dès qu'une valeur ou un prix bouge, et rien ne le signalerait.
+    oublierLesAjustements();
+    setEtape(1);
+  };
+
+  // L'onglet « 2 · Répartition ». 🔴 C'ÉTAIT UN `<span>` INERTE, donc un clic sans
+  // effet ni explication — relevé par l'utilisateur le 13/08/2026 : « pourquoi on
+  // ne peut pas repartir sur Répartition en cliquant sur l'onglet ? ».
+  // ⚠️ Le refus passe par un TOAST et non par un onglet grisé : doctrine du
+  // 10/08/2026 (§10), « le bouton grisé est abandonné ». Un onglet inerte était le
+  // pire des deux — ni état lisible, ni message.
+  //
+  // 🔴 L'INVARIANT, POSÉ PAR L'UTILISATEUR LE 13/08/2026 :
+  //        « l'onglet 2 ne se franchit que lorsque l'onglet 1 porte une coche »
+  // Donc la garde est `valeursAJour`, et NON `valeursValidees`. La première version
+  // ne refusait que si l'étape 1 n'avait JAMAIS été validée : une valeur retouchée
+  // puis un clic sur l'onglet ÉCRIVAIT la retouche au passage. Relevé par
+  // l'utilisateur, qui s'étonnait de ne pas voir de confirmation — et il avait
+  // raison de s'étonner, pour une raison de plus que celle qu'il croyait : rien
+  // n'était perdu, mais **un contrôle de NAVIGATION mutait la base sans le dire**.
+  // Un onglet libellé « 2 · Répartition » n'annonce pas « enregistrer mes valeurs ».
+  // ⇒ Le geste qui écrit est le BOUTON, qui porte le mot « Valider ». L'onglet ne
+  // fait que se déplacer, ou refuser.
+  // ⚠️ Effet de bord voulu : la coche devient ACTIONNABLE — éteinte, elle explique
+  // pourquoi l'onglet ne passe pas, au lieu de n'être qu'un ornement d'avancement.
+  // ⚠️ On passe quand même par `validerLesValeurs` et non par un `setEtape(2)` direct,
+  // car elle porte le garde-fou du prix (« aucun prix saisi » doit refuser ici aussi)
+  // et l'avertissement de redistribution. Dans cette branche `valeurModifiee` est
+  // faux par construction, donc elle prend sa voie SANS écriture — vérifié.
+  const allerALaRepartition = () => {
+    if (!valeursAJour) return refuser(showToast, REFUS.valeursAValider);
+    validerLesValeurs();
+  };
+
+  const enregistrer = async () => {
+    if (busy) return;
+    const achats = plan.steps.filter((s) => s.qty > 0);
+    if (!achats.length) return refuser(showToast, REFUS.aucuneQuantite);
+    setBusy(true);
+    const montantVersement = valeurSaisie(versement) || 0;
+    const ops = [...(data.operations || [])];
+    if (montantVersement > 0) {
+      // ⚠️ Le `deposit` porte le VERSEMENT SEUL, jamais l'assiette : le cash non
+      // investi était déjà dans l'enveloppe, le compter deux fois gonflerait le
+      // « versé » d'un argent déjà versé (spec §2.7).
+      ops.push({ id: uid(), type: 'deposit', date: todayIso(), amount: r2(montantVersement) });
+    }
+    const valeursFinales = { ...(data.currentValues || {}) };
+    achats.forEach((s) => {
+      ops.push({ id: uid(), type: 'purchase', date: todayIso(), etf: s.id, amount: r2(s.cost) });
+      // Convention d'`AddOperationForm` : un achat GONFLE la valorisation.
+      valeursFinales[s.id] = r2((Number(valeursFinales[s.id]) || 0) + s.cost);
+    });
+    // ⚠️ Pas de `currentValuesDate` ici : les valeurs ont déjà été relevées (et
+    // datées si besoin) à l'étape 1. Le gonflement mécanique d'un achat n'est pas
+    // un relevé — `AddOperationForm` ne la touche pas davantage.
+    const ok = await onSubmit({ ...data, operations: ops, currentValues: valeursFinales });
+    setBusy(false);
+    if (!ok) return;
+    showToast(`Versement enregistré · ${achats.length} achat${achats.length > 1 ? 's' : ''}`, 'success');
+    onClose();
+  };
+
+  const rienASaisir = !etfs.length;
+  // La coche de l'étape franchie. ⚠️ Sa couleur et son épaisseur sont dans
+  // `styles.css` (`.cp-seg-item svg`) et non ici : `Icon` fixe `strokeWidth: 2`
+  // en attribut, et seule une déclaration CSS peut porter le 3 du balisage.
+  const coche = valeursAJour ? <Icon name="check" size={13} /> : null;
+
+  return (
+    <Modal title="Calculer un versement" size="lg" dirty={aSaisi} onClose={onClose}>
+      {rienASaisir && (
+        <EmptyState icon="percent" title="Aucun support à répartir"
+          hint="Ajoute un support et fixe sa cible dans les Réglages de l'enveloppe." />
+      )}
+
+      {/* ⚠️ Intervalle CONSTANT entre les blocs (`.cp-corps`) : c'est le rythme
+          de la maquette. Sans lui, chaque bloc gère sa marge et elles divergent. */}
+      {!rienASaisir && (
+        <div className="cp-corps">
+          {/* ---- le sélecteur d'étapes ----
+              Pastille segmentée, comme la maquette : deux moitiés dans un rail
+              gris, l'active en sombre. ⚠️ En portrait elle prend TOUTE la largeur
+              et les deux moitiés sont égales — c'est ce que montre la version
+              iPhone, et un rail qui n'occupe que la moitié de l'écran y paraît
+              flotter. Une coche marque l'étape franchie. */}
+          {/* ⚠️ L'ACTIVE est un `<span>`, l'INACTIVE un `<button>` — et pas
+              l'inverse : `button.cp-seg-item` porte `cursor: pointer`, qui
+              mentirait sur la moitié où l'on est déjà. Chaque moitié n'est un
+              bouton que quand elle a réellement une action. */}
+          <div className="cp-onglets">
+            <div className="cp-seg">
+              {etape === 1 ? (
+                <span className="cp-seg-item cp-seg-item--actif">{coche}1 · Valeurs</span>
+              ) : (
+                <button type="button" className="cp-seg-item" onClick={revenirAuxValeurs}>
+                  {coche}1 · Valeurs
+                </button>
+              )}
+              {etape === 2 ? (
+                <span className="cp-seg-item cp-seg-item--actif">2 · Répartition</span>
+              ) : (
+                <button type="button" className="cp-seg-item" onClick={allerALaRepartition}>
+                  2 · Répartition
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ================= ÉTAPE 1 — les valeurs et les prix ================= */}
+          {etape === 1 && (
+            <>
+              {cibleTotale !== 100 && (
+                <div className="cp-cibles">
+                  Cibles à {fmt(cibleTotale)} % au total : {fmt(Math.min(100, cibleTotale))} % de l'assiette
+                  {' '}sera investie, le reste demeure en cash.
+                </div>
+              )}
+              {/* ⚠️ Ni cadre ni séparateurs de lignes : la maquette pose un simple
+                  jeu de colonnes, et le seul filet est celui du total. */}
+              <div className="cp-tableau">
+                <div className="cp-tableau-tete">
+                  <span />
+                  <span><span className="cp-th-long">Valeur actuelle (€)</span><span className="cp-th-court">Valeur</span></span>
+                  <span><span className="cp-th-long">Prix d'une part (€)</span><span className="cp-th-court">Prix</span></span>
+                </div>
+                {etfs.map((e) => {
+                  const saisie = valeurSaisie(valeurAffichee(e));
+                  const stockee = Number((data.currentValues || {})[e.id]) || 0;
+                  const delta = saisie === null ? 0 : r2(saisie - stockee);
+                  return (
+                    <div key={e.id} className="cp-tableau-ligne">
+                      <span className="cp-lbl">
+                        <span className="cp-pastille" style={{ background: e.color || COLORS.accent }} />
+                        <b>{supportName(e)}</b>
+                        <span className="cp-lbl-sec"><LibelleSupport etf={e} prefixe=" — " /></span>
+                        {/* Le delta se lit SUR LA LIGNE du support, pas seulement
+                            au total : c'est là qu'on vient de taper. */}
+                        {delta !== 0 && <DeltaMontant valeur={delta} />}
+                      </span>
+                      <input type="text" inputMode="decimal" className="input num" value={valeurAffichee(e)}
+                        onFocus={selectionnerAuFocus}
+                        onChange={(ev) => setValeurs((v) => ({ ...v, [e.id]: nettoyerMontant(ev.target.value) }))} />
+                      {aUneCible(e) ? (
+                        <input type="text" inputMode="decimal" className="input num" value={prixAffiche(e)}
+                          onFocus={selectionnerAuFocus}
+                          onChange={(ev) => setPrix((p) => ({ ...p, [e.id]: nettoyerMontant(ev.target.value) }))} />
+                      ) : (
+                        <span className="cp-sanscible">—</span>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="cp-tableau-total">
+                  <span>Total des supports</span>
+                  {/* ⚠️ Delta AVANT le montant (13/08/2026) — la même règle que les
+                      sous-totaux des deux fenêtres de valorisation : « pour que les
+                      deltas soient toujours avant, comme pour les lignes ».
+                      🔴 Relevé par l'utilisateur, qui a pensé à CET écran alors que sa
+                      demande portait sur les fenêtres de mise à jour : l'étape 1 fait le
+                      même travail, elle devait suivre la même règle.
+                      🔴 ET LA CONDITION EST ALIGNÉE ELLE AUSSI (13/08/2026) : `valeurModifiee`
+                      et non `deltaValeurs !== 0`. Les deux ne diffèrent que dans un cas —
+                      monter un support de +100 et en baisser un autre de −100 — mais c'est
+                      justement là que ça compte : « rien » laisserait croire qu'on n'a rien
+                      touché, alors que « +0.00 € » dit « ça a changé, et le total n'a pas
+                      bougé ». `valeurModifiee` vient de `enveloppesModifiees`, donc c'est
+                      littéralement la même sémantique que les deux autres fenêtres. */}
+                  <b className="num">{valeurModifiee && <DeltaMontant valeur={deltaValeurs} />}{fmt(totalSaisi)} €</b>
+                </div>
+              </div>
+
+              {/* Les supports sans cible : hors calcul, leur prix n'est pas demandé. */}
+              {etfs.filter((e) => !aUneCible(e)).map((e) => (
+                <div key={e.id} className="cp-exclu-ligne">
+                  <span className="cp-pastille" style={{ background: COLORS.subtle }} />
+                  <b>{supportName(e)}</b>
+                  <span>Aucune cible fixée · Réglages — hors calcul, son prix n'est pas demandé</span>
+                </div>
+              ))}
+
+              <div className="cp-note">
+                Le prix d'une part est demandé pour chaque support qui porte une cible non nulle.
+                La valorisation et sa date ne sont enregistrées que si une valeur a changé.
+              </div>
+              <button type="button" className="btn btn-accent btn-lg" disabled={busy} onClick={validerLesValeurs}>
+                {busy ? 'Enregistrement…' : 'Valider et continuer'}
+              </button>
+            </>
+          )}
+
+          {/* ================= ÉTAPE 2 — la répartition ================= */}
+          {etape === 2 && (
+            <>
+              {/* 🔴 LE BANDEAU « VALEURS ENREGISTRÉES » A ÉTÉ RETIRÉ le 13/08/2026, et
+                  le motif de l'utilisateur est imparable : « à chaque fois qu'on arrive
+                  sur Répartition, c'est forcément validé sur Valeurs ». Il annonçait donc
+                  une condition d'entrée dans l'étape, pas une information.
+                  ⚠️ En portrait il coûtait DEUX lignes, le bouton « ← Modifier » basculant
+                  sous le texte.
+                  🔴 **CE QU'IL PORTAIT AUSSI, ET QUI A DES REMPLAÇANTS — vérifié avant de
+                  le retirer, sans quoi on enfermerait l'utilisateur à l'étape 2** :
+                   • la coche « valeurs à jour » → la pastille d'étapes la porte déjà sur
+                     « 1 · Valeurs » ;
+                   • le total des supports → la carte « Assiette à répartir » donne ce qui
+                     compte pour décider, et la barre montre la répartition ;
+                   • **le retour** → l'onglet « 1 · Valeurs » appelle `revenirAuxValeurs`
+                     depuis la v1001. C'est le seul chemin restant : si l'onglet se révélait
+                     peu évident à l'usage, c'est ce bandeau qu'il faudrait remettre. */}
+              {/* 🔴 LE VERSEMENT D'ABORD, L'ASSIETTE ENSUITE — ordre inversé le
+                  13/08/2026 sur proposition de l'utilisateur, et il corrige un
+                  raisonnement FAUX que ce commentaire portait lui-même.
+                  Il disait : « l'assiette puis le versement, ça se lit de gauche à droite
+                  comme une addition ». C'est l'inverse — **l'assiette n'est pas un terme de
+                  l'addition, c'est la SOMME** (versement + cash non investi). On lisait donc
+                  le résultat avant sa cause.
+                  ⇒ Le nouvel ordre est celui de la CAUSE puis de l'EFFET : je saisis 890, et
+                  l'app me dit que l'assiette vaut 890,69 € en détaillant sa composition.
+                  ⚠️ **Et c'est en portrait que ça compte le plus** : les cartes s'y empilent,
+                  donc on rencontrait « Assiette 0,69 € » AVANT d'avoir rien saisi — un
+                  chiffre qui ne veut encore rien dire. Maintenant on tape, puis on voit la
+                  conséquence juste en dessous.
+                  ⚠️ Aucun CSS à changer : les deux cartes sont en `flex: 1`, donc inverser
+                  l'ordre du DOM suffit — à gauche en desktop, en premier en portrait.
+                  ⚠️ Écart assumé avec la maquette, qui pose l'assiette en premier. */}
+              <div className="cp-duo">
+                {/* ⚠️ Plus de `cp-carte--saisie` : la carte de saisie ne se teinte
+                    plus (13/08/2026). Le champ blanc bordé suffit à dire qu'on y
+                    tape — cf. le commentaire de `styles.css`. */}
+                <div className="cp-carte">
+                  <label className="cp-carte-lbl">Versement prévu (€)</label>
+                  <input type="text" inputMode="decimal" className="input num cp-versement" value={versement}
+                    onFocus={selectionnerAuFocus}
+                    onChange={(e) => poserVersement(e.target.value)} />
+                  {/* ⚠️ « 0 € répartit le cash seul » RETIRÉ le 13/08/2026 : c'est le
+                      comportement PAR DÉFAUT à l'ouverture — le champ naît vide, donc le
+                      plan répartit déjà le seul cash, et la carte d'assiette le montre en
+                      clair juste à côté (« 0 € versés + 0.69 € non investi »). */}
+                </div>
+                <div className="cp-carte">
+                  <div className="cp-carte-lbl">Assiette à répartir</div>
+                  <div className="cp-carte-val num">{fmt(plan.investissable)} €</div>
+                  <div className="cp-carte-detail">
+                    {fmt(valeurSaisie(versement) || 0)} € versés + {fmt(stats.cashRemaining)} € non investi dans l'enveloppe
+                    {plan.reserve > 0 && <> · <b className="num">{fmt(plan.reserve)} €</b> gardés en cash</>}
+                  </div>
+                </div>
+              </div>
+
+              {!!plan.steps.length && (
+                <div className="cp-barre-bloc">
+                  <div className="cp-barre-tete">
+                    <span>Répartition après versement</span>
+                    {/* ⚠️ « le trait blanc marque la cible » RETIRÉ le 13/08/2026
+                        (demande de l'utilisateur, desktop et téléphone) : sur un écran
+                        de 390 px cette légende touchait le bord droit.
+                        ⚠️ C'est la légende la MOINS devinable du lot, et il faut le
+                        savoir : contrairement aux couleurs de liseré, qu'on apprend en
+                        agissant (on touche `+`, la couleur apparaît), rien ne fait
+                        découvrir qu'un trait tombé DANS un segment signifie que le
+                        support dépasse sa cible. La remettre coûte une ligne. */}
+                  </div>
+                  {/* 🔴 Les repères sont posés aux positions de CIBLE cumulées, en
+                      absolu — et non au bord des segments. C'est ce qui rend
+                      l'écart lisible : le trait tombe DANS le segment quand le
+                      support dépasse, à l'extérieur quand il est en retard. */}
+                  <div className="cp-barre">
+                    {plan.steps.map((s) => (
+                      <div key={s.id} className="cp-barre-part"
+                        style={{ width: `${Math.max(0, s.pctAfter)}%`, background: etfDe(s.id).color || COLORS.accent }} />
+                    ))}
+                    {plan.steps.map((s, i) => {
+                      const cumul = plan.steps.slice(0, i + 1).reduce((a, x) => a + x.target, 0);
+                      return cumul >= 99.9 ? null
+                        : <span key={`c-${s.id}`} className="cp-barre-cible" style={{ left: `${cumul}%` }} />;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 🔴 UNE SEULE LISTE, CLÉS STABLES — deux listes faisaient CHANGER
+                  DE PARENT un support dès qu'on tapait son prix, React démontait
+                  l'`input` en cours de saisie et le focus mourait avec le nœud. */}
+              {[...plan.steps.map((s, i) => ({ id: s.id, step: s, rang: i })),
+                ...plan.excluded.map((x) => ({ id: x.id, reason: x.reason }))].map(({ id, step, rang, reason }) => {
+                const e = etfDe(id);
+                if (reason) {
+                  return (
+                    <div key={id} className="cp-exclu-ligne">
+                      <span className="cp-pastille" style={{ background: COLORS.subtle }} />
+                      <b>{supportName(e)}</b>
+                      <span>{reason === 'no-target' ? 'Aucune cible fixée · Réglages' : 'Prix manquant · sa part est allée aux autres'}</span>
+                    </div>
+                  );
+                }
+                // 🔴 DEUX LISERÉS EXCLUSIFS, ET L'INTERVENTION L'EMPORTE (13/08/2026,
+                // proposition de l'utilisateur, les trois candidates comparées dans
+                // l'app avant de trancher) : indigo PLEIN sur la ligne qu'on a forcée,
+                // indigo PÂLE sur celles que la cascade a déplacées.
+                // ⚠️ Une ligne peut cumuler les deux — un montant forcé fait `ajustee`,
+                // et l'ancrage peut laisser sa quantité différente de la proposition,
+                // donc `qtyRecalculee`. L'ordre du ternaire tranche : on marque
+                // l'intervention, jamais la conséquence.
+                // ⚠️ Ceci remplace la règle de la v999 (« ne pas étendre le liseré aux
+                // lignes recalculées ») : elle interdisait d'étendre l'indigo PLEIN, ce
+                // qu'on ne fait pas. Le §10 de `CLAUDE.md` porte la version à jour.
+                const ajustee = step.qtyAdjusted || step.costForced;
+                const marque = ajustee ? ' cp-etape--ajustee' : (step.qtyRecalculee ? ' cp-etape--cascade' : '');
+                return (
+                  <div key={id} className={`cp-etape${marque}`}>
+                    <div className="cp-tete">
+                      <span className="cp-pastille" style={{ background: e.color || COLORS.accent }} />
+                      <b className="cp-nom">{supportName(e)}</b>
+                      {/* 🔴 LA MIRE REMPLACE LE MOT « cible » (13/08/2026, proposition de l'utilisateur
+                          pour gagner de la place sur iPhone — appliqué aux DEUX plateformes).
+                          ⚠️ Ce qui a décidé le desktop : l'icône `target` est **déjà** le
+                          marqueur de cible de ce module — `SupportRow` la porte sur chaque
+                          support qui en a une. Garder le mot ici et l'icône là aurait fait
+                          deux représentations d'une même notion dans le même écran.
+                          ⚠️ Le `title` garde le mot accessible au survol : l'icône est
+                          parlante, mais elle n'est pas du texte. */}
+                      <span className="cp-cible" title="Cible de répartition">
+                        <Icon name="target" size={12} />{fmt(step.target)} %
+                      </span>
+                      {/* 🔴 LE PRIX AFFICHÉ EST LE PRIX DÉDUIT dès qu'un montant est
+                          forcé — « si je modifie le montant final, c'est que je viens
+                          d'acheter, donc le prix se déduit : montant / quantité »
+                          (utilisateur, 13/08/2026), le cours bougeant très vite entre
+                          le calcul et l'ordre passé.
+                          ⚠️ Il est MARQUÉ « déduit » et ne remplace pas le prix saisi
+                          en silence : un nombre qui change tout seul est précisément
+                          le défaut corrigé le même jour. Le prix saisi reste lisible
+                          dans le pied de carte (« calculé N € »), ce qui donne l'écart
+                          de cours d'un coup d'œil.
+                          ⚠️ Rien n'est persisté : la saisie de l'étape 1 n'est pas
+                          touchée, et revenir sur « Valeurs » annule l'ajustement donc
+                          le prix déduit disparaît avec lui. */}
+                      <span className="cp-prix-rappel">
+                        {fmt(step.prixDeduit === null || step.prixDeduit === undefined
+                          ? step.price : step.prixDeduit)} € la part
+                        {step.prixDeduit !== null && step.prixDeduit !== undefined
+                          && <span className="cp-prix-deduit"> · déduit</span>}
+                      </span>
+                      {/* ⚠️ « · tout le reliquat » RETIRÉ le 13/08/2026 (demande de
+                          l'utilisateur, desktop et téléphone). C'était une propriété
+                          CONSTANTE de la dernière ligne, donc une mention qui ne
+                          variait jamais — et elle allongeait l'en-tête au point de le
+                          faire passer à la ligne sur iPhone.
+                          ⚠️ Ce qu'on perd : la règle « le dernier support absorbe ce
+                          qui reste » n'est plus écrite. Son EFFET reste visible — le
+                          « reste » de cette carte tombe sous le prix de la part la
+                          moins chère, et le message d'état le dit en clair. */}
+                      <span className="cp-rang">{rang + 1}/{plan.steps.length}</span>
+                    </div>
+                    {/* Trois blocs sur une ligne : les parts, le montant payé, et
+                        le résultat aligné à droite. */}
+                    <div className="cp-achat">
+                      <div>
+                        <label className="label">Parts</label>
+                        <div className="cp-stepper">
+                          <button type="button" aria-label="Une part de moins"
+                            onClick={() => poserQty(id, step.qty - 1)}>−</button>
+                          <span className="num">{step.qty}</span>
+                          <button type="button" aria-label="Une part de plus"
+                            onClick={() => poserQty(id, step.qty + 1)}>+</button>
+                        </div>
+                      </div>
+                      <div className="cp-cout">
+                        <label className="label">Montant payé (€)</label>
+                        <input type="text" inputMode="decimal" className="input num"
+                          value={coutsSaisis[id] !== undefined ? coutsSaisis[id] : String(step.costAuto)}
+                          onFocus={selectionnerAuFocus}
+                          onChange={(ev) => poserCost(id, ev.target.value)} />
+                      </div>
+                      <div className="cp-bilan">
+                        <div className="cp-bilan-pct num">
+                          {fmt(step.pctAfter)} %
+                          {/* ⚠️ VERT au-dessus de la cible, AMBRE en dessous — ce
+                              n'est PAS la convention des montants signés de l'app
+                              (vert = hausse) : ici on ne juge pas une variation,
+                              on situe par rapport à une cible. */}
+                          {/* 🔴 LA COULEUR JUGE LA DISTANCE, PLUS LE SENS (13/08/2026).
+                              `ecartLoinDeLaCible` et son seuil vivent dans `compute.js`
+                              — pas ici : une condition dans le JSX est hors couverture
+                              du harnais (§10), et le seuil est justement ce qui peut
+                              dériver sans qu'on le voie. */}
+                          <span className={`cp-ecart${ecartLoinDeLaCible(step.gapPts) ? ' cp-ecart--loin' : ''}`}>
+                            {step.gapPts >= 0 ? '+' : '−'}{fmt(Math.abs(step.gapPts))} pt
+                          </span>
+                        </div>
+                        <div className="cp-bilan-reste">reste {fmt(step.leftAfter)} €</div>
+                      </div>
+                    </div>
+                    {/* 🔴 PLUS AUCUN PIED DE CARTE — les TROIS étiquettes ont disparu le
+                        13/08/2026, à la demande de l'utilisateur, et `.cp-detail` est
+                        mort avec elles (classe et règles CSS retirées).
+                        • « quantité ajustée, proposition N » et « recalculé, proposition N »
+                          → remplacées par les DEUX COULEURS de liseré : elles disent la
+                          même chose sans être lues. J'avais objecté que « proposition N »
+                          était la seule trace de ce que « Réinitialiser » restaure ; son
+                          argument l'emporte — « dans tous les cas, réinitialiser
+                          réinitialise à ta proposition », donc la destination est dans le
+                          NOM du bouton et on voit le résultat après avoir cliqué.
+                        • « montant forcé, calculé N € » → c'était le **dernier vestige
+                          d'une estimation périmée** : le prix saisi à l'étape 1 est une
+                          hypothèse, et dès qu'on a acheté c'est le montant débité qui fait
+                          foi — d'où `prixDeduit`. Même logique que « les prix ne sont pas
+                          persistés ». ⚠️ **Et son pire cas l'a condamnée** : sur une carte
+                          à 0 part elle affichait « calculé 0.00 € », soit une ligne entière
+                          pour ne rien dire.
+                        ⚠️ **CE QUI EST PERDU, et c'est assumé** : à l'étape 2, plus rien ne
+                        rappelle le prix SAISI. Le revoir demande de repasser par
+                        « Modifier », ce qui annule les ajustements. Le prix déduit reste la
+                        donnée utile.
+                        ⚠️ Écart assumé avec la maquette, qui prescrit « quantité ajustée,
+                        proposition 0 » : cf. le CHANGELOG. */}
+                  </div>
+                );
+              })}
+
+              {ajustements > 0 && (
+                <div className="cp-reset">
+                  {/* 🔴 `btn-secondary` ET NON `btn` NU. Mesuré le 13/08/2026 : avec
+                      `.btn` seul, ce bouton s'affichait avec le style NATIF du
+                      navigateur — `background: rgb(239,239,239)` et
+                      `color: rgb(0,0,0)`, deux valeurs qui n'existent nulle part dans
+                      la palette (`--surface-hover` vaut 241,245,249 et `--text`
+                      15,23,42). `.btn` ne pose ni fond ni couleur de texte : il ne
+                      s'emploie jamais seul.
+                      ⚠️ Les trois autres `.btn` nus de l'app sont les boutons
+                      « Supprimer », dont les styles EN LIGNE écrasent fond, texte et
+                      bordure — aucun bouton ne s'affichait réellement en `.btn` nu,
+                      celui-ci était le seul. Il aurait donc rendu différemment sur
+                      Safari iOS, où le bouton natif n'a pas la même apparence. */}
+                  {/* ⚠️ PLUS DE COMPTEUR (13/08/2026). La maquette prescrit
+                      « Réinitialiser les propositions (2) », mais elle a été dessinée
+                      AVANT la confirmation : celle-ci annonce désormais le nombre au
+                      moment où il compte (« Les 2 ajustements seront annulés »), et la
+                      simple PRÉSENCE du bouton dit déjà qu'il y a un ajustement.
+                      Prescription dépassée par un fait nouveau, pas contredite. */}
+                  <button type="button" className="btn btn-secondary" onClick={reinitialiser}>
+                    Réinitialiser les propositions
+                  </button>
+                </div>
+              )}
+
+              {!!plan.steps.length && (
+                <>
+                  <div className="cp-synthese">
+                    <div><span>Investi</span><b className="num">{fmt(plan.invested)} €</b></div>
+                    <div><span>Reliquat non investi</span><b className="num">{fmt(plan.left)} €</b></div>
+                    <div><span>Écart maximal</span><b className="num">{fmt(ecartMax)} pt</b></div>
+                  </div>
+
+                  {plan.left < 0 ? (
+                    <div className="cp-etat cp-etat--rouge">
+                      Les montants payés dépassent l'assiette de <b className="num">{fmt(Math.abs(plan.left))} €</b> :
+                      le cash de l'enveloppe passera en négatif.
+                    </div>
+                  ) : plan.complete && plan.reserve > 0 ? (
+                    <div className="cp-etat cp-etat--vert">
+                      {fmt(Math.min(100, cibleTotale))} % de l'assiette investie, comme tes cibles le demandent —
+                      {' '}<b className="num">{fmt(plan.left)} €</b> restent en cash.
+                    </div>
+                  ) : plan.complete ? (
+                    <div className="cp-etat cp-etat--vert">
+                      Assiette entièrement utilisée — il reste <b className="num">{fmt(plan.left)} €</b>,
+                      moins que la part la moins chère ({fmt(moinsCher)} €).
+                    </div>
+                  ) : (
+                    <div className="cp-etat cp-etat--ambre">
+                      Il reste <b className="num">{fmt(plan.investissable - plan.invested)} €</b> à répartir,
+                      de quoi acheter encore
+                      {' '}{Math.floor((plan.investissable - plan.invested) / moinsCher)} part
+                      {Math.floor((plan.investissable - plan.invested) / moinsCher) > 1 ? 's' : ''}
+                      {' '}de {supportName(etfDe(plan.steps[plan.steps.length - 1].id))}.
+                    </div>
+                  )}
+
+                  <button type="button" className="btn btn-accent btn-lg" disabled={busy} onClick={enregistrer}>
+                    {busy ? 'Enregistrement…' : 'Enregistrer le versement et les achats'}
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }

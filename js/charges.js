@@ -621,7 +621,7 @@ function ChargesModal({ ctx, onClose }) {
     const sign = d > 0 ? '+' : '';
     return (
       <span className={`cmp-delta ${cls}`}>
-        <span className="cmpd-exact">{sign}{(d * 100).toFixed(1)} %</span>
+        <span className="cmpd-exact">{sign}{(d * 100).toFixed(2)} %</span>
         <span className="cmpd-round">{sign}{(d * 100).toFixed(0)} %</span>
       </span>
     );

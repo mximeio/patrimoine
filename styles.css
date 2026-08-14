@@ -13,6 +13,13 @@
   --accent-hover: #4338ca;
   --accent-light: #eef2ff;
   --accent-soft: #f5f5ff;
+  /* Indigo PÂLE — déclaré le 13/08/2026, sur décision de l'utilisateur. La valeur
+     #c7d2fe traînait déjà en littéral à deux endroits (la période de recherche
+     sélectionnée, la dernière sauvegarde) : elle est nommée plutôt que recopiée.
+     ⚠️ Ne pas la confondre avec `--accent-light` / `--accent-soft`, qui sont des
+     FONDS quasi blancs : sur un trait de 3 px ils ne se voient pas. Celle-ci est
+     faite pour un TRAIT. */
+  --accent-pale: #c7d2fe;
   --success: #10b981;
   --success-light: #ecfdf5;
   --danger: #ef4444;
@@ -2335,7 +2342,7 @@ input[type="month"] {
 }
 .search-periode-btn:hover { background: var(--surface-hover); color: var(--text); }
 .search-periode-btn.on {
-  background: var(--accent-light); color: var(--accent); border-color: #c7d2fe;
+  background: var(--accent-light); color: var(--accent); border-color: var(--accent-pale);
 }
 .search-periode-pastille {
   position: absolute; top: -2px; right: -2px;
@@ -2642,7 +2649,7 @@ input[type="month"] {
   display: flex; align-items: center; gap: 12px;
   border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface);
 }
-.backup-row.latest { border-color: #c7d2fe; background: #fbfbff; }
+.backup-row.latest { border-color: var(--accent-pale); background: #fbfbff; }
 .backup-row .ic {
   width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
   background: var(--accent-light); color: var(--accent);
@@ -3532,6 +3539,15 @@ input[type="month"] {
    Relevé par l'utilisateur le 09/08/2026 (« 250 et 80 ont l'air écrits en très
    gros »). La couleur suffit à le faire remarquer, le gras n'y ajoutait rien. */
 .maj-delta { font-size: 12px; font-weight: 400; margin-left: 4px; }
+/* 🔴 QUAND LE DELTA PRÉCÈDE LE MONTANT — sous-totaux et total général depuis le
+   13/08/2026, pour que « les deltas soient toujours avant, comme pour les lignes ».
+   Sa marge passe donc à DROITE : gardée à gauche, elle l'aurait écarté du libellé
+   tout en le collant au montant, soit l'inverse de ce qu'il faut.
+   ⚠️ Ne concerne PAS `.maj-env-montant` (la carte repliée), qui empile montant et
+   delta en COLONNE : « avant » y signifierait « au-dessus », ce qui mettrait le petit
+   nombre gris par-dessus le montant en gras. Laissé tel quel à dessein. */
+.maj-sous-total .maj-delta, .maj-total .maj-delta,
+.cp-tableau-total .maj-delta { margin-left: 0; margin-right: 6px; }
 /* Sur une ligne de support, le delta est repoussé à DROITE du libellé — même
    motif que l'en-tête replié : identité à gauche, montant à droite. */
 .maj-sup-lbl .maj-delta { margin-left: auto; flex: none; white-space: nowrap; }
@@ -3717,4 +3733,334 @@ input[type="month"] {
 .pd-note {
   margin-top: 8px; font-size: 10.5px; line-height: 1.5;
   color: rgba(255, 255, 255, 0.4);
+}
+
+/* ============================================================
+   CALCULER UN VERSEMENT (12/08/2026)
+   ⚠️ Les noms de variables CSS ne sont PAS ceux du JS : ici c'est
+   --text-muted / --text-subtle, jamais --muted (§10, DEV v986).
+   ============================================================ */
+.cp-cibles { font-size: 12.5px; color: var(--warning); margin-top: 6px; font-weight: 600; }
+
+.cp-etape { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; margin-bottom: 10px; position: relative; }
+/* ⚠️ `--ajustee` était défini DEUX FOIS dans ce fichier, ici et dans le bloc du
+   relifting plus bas, avec des valeurs différentes. La seconde l'emportait, donc
+   celle-ci ne servait à rien tout en donnant à lire le contraire. Une seule
+   définition subsiste, en bas — cf. « signal d'une carte modifiée ». */
+.cp-tete { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.cp-pastille { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.cp-nom { font-size: 14px; }
+.cp-cible, .cp-rang { font-size: 12px; color: var(--text-muted); }
+.cp-rang { margin-left: auto; }
+.cp-achat { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: end; margin-top: 10px; }
+/* ⚠️ `.cp-detail` SUPPRIMÉE le 13/08/2026 — le pied de carte portait trois
+   étiquettes, toutes retirées : les deux mentions de quantité (remplacées par les
+   deux couleurs de liseré) et « montant forcé, calculé N € », dernier vestige du prix
+   SAISI à l'étape 1. Motif de l'utilisateur : éviter une ligne de plus, et
+   « si on veut savoir ce qu'il y avait avant, on réinitialise ». Détail au CHANGELOG.
+   ⚠️ Elle était définie DEUX FOIS dans ce fichier ; les deux sont parties. */
+
+.cp-exclu-ligne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 10px;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-md); font-size: 12.5px; color: var(--text-muted); }
+.cp-reset { margin: 4px 0 14px; }
+/* ⚠️ `.cp-reset-note` SUPPRIMÉE le 13/08/2026 avec la phrase qu'elle portait
+   (« Le versement et les valeurs sont conservés ») : l'information est passée dans la
+   confirmation du bouton, où elle arrive AVANT le geste au lieu d'être à deviner —
+   et la fenêtre ne bouge plus, la note apparaissant/disparaissant avec le bloc. */
+.cp-synthese { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px;
+  background: var(--surface-alt); border-radius: var(--radius-md); margin-top: 4px; }
+.cp-synthese span { display: block; font-size: 11.5px; color: var(--text-muted); }
+.cp-synthese b { font-size: 14px; }
+.cp-etat { font-size: 12.5px; padding: 10px 12px; border-radius: var(--radius-md); margin: 10px 0 14px; }
+.cp-etat--rouge { background: var(--danger-light); color: #b91c1c; }
+.cp-etat--vert { background: var(--success-light); color: #047857; }
+.cp-etat--ambre { background: var(--warning-light); color: #b45309; }
+
+@media (max-width: 640px) and (orientation: portrait) {
+  .cp-achat { grid-template-columns: 1fr; align-items: stretch; }
+  .cp-synthese { grid-template-columns: 1fr; }
+}
+
+/* --- refonte en DEUX ÉTAPES (13/08/2026, maquette versement-design-3a) ---
+   ⚠️ Les dimensions viennent de la maquette et ne sont pas approximatives :
+   colonnes 118 px (84/108 en portrait), stepper 132×38 à boutons de 42, champ
+   du montant à 148 px, barre de 22 px. Les retoucher au jugé, c'est refaire le
+   travail que la maquette a servi à éviter. */
+.cp-onglets { padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.cp-seg { display: inline-flex; gap: 3px; background: var(--surface-hover); border-radius: 11px; padding: 3px; }
+.cp-seg-item { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 0; background: none; border-radius: 8px; padding: 7px 13px;
+  font-size: 13px; font-weight: 500; color: var(--text-muted); }
+button.cp-seg-item { cursor: pointer; }
+.cp-seg-item--actif { background: var(--text); color: #fff; }
+/* La coche de l'étape franchie — VERTE et ÉPAISSE, comme le balisage de la
+   maquette la pose à six endroits. Elle était grise et fine : `Icon` dessine en
+   `currentColor`, donc elle héritait du `--text-muted` de l'onglet, et personne
+   ne l'avait remarqué (13 px).
+   🔴 POURQUOI EN CSS ET NON PAR LA PROP `color` D'`Icon` : `Icon` fixe
+   `strokeWidth: 2` en ATTRIBUT de présentation, et une déclaration CSS l'emporte
+   sur un attribut — c'est la seule voie qui porte le 3 sans toucher au composant
+   partagé par toute l'app.
+   ⚠️ Le vert vaut aussi sur la moitié ACTIVE (fond sombre) : depuis le
+   13/08/2026 la coche peut y tomber, quand on revient sur « Valeurs » après avoir
+   validé. Une coche blanche s'y fondrait dans le libellé et ne se lirait plus
+   comme un acquis — arbitrage de l'utilisateur. */
+.cp-seg-item svg { stroke: var(--success); stroke-width: 3; }
+
+/* Tableau de l'étape 1 : des colonnes, pas un cadre. Le seul filet est celui
+   du total. */
+/* Conteneur du tableau : il n'a PAS de style propre, mais il doit exister —
+   sans lui, ses lignes seraient des enfants directs de `.cp-corps` et
+   hériteraient de son intervalle de 16 px. */
+.cp-tableau { display: block; }
+.cp-tableau-tete, .cp-tableau-ligne { display: grid; grid-template-columns: 1fr 118px 118px; gap: 12px;
+  align-items: center; }
+.cp-tableau-tete { padding-bottom: 4px; }
+/* 🔴 ALIGNÉ À GAUCHE, comme `.label` — relevé par l'utilisateur le 13/08/2026 sur
+   ses captures iPhone : « Valeur actuelle (€) » et « Prix d'une part (€) » avaient
+   l'air alignés à droite alors que le CONTENU des champs, lui, s'aligne à gauche.
+   L'étiquette ne surplombait donc pas le début de ce qu'elle nomme.
+   ⚠️ Sa référence est la bonne : cette règle est désormais identique à `.label`
+   (12 px / 500 / `--text-muted`), l'étiquette de champ du reste de l'app — c'est
+   ce que font les réglages du compte courant. Il n'y avait que ce `text-align`
+   pour l'en distinguer. */
+.cp-tableau-tete span { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.cp-tableau-ligne { padding: 8px 0; }
+.cp-tableau-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  border-top: 1px solid var(--border); padding-top: 9px; margin-top: 2px;
+  font-size: 12px; color: var(--text-muted); }
+.cp-tableau-total b { font-size: 13px; color: var(--text); }
+.cp-lbl { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; }
+.cp-lbl b { font-weight: 600; }
+/* 🔴 MÊME COMPORTEMENT QUE LA FENÊTRE DE MISE À JOUR SIMPLE quand une valeur
+   change — écart relevé par l'utilisateur le 13/08/2026 sur deux captures.
+   La cause : les règles de troncature sont portées par `.maj-sup-lbl .maj-sup-court`,
+   un sélecteur qui **n'atteint pas** `.cp-lbl`. Le libellé secondaire n'avait donc
+   ni `ellipsis` ni `nowrap`, et le delta n'avait pas `flex: none`.
+   **Mesuré avant/après** sur PUST (« Amundi PEA Nasdaq-100 UCITS ETF Acc ») : le
+   libellé passait de 1,7 ligne à 0,8, et le delta de 30 px à 15 — les deux se
+   coupaient en deux dès que le delta apparaissait, c'est-à-dire au moment précis
+   où l'on saisit.
+   ⚠️ On tronque le libellé **SECONDAIRE**, jamais le nom principal : c'est
+   exactement l'arbitrage du 11/08/2026 rappelé quinze lignes plus haut — un
+   secondaire tronqué est anodin (le ticker l'accompagne et identifie), un NOM
+   tronqué quand il est seul ampute ce qui dit sur quelle ligne on saisit. Le `<b>`
+   n'est pas touché ici, il continue de rétrécir et de passer à la ligne.
+   ⚠️ `display: none` en portrait reste posé plus bas : les colonnes y font 108/84 px
+   et le secondaire n'y tient pas. */
+.cp-lbl-sec { font-size: 12.5px; color: var(--text-muted); min-width: 0;
+  flex-shrink: 999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Le delta repoussé à DROITE du libellé et insécable — copié de
+   `.maj-sup-lbl .maj-delta`, même motif : identité à gauche, montant à droite. */
+.cp-lbl .maj-delta { margin-left: auto; flex: none; white-space: nowrap; }
+.cp-sanscible { text-align: right; color: var(--text-subtle); }
+.cp-note { font-size: 12px; line-height: 1.45; color: var(--text-muted); margin: 4px 0 0; }
+.cp-th-court { display: none; }
+
+/* ⚠️ Étape 2 — le bandeau « valeurs enregistrées » et son bouton « Modifier » ont été
+   RETIRÉS le 13/08/2026 : arriver sur « Répartition » suppose forcément d'avoir validé
+   « Valeurs », donc le bandeau énonçait une condition d'entrée, pas une information.
+   Quatre règles mortes partent avec lui (`.cp-rappel`, `.cp-rappel-ok`, `.cp-modifier`).
+   Le retour se fait par l'onglet « 1 · Valeurs » — cf. le commentaire du JSX. */
+
+/* Les deux cartes : ce dont on dispose, ce qu'on ajoute */
+.cp-duo { display: flex; gap: 12px; }
+.cp-carte { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 14px 15px; }
+/* ⚠️ `.cp-carte--saisie` A ÉTÉ SUPPRIMÉE le 13/08/2026 (fond `--surface-alt`), et la
+   classe est retirée du JSX avec elle. Elle teintait la carte « Versement prévu »
+   pour dire « ici tu saisis » — mais le champ est déjà blanc bordé, ce qui EST le
+   signal de saisie de l'app : deux signaux pour une seule chose.
+   ⚠️ La couleur, elle, n'était pas en cause (gris neutre de la palette, à ne pas
+   confondre avec le fond indigo retiré le même jour, celui-là hors charte) ; ce qui
+   l'était, c'est de teinter une carte pour un motif que rien d'autre dans l'app ne
+   teinte — aucun précédent de `--surface-alt` pour marquer « cette carte contient un
+   champ ». Décision de l'utilisateur. */
+.cp-carte-lbl { display: block; font-size: 11px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text-muted); margin-bottom: 6px; }
+.cp-carte-val { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.cp-carte-detail { font-size: 12px; color: var(--text-muted); margin-top: 5px; line-height: 1.45; }
+.cp-carte-detail b { color: var(--text); }
+.cp-versement { font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
+
+/* La barre de répartition */
+.cp-barre-bloc { margin-top: 2px; }
+.cp-barre-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin-bottom: 7px; }
+.cp-barre-tete span:first-child { font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text-muted); }
+/* ⚠️ Le second `span` a disparu du JSX le 13/08/2026 (la légende « le trait blanc
+   marque la cible »). La règle est retirée avec lui — `span:first-child` porte seul
+   le titre, et le `justify-content: space-between` du parent n'a plus qu'un enfant
+   à placer, donc il l'aligne à gauche comme voulu. */
+.cp-barre { display: flex; height: 22px; border-radius: var(--radius-sm); overflow: hidden;
+  background: var(--surface-hover); position: relative; }
+.cp-barre-part { height: 100%; }
+/* 🔴 Le repère de CIBLE, posé sur la position cumulée — pas au bord du segment. */
+.cp-barre-cible { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff;
+  opacity: .9; transform: translateX(-1px); }
+
+/* Cartes de support.
+   ⚠️ `overflow: hidden` + `background` explicite : copiés de `.maj-env`, ils font
+   que le liseré ci-dessous est ROGNÉ par le rayon de la carte, donc propre dans
+   les coins sans avoir à lui donner son propre `border-radius`. */
+.cp-etape { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px;
+  position: relative; overflow: hidden; background: var(--surface); }
+/* 🔴 SIGNAL D'UNE CARTE MODIFIÉE — ALIGNÉ SUR `.maj-env--modifiee` (mise à jour
+   groupée), à la demande de l'utilisateur le 13/08/2026. **Un liseré indigo pleine
+   hauteur, et RIEN D'AUTRE.**
+   Ce qui a été RETIRÉ, et pourquoi chacun :
+   • `background: var(--accent-soft)` — 🔴 **l'app n'a JAMAIS teinté le fond d'un état
+     « modifié », nulle part.** Relevé exhaustif du 13/08/2026 : les trois seuls états
+     de ce genre sont `restore-confirm .rc-r.chgd` (v560), `.maj-env--modifiee` et
+     celui-ci ; les deux premiers sont des liserés SANS fond, et le commentaire de la
+     v560 est explicite — « charte de l'app, **sans fond coloré** (fini l'ambre/brun) ».
+     Le fond était donc un hapax de ce chantier, contraire à une règle écrite un an
+     plus tôt. *C'est une question de l'utilisateur qui l'a mis au jour : « le fond n'a
+     jamais été fait nulle part dans l'application, si ? ». Non.*
+   • `border-color: #c7d2fe` — même raison : la carte modifiée de la fenêtre groupée
+     garde `var(--border)`. Deux signaux pour un seul état, dont un hors charte.
+   • `padding-left: 17px` — 🔴 **il faisait SAUTER le contenu de 3 px** au moment précis
+     où l'on saisit dans le champ (mesuré : le nom du support passait de 378,5 à
+     381,5 px). C'est exactement le défaut que la fenêtre groupée a corrigé le
+     11/08/2026 (« la carte sautait donc à la PREMIÈRE FRAPPE »), réintroduit ici sous
+     une autre forme : son garde-fou ne dit que « ne pas revenir à un `border-left` »,
+     et un `padding` est passé dessous. ⚠️ Le liseré n'a besoin d'AUCUNE place réservée
+     — il se superpose au padding, comme dans `.maj-env`.
+   ⚠️ `top: 0; bottom: 0` et non `10px/10px` : pleine hauteur, préférence de
+   l'utilisateur et forme de `.maj-env--modifiee`. */
+.cp-etape--ajustee::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--accent); }
+/* 🔴 LA LIGNE QUE LA CASCADE A DÉPLACÉE — même liseré, en indigo PÂLE (13/08/2026,
+   proposition de l'utilisateur, comparée aux deux autres candidates dans l'app avant
+   de trancher).
+   **Pourquoi la même famille de couleur, et pas un gris** : les deux marques
+   racontent le même phénomène — un ajustement et sa conséquence — et c'est
+   l'INTENSITÉ qui dit qui en est l'auteur. Un gris (`--border-strong`, essayé à
+   l'écran) est presque la couleur du contour de la carte : il se lit comme une
+   bordure épaissie, il faut savoir qu'il est là.
+   ⚠️ **Ceci PÉRIME la règle de la v999** (« le liseré indigo ne suit QUE
+   l'ajustement manuel, ne pas l'étendre aux lignes recalculées, sinon toute la
+   fenêtre s'allume »). Elle n'est pas violée, elle est remplacée : le liseré plein
+   reste réservé à l'intervention, et la conséquence reçoit un signal DISTINCT.
+   ⚠️ Sa réserve garde une part de vrai — les trois cartes portant un trait, c'est
+   désormais la COULEUR qui distingue, plus la présence. C'est un code sans légende
+   à l'écran, assumé par l'utilisateur : « on n'est pas bête, on comprendra ».
+   ⚠️ Les deux classes sont EXCLUSIVES côté JSX, et l'indigo plein gagne quand une
+   ligne cumule les deux : on marque l'intervention, pas la conséquence. */
+.cp-etape--cascade::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--accent-pale); }
+.cp-tete { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cp-pastille { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.cp-nom { font-size: 14px; }
+/* Le badge de cible : gris sur carte blanche, et c'est tout.
+   ⚠️ La règle `.cp-etape--ajustee .cp-cible { background: var(--surface) }` a été
+   RETIRÉE le 13/08/2026 avec le fond teinté : elle n'existait que pour contraster
+   avec lui. La garder rendrait le badge blanc sur blanc — invisible. */
+/* ⚠️ `inline-flex` + `gap` depuis que la pastille porte la MIRE au lieu du mot
+   « cible » : c'est ce qui aligne l'icône sur la ligne de base du chiffre.
+   ⚠️ Le piège du §10 sur `.infotip` — « l'inline-flex avale l'espace qui précède » —
+   ne s'applique PAS ici, et c'est vérifié : le parent `.cp-tete` est un flex avec
+   `gap: 8px`, donc l'espacement ne dépend d'aucun blanc typographique. */
+.cp-cible { display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  background: var(--surface-hover); border-radius: var(--radius-full); padding: 2px 8px; }
+.cp-prix-rappel { font-size: 11.5px; color: var(--text-subtle); }
+/* « · déduit » — le prix vient du montant payé, pas de la saisie de l'étape 1.
+   En indigo comme le liseré des lignes ajustées : les deux marquent une
+   INTERVENTION de l'utilisateur, pas une conséquence du calcul. */
+.cp-prix-deduit { color: var(--accent); font-weight: 500; }
+.cp-rang { margin-left: auto; font-size: 11.5px; color: var(--text-subtle); }
+
+.cp-achat { display: flex; align-items: flex-end; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+.cp-achat .label { font-size: 12px; font-weight: 500; margin-bottom: 5px; }
+.cp-stepper { display: flex; align-items: center; border: 1px solid var(--border);
+  background: var(--surface); border-radius: var(--radius-sm); width: 132px; height: 38px;
+  overflow: hidden; }
+.cp-stepper button { width: 42px; height: 100%; border: 0; background: var(--surface-alt);
+  font-size: 16px; line-height: 1; color: var(--text); cursor: pointer; }
+.cp-stepper button:first-child { border-right: 1px solid var(--border); }
+.cp-stepper button:last-child { border-left: 1px solid var(--border); }
+.cp-stepper span { flex: 1; text-align: center; font-size: 13.5px; font-weight: 600; }
+.cp-cout { min-width: 0; }
+.cp-cout .input { width: 148px; }
+.cp-bilan { margin-left: auto; text-align: right; }
+.cp-bilan-pct { font-size: 14px; font-weight: 600; display: flex; align-items: center;
+  justify-content: flex-end; gap: 7px; }
+.cp-ecart { font-weight: 500; font-size: 11px; color: #047857; background: var(--success-light);
+  border-radius: var(--radius-full); padding: 2px 7px; }
+/* 🔴 « LOIN DE LA CIBLE » — au-delà du seuil, dans les DEUX sens (13/08/2026).
+   Remplace `.cp-ecart--sous`, qui colorait le SENS de l'écart : vert au-dessus, ambre
+   en dessous. Or +1,95 pt n'est pas meilleur que −1 pt — c'était le plus gros écart du
+   plan, affiché comme une bonne nouvelle. Le signe est déjà dans le nombre.
+   ⇒ Le vert dit « ça passe », le rouge « c'est moins bien », et c'est la DISTANCE qui
+   décide. Arbitrage de l'utilisateur, après avoir comparé quatre rendus dans l'app.
+   ⚠️ Les deux teintes existent déjà dans le projet : le vert est celui de `.cp-ecart`,
+   le rouge celui de `.cp-etat--rouge`. Rien de neuf n'entre dans la palette.
+   ⚠️ Réserve tranchée et gardée pour la trace : vert/rouge est aussi la convention des
+   montants SIGNÉS de l'app (vert = hausse), visible dans la même fenêtre. L'utilisateur
+   a tranché — « vert = c'est bien, ça passe » — et l'unité `pt` distingue le contexte.
+   Une variante vert/ambre a été montrée et écartée. */
+.cp-ecart--loin { color: #b91c1c; background: var(--danger-light); }
+.cp-bilan-reste { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+.cp-exclu-ligne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--surface-alt); border-radius: var(--radius-md); padding: 10px 11px;
+  font-size: 12px; color: var(--text-muted); }
+.cp-cibles { font-size: 12.5px; color: var(--warning); font-weight: 600; }
+.cp-reset { margin: 2px 0; }
+.cp-synthese { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px;
+  background: var(--surface-alt); border-radius: var(--radius-md); }
+.cp-synthese span { display: block; font-size: 11.5px; color: var(--text-muted); }
+.cp-synthese b { font-size: 14px; }
+.cp-etat { font-size: 12.5px; padding: 10px 12px; border-radius: var(--radius-md); }
+.cp-etat--rouge { background: var(--danger-light); color: #b91c1c; }
+.cp-etat--vert { background: var(--success-light); color: #047857; }
+.cp-etat--ambre { background: var(--warning-light); color: #b45309; }
+
+/* ⚠️ La fenêtre empile ses blocs avec un intervalle constant — c'est ce qui
+   donne son rythme à la maquette. Sans ça, chaque bloc doit gérer sa marge et
+   elles finissent par diverger. */
+.cp-corps { display: flex; flex-direction: column; gap: 16px; }
+
+@media (max-width: 640px) and (orientation: portrait) {
+  /* Le rail prend toute la largeur, deux moitiés égales (maquette iPhone). */
+  .cp-seg { display: flex; }
+  .cp-seg-item { flex: 1; padding: 6px 0; }
+  .cp-tableau-tete, .cp-tableau-ligne { grid-template-columns: 1fr 108px 84px; gap: 8px; }
+  .cp-lbl { gap: 6px; }
+  .cp-lbl-sec { display: none; }
+  .cp-th-long { display: none; }
+  .cp-th-court { display: inline; }
+  /* 🔴 16 px MINIMUM sur les champs : en dessous, iOS Safari zoome au focus
+     (§10). Et 44 px de haut sur les boutons −/+, la réserve d'Apple. */
+  .cp-tableau-ligne .input { font-size: 16px; padding: 9px 8px; }
+  .cp-duo { flex-direction: column; }
+  .cp-achat { gap: 10px; }
+  /* 🔴 46 px de CADRE pour 44 px de BOUTON : la bordure de 1 px en haut et en
+     bas est prise sur la hauteur intérieure. Mesuré — à 44 px de cadre, la
+     cible tactile ne fait que 42 px, sous la réserve d'Apple que le brief cite. */
+  .cp-stepper { height: 46px; width: 140px; }
+  .cp-stepper button { width: 46px; font-size: 18px; }
+  .cp-cout { flex: 1; }
+  .cp-cout .input { width: 100%; font-size: 16px; }
+  .cp-versement { font-size: 16px; }
+  /* 🔴 LE BILAN RESTE ALIGNÉ À DROITE EN PORTRAIT (13/08/2026, demande de
+     l'utilisateur sur capture iPhone). Il passait à gauche parce qu'il occupe
+     alors sa propre ligne sous les contrôles — mais aligné à droite, le
+     pourcentage, l'écart et le « reste » se calent sur le bord droit du champ
+     « Montant payé » juste au-dessus, et la lecture est la même qu'en desktop.
+     ⚠️ `margin-left: 0` et `width: 100%` RESTENT : c'est ce qui lui donne sa
+     ligne entière. Seul l'alignement du texte revient au défaut. */
+  .cp-bilan { margin-left: 0; width: 100%; }
+  /* 🔴 LA SYNTHÈSE EN TROIS LIGNES, PAS EN SIX (13/08/2026, sur capture iPhone :
+     « tu peux peut-être faire mieux »). Empilée en une colonne, chaque mesure prenait
+     DEUX lignes — son libellé au-dessus de sa valeur — soit six lignes pour trois
+     chiffres. Le libellé passe à gauche, la valeur à droite : trois lignes.
+     ⚠️ C'est le motif de `.maj-sous-total`, la ligne de total de l'app — pas une
+     invention pour cet écran. ⚠️ Trois colonnes étaient exclues : « Reliquat non
+     investi » ne tient pas dans 110 px. */
+  .cp-synthese { grid-template-columns: 1fr; gap: 7px; }
+  .cp-synthese > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .cp-corps { gap: 12px; }
 }

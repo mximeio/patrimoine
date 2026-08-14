@@ -503,6 +503,23 @@ function NomSupport({ etf, Balise = 'span', className = '', style }) {
 // différentes, ce qui est le défaut que ce projet a déjà payé ailleurs.
 const REQUETE_COMPACT = '(max-width: 640px) and (orientation: portrait)';
 
+// Sélection du contenu au focus : un champ pré-rempli se REMPLACE d'une frappe
+// au lieu de s'éditer caractère par caractère. Sur les fenêtres de valorisation
+// et de versement, tous les champs arrivent remplis — sans ça, corriger un prix
+// oblige à tout effacer d'abord.
+// ⚠️ Le `setTimeout(0)` est INDISPENSABLE sur iOS Safari : le tap désélectionne
+// juste après le `onFocus`, donc sélectionner dans le handler lui-même ne tient
+// pas. Le `try/catch` protège les navigateurs où `select()` lève sur certains
+// types de champ.
+// 🔴 Écrit TROIS fois en ligne avant le 12/08/2026 — deux fois dans les fenêtres
+// de valorisation, une troisième dans celle du versement, cette dernière SANS le
+// `try/catch`. C'est le défaut récurrent que le §9 nomme : le motif vit ici, on
+// n'en écrit pas un quatrième.
+const selectionnerAuFocus = (ev) => {
+  const el = ev.target;
+  setTimeout(() => { try { el.select(); } catch (_) { /* champ qui refuse select() */ } }, 0);
+};
+
 // Sommes-nous sur l'écran étroit où les libellés basculent sur leur version
 // courte ? Donc téléphone en PORTRAIT seulement : en paysage, on lit comme sur
 // desktop.

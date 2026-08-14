@@ -633,3 +633,506 @@ function valeurSaisie(brut) {
 function ajusteLaValorisation(type) {
   return type === 'purchase' || type === 'gift' || type === 'sale';
 }
+
+// ============================================================
+//  CALCULER UN VERSEMENT — plan d'achat par cibles (spec §2.3)
+//
+//  Fonction PURE, aucune I/O : combien de parts de chaque support acheter
+//  pour approcher au mieux les cibles de répartition, avec un versement donné.
+//
+//  🔴 L'ARRONDI EST AU PLUS PROCHE, JAMAIS TRONQUÉ. Mesuré par force brute
+//  dans la spec : avec un besoin de 150 € et une part à 93 €, `floor` achète
+//  1 part au lieu de 2, laisse 57 € de retard sur ce support puis déverse le
+//  reliquat sur les parts bon marché — écart total 117 € là où l'optimum est
+//  à 73 €. Un `Math.floor` posé ici « pour ne pas dépasser » coûte 44 € de
+//  dérive sans rien casser en apparence : c'est exactement le genre d'erreur
+//  qu'aucun écran ne montre. Les tests la verrouillent.
+//
+//  🔴 L'ORDRE EST LE PRIX DÉCROISSANT, et c'est le cœur de la méthode. En
+//  commençant par le moins cher, on consomme le versement en petites parts et
+//  il ne reste plus de quoi acheter une part du support le plus cher, qui
+//  décroche alors de sa cible. Égalité de prix → tri par `id`, pour que
+//  l'affichage ne saute pas d'un rendu à l'autre.
+//
+//  🔴 LE REPORT EST SIGNÉ et n'est PAS plafonné à zéro : négatif quand une
+//  étape a dépassé son budget (arrondi au-dessus, ou choix manuel), il
+//  continue de descendre la cascade et le dernier support absorbe l'écart.
+//
+//  ⚠️ « Utiliser tout le versement » ne veut PAS dire « reste à zéro » : la
+//  règle est qu'il ne reste plus de quoi acheter la moindre part (`complete`).
+//  Viser 0 € pile dégrade le résultat — mesuré : +6 parts inutiles et l'écart
+//  total qui passe de 11 € à 72 €.
+//
+//  ⚠️ L'assiette inclut le CASH qui dort déjà dans l'enveloppe : le plan peut
+//  donc dépenser plus que le versement lui-même. Voulu.
+// ============================================================
+// Choix des quantités : la cascade gloutonne SEULE se trompe, et ça se mesure.
+// 🔴 POURQUOI CETTE RECHERCHE EXISTE (12/08/2026, relevé par l'utilisateur sur
+// ses vraies données). La cascade arrondit au plus proche À CHAQUE ÉTAPE, pour
+// elle-même, sans regarder ce que ça coûte en aval. Cas vécu : PAEEM avait un
+// budget de 302,75 € pour une part à 35,56 €, soit 8,514 parts. L'arrondi
+// donnait 9 — une décision jouée à 0,014 part, environ 50 centimes. Or monter à
+// 9 dépense 17,29 € de plus que le budget, et ces 17,29 € sont pris à WPEA, qui
+// était déjà sous sa cible. UN EURO MAL PLACÉ COÛTE DEUX FOIS : il fait dépasser
+// l'un et affame l'autre. Le report transmet bien l'erreur, mais APRÈS la
+// décision : il la constate, il ne l'empêche pas.
+// Mesuré sur ce cas : 107,42 € d'écart aux cibles contre 62,20 € pour le plan
+// que l'utilisateur a trouvé à la main — et 62,20 € est l'optimum EXACT sous la
+// règle « on dépense tout » (vérifié par énumération exhaustive).
+//
+// ⇒ On garde la cascade, et on explore les DEUX arrondis possibles de chaque
+// étape non finale (plancher et plafond de `budget / prix`), la dernière prenant
+// toujours tout le reste. On retient la combinaison qui minimise l'écart TOTAL
+// aux cibles, en euros — la mesure qu'emploie déjà la spec au §2.4.
+// ⚠️ La contrainte « on dépense tout » est respectée PAR CONSTRUCTION, la
+// dernière étape prenant le maximum achetable : le reliquat est donc toujours
+// inférieur au prix de la part la moins chère. *Sans elle, l'optimum du cas réel
+// laissait 19,57 € dormir — près de trois parts — pour gagner 11 € d'écart.*
+// ⚠️ L'arrondi naturel est essayé EN PREMIER : si le plafond de feuilles est
+// atteint, le résultat ne peut donc jamais être pire que la cascade seule.
+// ⚠️ Un support dont la quantité est FORCÉE n'est pas exploré : le choix de
+// l'utilisateur ne se discute pas, on optimise seulement autour de lui.
+function _choisirQuantites(ordre, besoin, available, totalAfter, over, cibleEffective, ancrage) {
+  const PLAFOND_FEUILLES = 4096; // 2^12 — au-delà, on garde le meilleur trouvé
+  let meilleur = null;
+  let feuilles = 0;
+  // Vrai tant qu'on exige que les épingles soient honorées à l'exact (cf. plus bas).
+  let strict = true;
+  const coutDe = (s, q) => {
+    const o = over[s.id] || {};
+    return (o.cost === null || o.cost === undefined) ? r2(q * (Number(s.price) || 0)) : r2(Number(o.cost) || 0);
+  };
+  const marcher = (rang, left, carry, qs) => {
+    if (feuilles > PLAFOND_FEUILLES) return;
+    if (rang === ordre.length) {
+      feuilles += 1;
+      const ecart = ordre.reduce((a, s, i) => a + Math.abs(
+        ((Number(s.value) || 0) + coutDe(s, qs[i])) - totalAfter * cibleEffective(s)), 0);
+      if (!meilleur || ecart < meilleur.ecart - 1e-9) meilleur = { qs: qs.slice(), ecart };
+      return;
+    }
+    const s = ordre[rang];
+    const prix = Number(s.price) || 0;
+    const dernier = rang === ordre.length - 1;
+    const budget = besoin[s.id] + carry;
+    const maxAchetable = Math.max(0, Math.floor(Math.max(0, left) / prix + 1e-9));
+    const o = over[s.id] || {};
+    let candidats;
+    if (o.qty !== null && o.qty !== undefined) {
+      // 🔴 UNE ÉPINGLE EST UNE CONTRAINTE DURE, PAS UN PLAFOND — règle du 14/08/2026,
+      // arbitrage de l'utilisateur après un défaut qu'il a trouvé sur son iPhone.
+      // Le défaut : elle était replafonnée par `maxAchetable`, donc le solveur pouvait
+      // **troquer l'épingle contre un meilleur ajustement global**. Mesuré sur ses
+      // données — PAEEM épinglé à 26 rendait PAEEM=23 **et achetait 1 PUST** que
+      // personne n'avait demandé, parce que ce plan-là gagnait 0,204 pt d'écart. Deux
+      // conséquences, la seconde pire que la première : un `+` faisait **baisser** le
+      // nombre de 2 sous le doigt (la famille du défaut de la v1002), et l'épingle
+      // stockée (26) divergeait de la valeur affichée (23) — donc le `+` suivant
+      // repartait de 23 et le 26 devenait inatteignable.
+      // ⇒ Une branche qui ne peut pas honorer l'épingle **exactement** est ABANDONNÉE.
+      // Ici, épingler 26 impose donc PUST à 0 et WPEA à 32 : la ligne affiche ce qu'on
+      // a demandé, et rien ne bouge tout seul.
+      // ⚠️ Le repli non strict, plus bas, empêche de rendre un plan à zéro si AUCUNE
+      // branche n'honore les épingles. L'IHM n'y mène pas (`quantiteHonorable` refuse
+      // l'appui avant), mais un plan vide serait un défaut pire que celui-ci.
+      const voulu = Math.max(0, Math.floor(Number(o.qty) || 0));
+      if (strict && voulu > maxAchetable) return;
+      candidats = [Math.min(voulu, maxAchetable)];
+    } else if (o.cost !== null && o.cost !== undefined && ancrage) {
+      // 🔴 MONTANT FORCÉ : LA QUANTITÉ NE BOUGE PAS. Règle posée par l'utilisateur
+      // le 13/08/2026 — « la quantité n'évolue pas si on ne l'a pas changée, sauf à
+      // son initialisation ou à la réinitialisation ». C'est le PRIX qui se déduit
+      // (`prixDeduit`, plus bas), pas la quantité qui se recalcule.
+      //
+      // Le défaut corrigé, relevé sur une capture : saisir un montant faisait bouger
+      // le nombre de parts tout seul (6 → 7). **Mesuré, et pire que ça** : taper le
+      // montant que l'app venait ELLE-MÊME de calculer (213 €) le faisait aussi.
+      // La cause : dès que le coût est forcé, `coutDe` rend ce coût quelle que soit
+      // la quantité — donc la quantité n'influence plus NI le reste à répartir NI
+      // l'écart aux cibles. Toutes les valeurs se valent, l'optimisation ne départage
+      // plus rien, et on retombait sur l'arrondi naturel de `budget/prix` (6,93 → 7).
+      //
+      // ⇒ On épingle la quantité sur l'ANCRAGE : le plan calculé en ignorant les
+      // montants forcés, mais en gardant les quantités forcées. C'est exactement
+      // « ce que la ligne affichait avant qu'on tape le montant » — y compris quand
+      // la cascade l'avait déjà déplacée à cause d'une AUTRE ligne forcée.
+      // ⚠️ NE PAS épingler sur `suggested` (la proposition sans aucun override) : une
+      // quantité déjà déplacée par la cascade reviendrait en arrière au moment où l'on
+      // saisit un montant, ce qui serait le même défaut dans l'autre sens.
+      // ⚠️ Les lignes SUIVANTES, elles, voient bien le montant forcé (`coutDe`) et
+      // réagissent : moins d'argent pour elles. C'est la cascade, et elle est
+      // préservée — seule la ligne saisie est épinglée.
+      candidats = [ancrage[rang]];
+    } else if (dernier) {
+      candidats = [maxAchetable];
+    } else {
+      const ideal = Math.max(0, budget) / prix;
+      const naturel = Math.min(Math.max(0, Math.round(ideal)), maxAchetable);
+      const autre = naturel === Math.min(Math.max(0, Math.floor(ideal)), maxAchetable)
+        ? Math.min(Math.max(0, Math.ceil(ideal)), maxAchetable)
+        : Math.min(Math.max(0, Math.floor(ideal)), maxAchetable);
+      candidats = naturel === autre ? [naturel] : [naturel, autre];
+    }
+    candidats.forEach((q) => {
+      qs.push(q);
+      marcher(rang + 1, r2(left - coutDe(s, q)), budget - coutDe(s, q), qs);
+      qs.pop();
+    });
+  };
+  marcher(0, available, 0, []);
+  // 🔴 REPLI : aucune branche n'honore les épingles à l'exact. On rejoue en
+  // replafonnant, plutôt que de rendre un plan à ZÉRO — ce qui serait un défaut bien
+  // pire que l'épingle rabotée. ⚠️ Ce repli n'est PAS le comportement d'avant le
+  // 14/08/2026 remis en douce : l'IHM refuse l'appui avant d'en arriver là
+  // (`quantiteHonorable`), donc il ne se déclenche que sur un état qu'aucun geste ne
+  // produit — une épingle héritée d'une assiette plus large, par exemple.
+  if (!meilleur) {
+    strict = false;
+    feuilles = 0;
+    marcher(0, available, 0, []);
+  }
+  return meilleur ? meilleur.qs : ordre.map(() => 0);
+}
+
+// 🔴 LE SEUIL AU-DELÀ DUQUEL UN ÉCART À LA CIBLE EST « LOIN » — 1 point, décision de
+// l'utilisateur du 13/08/2026, et c'est une valeur POSÉE : rien dans le projet ne la
+// fonde, elle se change ici et nulle part ailleurs.
+//
+// Ce que la couleur dit, et le chemin qui y a mené : la pastille était **verte
+// au-dessus** de la cible et **ambre en dessous**, donc elle jugeait le SENS de
+// l'écart. Or être 1,95 pt au-dessus n'est pas meilleur qu'être 1 pt en dessous —
+// c'est le plus gros écart du plan, et il s'affichait comme une bonne nouvelle. Le
+// signe, lui, était déjà écrit dans le nombre.
+// ⇒ La couleur juge désormais la **DISTANCE** : vert « ça passe » sous le seuil,
+// rouge « c'est moins bien » au-delà, dans les DEUX sens.
+// ⚠️ Une réserve, tranchée par l'utilisateur et gardée pour la trace : vert/rouge est
+// aussi la convention des montants SIGNÉS de l'app (`value-positive`/`value-negative`,
+// vert = hausse), visible dans la même fenêtre. Son arbitrage : « vert = c'est bien, ça
+// passe et rouge = c'est moins bien » se lit d'abord, et l'unité `pt` distingue le
+// contexte d'un montant en euros. Une variante vert/ambre a été montrée et écartée.
+// ⚠️ Prédicat PUR et exporté exprès : une condition laissée dans le JSX est hors
+// couverture du harnais (§10). C'est ce qui permet de verrouiller le seuil par un test
+// plutôt que de le laisser dériver dans un `className`.
+const SEUIL_ECART_PT = 1;
+const ecartLoinDeLaCible = (pts) => Math.abs(Number(pts) || 0) >= SEUIL_ECART_PT;
+
+function computeContributionPlan({ amount, cash, supports, overrides } = {}) {
+  const liste = Array.isArray(supports) ? supports : [];
+  const over = overrides || {};
+  const available = r2(Math.max(0, Number(amount) || 0) + Math.max(0, Number(cash) || 0));
+
+  // Périmètre : une cible ET un prix. Un exclu n'apparaît dans aucune étape,
+  // mais il est RENDU avec sa raison — un support qui disparaît sans un mot
+  // fait douter du plan entier.
+  const dansLePerimetre = [];
+  const excluded = [];
+  liste.forEach((s) => {
+    const prix = Number(s.price) || 0;
+    if (s.target === null || s.target === undefined) excluded.push({ id: s.id, reason: 'no-target' });
+    else if (prix <= 0) excluded.push({ id: s.id, reason: 'no-price' });
+    else dansLePerimetre.push(s);
+  });
+
+  // T = le portefeuille APRÈS investissement de l'assiette. C'est ce qui permet
+  // au versement de corriger une dérive : la cible s'applique au total final,
+  // pas au total actuel. ⚠️ Les supports HORS périmètre comptent quand même
+  // dans T — ils font partie du portefeuille, seulement on ne les alimente pas.
+  // 🔴 ON N'INVESTIT QUE Σcibles % DE L'ASSIETTE — décision de l'utilisateur du
+  // 12/08/2026, « on dépense tout de 80 % du montant versé ».
+  // Une somme de cibles inférieure à 100 % vaut donc « je garde le reste en
+  // cash », et ce reste est VOLONTAIRE — ce n'est pas un échec du calcul.
+  // ⚠️ NE PAS confondre avec la règle d'avant : appliquer les cibles brutes au
+  // total ne « répartissait » pas 80 %. Mesuré sur le portefeuille réel — des
+  // cibles à 52/16/12 rendaient TOUS les besoins nuls, donc on n'achetait rien,
+  // ou tout partait sur le support le moins cher. Une cible porte sur le
+  // PORTEFEUILLE, pas sur le versement : d'où cette définition explicite.
+  // ⚠️ Plafonné à 100 % : des cibles qui totalisent 120 % ne font pas dépenser
+  // plus que ce qu'on a.
+  // ⚠️ À 100 % — le cas normal — `investissable === available`, et le plan est
+  // rigoureusement identique à celui d'avant. Les 17 fixtures de la spec le
+  // vérifient : aucune ne bouge.
+  // 🔴 DEUX SOMMES DE CIBLES, ET LES CONFONDRE CHANGE LE COMPORTEMENT.
+  //  • DÉCLARÉE — toutes les cibles saisies, y compris celles des supports
+  //    écartés faute de prix. C'est la POLITIQUE d'allocation, et c'est elle qui
+  //    décide quelle part de l'assiette on investit.
+  //  • UTILE — les seules cibles des supports réellement achetables. C'est elle
+  //    qui normalise la répartition entre eux.
+  // ⚠️ Ce qui se joue là : un prix manquant est un TROU DE DONNÉE, pas un choix
+  // de garder du cash. Si sa cible sortait aussi de la somme déclarée, oublier un
+  // prix ferait investir moins — alors que la maquette annonce l'inverse à
+  // l'utilisateur : « sans lui, sa part irait aux autres supports ». C'est donc
+  // une redistribution, et elle est signalée à l'écran.
+  const sommeCibles = liste.reduce((a, s) => (
+    (s.target === null || s.target === undefined) ? a : a + (Number(s.target) || 0)), 0);
+  const sommeCiblesUtiles = dansLePerimetre.reduce((a, s) => a + (Number(s.target) || 0), 0);
+  const partInvestie = sommeCibles > 0 ? Math.min(1, sommeCibles / 100) : 0;
+  const investissable = r2(available * partInvestie);
+  const reserve = r2(available - investissable);
+  // T' — le portefeuille APRÈS investissement de la seule part investissable.
+  const totalAfter = liste.reduce((a, s) => a + (Number(s.value) || 0), 0) + investissable;
+
+  // 🔴 LES CIBLES SONT NORMALISÉES SUR LEUR PROPRE SOMME, et non sur 100 —
+  // arbitrage de l'utilisateur du 12/08/2026. Des cibles à 40/40 se comportent
+  // donc comme 50/50.
+  // Avant : `besoin = T × cible / 100`. Si les cibles ne totalisaient pas 100 %,
+  // la part orpheline n'était attribuée à personne — et comme le dernier support
+  // prend tout le reliquat, elle partait ENTIÈREMENT sur le moins cher. Ce n'était
+  // donc pas « on répartit au prorata », c'était un déversement, et il fallait un
+  // avertissement à l'écran pour le dire.
+  // ⚠️ Somme nulle (aucune cible, ou toutes à 0) : on ne divise pas par zéro et
+  // tous les besoins sont nuls — le dernier support absorbe alors l'assiette,
+  // comme avant.
+  const besoin = {};
+  dansLePerimetre.forEach((s) => {
+    const part = sommeCiblesUtiles > 0 ? (Number(s.target) || 0) / sommeCiblesUtiles : 0;
+    besoin[s.id] = Math.max(0, totalAfter * part - (Number(s.value) || 0));
+  });
+
+  const ordre = [...dansLePerimetre].sort(
+    (a, b) => (Number(b.price) || 0) - (Number(a.price) || 0) || String(a.id).localeCompare(String(b.id))
+  );
+
+  // Les quantités RETENUES (overrides compris) et celles que le calcul
+  // PROPOSE (comme s'il n'y avait aucun ajustement) — deux passes, parce que
+  // « proposition N » doit dire ce que rend le bouton « Réinitialiser », pas ce
+  // que devient la cascade une fois qu'on a forcé une valeur en amont.
+  // La cible EFFECTIVE, en fraction : c'est elle que l'écart mesure, sinon
+  // l'affichage se contredirait (on lirait « cible 40 % » et « → 50 % »).
+  const cibleEffective = (s) => (sommeCiblesUtiles > 0 ? (Number(s.target) || 0) / sommeCiblesUtiles : 0);
+  // L'ANCRAGE — les quantités « d'avant la saisie du montant » : on ignore les
+  // montants forcés et on garde les quantités forcées. Il n'est calculé que s'il
+  // sert, c'est-à-dire s'il existe au moins un montant forcé.
+  const aUnMontantForce = ordre.some((s) => {
+    const o = over[s.id] || {};
+    return o.cost !== null && o.cost !== undefined;
+  });
+  let ancrage = null;
+  if (aUnMontantForce) {
+    const qtysSeules = {};
+    Object.keys(over).forEach((id) => {
+      const o = over[id] || {};
+      if (o.qty !== null && o.qty !== undefined) qtysSeules[id] = { qty: o.qty };
+    });
+    ancrage = _choisirQuantites(ordre, besoin, investissable, totalAfter, qtysSeules, cibleEffective);
+  }
+  const retenues = _choisirQuantites(ordre, besoin, investissable, totalAfter, over, cibleEffective, ancrage);
+  const proposees = Object.keys(over).length
+    ? _choisirQuantites(ordre, besoin, investissable, totalAfter, {}, cibleEffective)
+    : retenues;
+
+  const steps = [];
+  let left = investissable;
+  let carry = 0;
+  ordre.forEach((s, rang) => {
+    const prix = Number(s.price) || 0;
+    const valeur = Number(s.value) || 0;
+    const isLast = rang === ordre.length - 1;
+    const carryIn = carry;
+    const budget = besoin[s.id] + carryIn;
+    // ⚠️ Le +1e-9 absorbe l'erreur binaire : sans lui, 1200/6 peut valoir
+    // 199.99999999999997 et `floor` rend 199 parts au lieu de 200.
+    const maxAchetable = Math.max(0, Math.floor(Math.max(0, left) / prix + 1e-9));
+    // `suggested` vient de la passe SANS AUCUN override : c'est franchement « ce
+    // que la fenêtre proposerait si l'on ne touchait à rien », donc exactement ce
+    // que restaure le bouton « Réinitialiser les propositions ».
+    // ⚠️ NE PAS le replafonner par le `maxAchetable` du moment. Il l'était pour le
+    // dernier support jusqu'au 13/08/2026, et ce plafond n'avait aucune intention :
+    // il faisait tomber la proposition à 0 dès qu'un ajustement en amont avait mangé
+    // l'assiette, donc l'étiquette « quantité ajustée » disparaissait sur cette
+    // ligne — et masquait le défaut symétrique corrigé juste en dessous.
+    const suggested = proposees[rang];
+    const o = over[s.id] || {};
+    const qty = retenues[rang];
+    const costAuto = r2(qty * prix);
+    // ⚠️ Le montant forcé n'est JAMAIS plafonné — le brider falsifierait une
+    // saisie qui décrit ce que le courtier a réellement débité. Le dépassement
+    // se SIGNALE (l'assiette passe en négatif), il ne se corrige pas.
+    const cost = o.cost === null || o.cost === undefined ? costAuto : r2(Number(o.cost) || 0);
+    const valueAfter = r2(valeur + cost);
+
+    left = r2(left - cost);
+    carry = budget - cost;
+
+    steps.push({
+      id: s.id, price: prix, target: r2(cibleEffective(s) * 100),
+      need: r2(besoin[s.id]), carryIn: r2(carryIn), budget: r2(budget),
+      qty, suggested,
+      // 🔴 « AJUSTÉE » VEUT DIRE « L'UTILISATEUR A FORCÉ CETTE LIGNE » — et rien
+      // d'autre. Le test portait sur `qty !== suggested` seul jusqu'au 13/08/2026,
+      // ce qui allumait l'étiquette sur des supports que PERSONNE n'avait touchés :
+      // forcer une quantité décale mécaniquement toutes les suivantes par la
+      // cascade, et chacune se déclarait alors « ajustée, proposition N » comme si
+      // un choix y avait été fait. Mesuré : forcer PAEEM étiquetait PUST, forcer
+      // PUST étiquetait PAEEM.
+      // ⚠️ Le décalage des lignes suivantes n'est PAS une information à signaler :
+      // c'est le fonctionnement même de la cascade, et le signaler noie la seule
+      // ligne où l'utilisateur est réellement intervenu.
+      // 🔴 ET LE SECOND MEMBRE A ÉTÉ RETIRÉ LE 14/08/2026 — défaut reproduit par
+      // l'utilisateur sur son iPhone, puis démontré par un test qu'il a exécuté.
+      // Le correctif du 13/08 avait AJOUTÉ `o.qty != null` en GARDANT
+      // `qty !== suggested`, alors que le premier suffisait. Conséquence : une ligne
+      // épinglée sur exactement la valeur que le plan propose ne portait AUCUN
+      // liseré — elle était pourtant gelée, et ne participait plus à la cascade.
+      // Mesuré sur ses données : PAEEM épinglé à 9 (sa propre proposition) et PUST
+      // porté à 1 part envoyaient les 103 € entiers sur WPEA (490 parts) ; sans
+      // l'épingle, PAEEM descendait à 7 et WPEA n'en prenait que 556 — **66 € de
+      // différence pour le même geste, et rien à l'écran pour l'expliquer.**
+      // ⇒ **L'ÉPINGLE EST UN FAIT, PAS UN ÉCART.** Ce qu'il faut afficher c'est
+      // « tu as décidé cette ligne », jamais « ton chiffre diffère du mien ».
+      // ⚠️ Deux symptômes de plus tombent avec la même ligne, et c'est le signe
+      // qu'on tient la cause : `ajustements` (investments.js) compte
+      // `qtyAdjusted || costForced`, donc le bouton « Réinitialiser les
+      // propositions » DISPARAISSAIT sur un verrou invisible — le rendant
+      // inannulable autrement qu'en changeant le versement, en revenant aux valeurs
+      // ou en fermant la fenêtre. Et une quantité forcée **rabotée** par le plafond
+      // d'achetable (cf. le replafonnement plus bas) perdait aussi sa marque.
+      // ⚠️ Le test qui discrimine est « épinglée sur sa propre proposition » : aucun
+      // des tests du 13/08 ne mordait, tous épinglant sur une valeur différente.
+      qtyAdjusted: o.qty !== null && o.qty !== undefined,
+      // 🔴 ET LA LIGNE QUI A BOUGÉ SANS QU'ON Y TOUCHE — demande de l'utilisateur
+      // du 13/08/2026 : « ça aurait été pas mal que ça bouge partout, comme ça on
+      // voit que tout a évolué ». Il a raison sur le besoin ; ce qui était faux,
+      // c'était de le dire avec le MÊME mot que l'ajustement manuel.
+      // ⇒ Deux drapeaux — et ce sont désormais **deux LISERÉS**, plus deux phrases.
+      // 🔴 CE COMMENTAIRE A ÉTÉ RÉÉCRIT LE 13/08/2026. Il disait : « le liseré indigo
+      // ne suit QUE `qtyAdjusted`/`costForced` : il marque l'intervention, pas la
+      // conséquence. Sinon toute la fenêtre s'allume et le repère ne repère plus
+      // rien. » ⇒ **Périmé le soir même** : les deux étiquettes de texte ont disparu
+      // au profit de deux couleurs de liseré — indigo PLEIN (`--accent`) sur la ligne
+      // forcée, indigo PÂLE (`--accent-pale`) sur celles que la cascade a déplacées.
+      // ⚠️ La règle d'origine n'est pas violée : elle interdisait d'étendre le liseré
+      // PLEIN, et il reste réservé à l'intervention. La conséquence reçoit un signal
+      // DISTINCT, comparé aux deux autres candidates dans l'app avant d'être retenu.
+      // ⚠️ Sa réserve garde une part de vrai, et elle est assumée : les trois cartes
+      // portant un trait, c'est la COULEUR qui distingue, plus la présence.
+      // ⚠️ `styles.css` (`.cp-etape--cascade`) porte le détail du choix.
+      // ⚠️ Sa condition suit celle du dessus (14/08/2026) : une ligne épinglée n'est
+      // JAMAIS « recalculée », même quand son épingle coïncide avec la proposition.
+      // Les deux drapeaux restent exclusifs, et c'est un test qui le vérifie.
+      qtyRecalculee: !(o.qty !== null && o.qty !== undefined) && qty !== suggested,
+      cost, costAuto, costForced: cost !== costAuto,
+      // 🔴 LE PRIX DÉDUIT — « si je modifie le montant final, c'est que je viens
+      // d'acheter, donc le prix se déduit : montant / quantité » (utilisateur,
+      // 13/08/2026). Le cours bouge très vite entre le calcul et l'ordre passé ;
+      // le montant réellement débité est donc la seule donnée sûre, et il porte le
+      // vrai prix de la part.
+      // ⚠️ `null` quand il n'y a rien à déduire : pas de montant forcé, ou zéro part
+      // (division par zéro). L'appelant affiche alors le prix SAISI.
+      // ⚠️ Rien n'est persisté — les prix ne vivent que le temps des deux fenêtres
+      // (décision du 12/08/2026), donc ce prix déduit n'est qu'un AFFICHAGE et ne
+      // réécrit pas la saisie de l'étape 1. C'est ce qui rend la règle inoffensive.
+      prixDeduit: (cost !== costAuto && qty > 0) ? r2(cost / qty) : null,
+      carryOut: r2(carry), leftAfter: left,
+      valueAfter, pctAfter: totalAfter ? r2(valueAfter / totalAfter * 100) : 0,
+      gapPts: totalAfter ? r2(valueAfter / totalAfter * 100 - cibleEffective(s) * 100) : 0,
+      isLast,
+    });
+  });
+
+  const prixMini = ordre.reduce((m, s) => Math.min(m, Number(s.price) || 0), Infinity);
+  const invested = r2(investissable - left);
+  return {
+    steps, excluded,
+    available,        // l'assiette ENTIÈRE — versement + cash de l'enveloppe
+    investissable,    // la part qu'on répartit : available × Σcibles / 100
+    reserve,          // ce qu'on laisse en cash À DESSEIN (0 quand Σcibles ≥ 100)
+    totalAfter,
+    invested,
+    // ⚠️ `left` est ce qui reste de l'assiette ENTIÈRE, réserve comprise : c'est
+    // le chiffre que l'utilisateur retrouve en cash dans son enveloppe. Le
+    // reliquat de la seule part investissable, lui, est `left - reserve`.
+    left: r2(available - invested),
+    targetSum: r2(sommeCibles),
+    // « Plus rien n'est achetable » — et non « le reste vaut zéro ». ⚠️ Se juge
+    // sur la part INVESTISSABLE : avec des cibles à 80 %, il reste
+    // volontairement du cash et le plan est pourtant complet.
+    complete: ordre.length > 0 && (investissable - invested) < prixMini,
+  };
+}
+
+// 🔴 FAUT-IL ÉPINGLER CETTE LIGNE ? — règle posée par l'utilisateur le 14/08/2026,
+// après le correctif de la v1012 : *« est-ce normal qu'un verrou soit mis si on
+// revient à la valeur d'avant ? C'est chelou, non ? »*
+//
+// **Il a raison.** Un `+` suivi d'un `−` veut dire « j'ai changé d'avis, oublie » ;
+// finir épinglé sur la valeur qu'on n'a pas quittée est un état que personne n'a
+// demandé — et il a une CONSÉQUENCE, la ligne ne participant plus à la cascade.
+// Sans relâchement par ligne (jamais construit, cf. `BACKLOG.md`), une tape de trop
+// ne se défaisait qu'avec « Réinitialiser », qui détruit tous les autres ajustements.
+//
+// ⇒ **LA RÈGLE : on épingle si et seulement si le chiffre demandé change le
+// résultat de CETTE ligne**, dans le contexte du moment.
+// ⚠️ **« Le contexte du moment », et non la proposition d'origine** — c'est le point
+// qui fait tenir la règle. Si une AUTRE ligne est épinglée, la valeur qu'une ligne
+// aurait librement n'est plus `suggested` mais sa valeur déplacée par la cascade.
+// Comparer à `suggested` déplacerait la bizarrerie au lieu de la supprimer :
+// PUST épinglé à 1 fait afficher 7 à PAEEM, et un retour à 7 se serait épinglé
+// puisque 7 ≠ 9.
+//
+// 🔴 **POURQUOI CETTE FORME ET NON « RELÂCHER AU RETOUR », qui était ma proposition** :
+// relâcher une épingle relance la cascade, donc le nombre peut BOUGER SOUS LE DOIGT
+// (revenir de 10 vers 9 et atterrir sur 7) — le défaut corrigé en v1002. Ici le saut
+// est impossible **par construction** : on ne s'abstient d'épingler que lorsque
+// épingler ou non donne le MÊME nombre affiché. Et le mode de panne est plus doux —
+// ne pas créer un état, au lieu d'en supprimer un que l'utilisateur voulait garder.
+//
+// ⚠️ **La comparaison porte sur le RÉSULTAT et non sur le chiffre demandé** : une
+// quantité est replafonnée par ce qui reste achetable, donc demander 999 parts quand
+// 8 sont possibles ne change rien à l'écran. Comparer les chiffres bruts y aurait
+// posé une épingle au liseré visible et à l'effet nul — du bruit, d'autant plus
+// inutile que changer le versement efface de toute façon tous les overrides.
+//
+// ⚠️ **Ce qu'on perd, et c'est assumé** : impossible de dire « bloque cette ligne ici
+// quoi qu'il arrive » quand sa valeur est justement celle proposée. Cette intention
+// n'est pas exprimable avec un `+`/`−` — le geste « j'appuie puis je reviens » est
+// indistinguable de « je n'ai rien changé ». Face à un geste ambigu, le lire comme
+// « pas de décision » est le bon choix.
+//
+// ⚠️ **PURE ET EXPORTÉE EXPRÈS** : laissée dans `poserQty` (`investments.js`), cette
+// décision serait hors couverture du harnais (§10) — et c'est un chemin qui RETIRE un
+// ajustement, donc le dernier endroit où l'on veut du code non testé.
+// ⚠️ Elle rejoue le plan DEUX fois. Sans conséquence : le calcul est pur et borné
+// par `PLAFOND_FEUILLES`, et ça ne se produit qu'à un appui sur `+`/`−`.
+// 🔴 CETTE QUANTITÉ EST-ELLE HONORABLE ? — le garde-fou de la règle ci-dessus
+// (14/08/2026). Depuis qu'une épingle ne se rabote plus, il faut savoir AVANT de la
+// poser si un plan peut la porter : sinon le solveur retomberait sur son repli non
+// strict et rendrait un autre chiffre que celui demandé, en silence — le défaut même
+// qu'on vient de corriger.
+// ⇒ On rejoue le plan avec l'épingle et on vérifie que la ligne rend **exactement**
+// ce qu'on a demandé. Sinon l'IHM refuse l'appui par un toast neutre
+// (`partDePlusImpossible`), au lieu d'afficher un nombre que personne n'a demandé.
+// ⚠️ PURE ET EXPORTÉE, même motif que sa voisine : laissée dans `poserQty`, elle
+// serait hors couverture du harnais (§10).
+function quantiteHonorable({ amount, cash, supports, overrides } = {}, id, q) {
+  const voulu = Math.max(0, Math.floor(Number(q) || 0));
+  const base = overrides || {};
+  const sans = { ...base };
+  delete sans[id];
+  const avec = { ...sans, [id]: { qty: voulu } };
+  const s = computeContributionPlan({ amount, cash, supports, overrides: avec })
+    .steps.find((x) => x.id === id);
+  // Ligne absente du plan : on ne sait pas juger, donc on n'autorise pas — le refus
+  // est visible, un chiffre faux ne l'est pas.
+  return s ? s.qty === voulu : false;
+}
+
+function epingleNecessaire({ amount, cash, supports, overrides } = {}, id, q) {
+  const base = overrides || {};
+  // La ligne SANS son épingle : les autres sont conservées, et le montant forcé de
+  // cette ligne part aussi — c'est ce que fait `poserQty`, qui l'efface toujours.
+  const sans = { ...base };
+  delete sans[id];
+  const avec = { ...sans, [id]: { qty: Math.max(0, Math.floor(Number(q) || 0)) } };
+  const retenue = (over) => {
+    const s = computeContributionPlan({ amount, cash, supports, overrides: over })
+      .steps.find((x) => x.id === id);
+    return s ? s.qty : null;
+  };
+  const libre = retenue(sans);
+  const force = retenue(avec);
+  // Ligne absente du plan (support exclu, prix manquant) : rien à comparer, on
+  // épingle. Ne jamais renvoyer `false` sur un cas qu'on ne sait pas juger — ce
+  // serait perdre une saisie en silence.
+  if (libre === null || force === null) return true;
+  return force !== libre;
+}

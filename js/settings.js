@@ -265,7 +265,7 @@ function EtfsList({ data, onUpdate, onPersist, showToast }) {
                 <NomSupport etf={e} /><LibelleSupport etf={e} className="support-edit-lbl" prefixe=" — " />
               </span>
               {e.target != null && e.target !== ''
-                ? <span className="support-edit-cible"><Icon name="target" size={13} /> {e.target} %</span>
+                ? <span className="support-edit-cible"><Icon name="target" size={13} /> {fmt(e.target)} %</span>
                 : <span className="support-edit-cible" />}
               <button type="button" className="tx-edit" onClick={() => setEditing(e)} aria-label="Modifier le support"><Icon name="pencil" size={14} /></button>
             </div>
@@ -279,7 +279,7 @@ function EtfsList({ data, onUpdate, onPersist, showToast }) {
       {targeted.length > 0 && (
         <div className={`target-sum ${Math.round(totalTarget) === 100 ? 'ok' : 'warn'}`}>
           <span>Total des cibles</span>
-          <b>{totalTarget} %{Math.round(totalTarget) === 100 ? '' : ' · à ajuster'}</b>
+          <b>{fmt(totalTarget)} %{Math.round(totalTarget) === 100 ? '' : ' · à ajuster'}</b>
         </div>
       )}
 

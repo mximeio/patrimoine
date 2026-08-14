@@ -1080,7 +1080,7 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
             <div>
               <label className="label">Part de ma poche (€)</label>
               <AmountInput className="input" value={own} onChange={(n) => setOwn(n)} />
-              <div className="field-hint">Part employeur : {eur(employer)} ({employerPct} %)</div>
+              <div className="field-hint">Part employeur : {eur(employer)} ({fmt(employerPct)} %)</div>
             </div>
           </div>
         )}

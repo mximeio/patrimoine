@@ -40,6 +40,25 @@ const PORTFOLIO_PALETTE = ['#4f46e5', '#f59e0b', '#06b6d4', '#ec4899', '#10b981'
 const eurFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const fmt = (n) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0).replace(',', '.');
 const fmtNoDec = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0).replace(',', '.');
+// 🔴 RÈGLE DU 13/08/2026 — UN POURCENTAGE S'AFFICHE TOUJOURS À DEUX DÉCIMALES.
+// Posée par l'utilisateur après avoir vu « 65.0 % » dans la liste des supports et
+// « 15.00 % » pour la même notion dans la fenêtre de versement. Il y avait TROIS
+// familles d'affichage dans l'app, et c'est l'audit des 17 fichiers qui les a sorties :
+//   • `toFixed(1)` — quatre endroits (dont la page Patrimoine) ;
+//   • `toFixed(2)` — la majorité, déjà conforme ;
+//   • aucun formatage du tout — quatre endroits affichant la valeur STOCKÉE, donc
+//     « 15 % » pour une cible saisie à 15, face au « 15.00 % » du plan.
+// ⇒ Deux voies, selon la nature du nombre, et il ne faut pas les confondre :
+//   • un pourcentage CALCULÉ → `.toFixed(2)`, l'idiome déjà en place pour `gainPct` ;
+//   • un pourcentage STOCKÉ (une cible, une part employeur) → `fmt()`, qui vaut mieux
+//     qu'un `.toFixed` : il absorbe `null`/`undefined` (`n || 0`) là où `.toFixed`
+//     lèverait, et ces champs sont optionnels.
+// ⚠️ UNE SEULE EXCEPTION, et elle est VOULUE : `.cmpd-round` dans `charges.js` garde son
+// `toFixed(0)`. Ce n'est pas un oubli — `.cmpd-exact` / `.cmpd-round` sont deux versions
+// du MÊME chiffre, et le CSS bascule de l'une à l'autre (l'exacte en desktop, l'arrondie
+// sur smartphone, cf. styles.css §589). Les passer tous deux à deux décimales
+// supprimerait la version compacte pensée pour le téléphone.
+// ⚠️ Ne concerne PAS les montants en euros : eux ont déjà `fmt` / `fmtNoDec`.
 const eur = (n) => eurFormatter.format(n || 0).replace(',', '.');
 const r2 = (n) => Math.round(n * 100) / 100;
 // Signe affiché devant un montant de ligne (compte courant + récurrents) :
@@ -356,6 +375,36 @@ const REFUS = {
   // donne un seul texte pour les 7 types d'opération d'investissement — et fait
   // disparaître le cas particulier de `gift`, dont le champ est `marketValue`.
   champObligatoire:   (libelle) => `${String(libelle).replace(/\s*\(€\)\s*$/, '')} est obligatoire.`,
+  // Calculer un versement : on n'enregistre rien si le plan n'achète aucune part.
+  // ⚠️ Registre IMPERSONNEL comme les autres, et il CONSTATE (toast neutre) —
+  // il n'y a rien à corriger, seulement rien à faire.
+  aucuneQuantite:     'Aucune part à acheter : rien ne sera enregistré.',
+  // Étape 1 du versement : sans un seul prix, il n'y a aucun plan à proposer.
+  prixObligatoire:    "Le prix d'une part est obligatoire pour au moins un support.",
+  // ⚠️ CONSTAT, pas erreur (toast neutre) : on peut continuer sans ce prix, mais
+  // il faut dire ce que ça change — sa part ira aux autres supports.
+  partRedistribuee:   (noms) => `Sans prix, la part de ${noms} ira aux autres supports.`,
+  // L'onglet « 2 · Répartition » cliqué avant d'avoir validé l'étape 1.
+  // ⚠️ CONSTAT (toast neutre) : rien n'est en faute, l'ordre des étapes est juste
+  // rappelé. Et surtout, ce refus EXISTE — l'onglet était un `<span>` inerte, donc
+  // un clic sans effet ni explication, ce que le §10 refuse.
+  valeursAValider:    'Les valeurs doivent être validées avant de répartir.',
+  // 🔴 LES DEUX APPUIS SUR `−`/`+` QUI NE PEUVENT RIEN FAIRE — demande de
+  // l'utilisateur du 14/08/2026, née d'une bonne intuition et d'un mécanisme qui ne
+  // marche pas : il proposait de rendre le bouton NON CLIQUABLE avec un message au
+  // clic. Les deux sont incompatibles — un élément `disabled` **ne peut pas être
+  // tapé**, donc il ne porte aucun message, et le §10 l'a déjà mesuré le 10/08 en
+  // abandonnant le bouton grisé (« la bulle au survol ne marche pas sur iPhone »).
+  // ⇒ **Le bouton reste actif et le refus s'annonce par un toast**, ce qui est la
+  // doctrine en vigueur et ce que le besoin réclamait vraiment : savoir POURQUOI
+  // rien ne bouge.
+  // ⚠️ CONSTATS, pas erreurs (toasts neutres) : on a touché un plancher ou un
+  // plafond, il n'y a rien à corriger.
+  partsNegatives:     'Le nombre de parts ne peut pas être négatif.',
+  // ⚠️ Le plafond n'est pas « ce qui reste » mais **ce que l'assiette entière
+  // permet** : depuis la règle du 14/08, une épingle ne se rabote plus, donc une
+  // part de plus est refusée seulement si AUCUN plan ne peut l'honorer.
+  partDePlusImpossible: "L'assiette ne permet pas une part de plus.",
 };
 
 // ⚠️ Durée volontairement plus longue que les 2 500 ms par défaut : le toast paraît
@@ -366,11 +415,16 @@ const DUREE_REFUS = 4000;
 // 🔴 TOUS les refus ne sont PAS des erreurs — relevé par l'utilisateur le
 // 10/08/2026, et c'est juste : « Aucune modification à enregistrer » ne signale
 // aucune faute, il constate qu'il n'y a rien à faire. Le rouge le surjouerait.
-// ⇒ Ces trois-là passent en toast NEUTRE (fond sombre) ; tous les autres, qui
+// ⇒ Ceux-là passent en toast NEUTRE (fond sombre) ; tous les autres, qui
 // demandent à l'utilisateur de fournir quelque chose, restent en ROUGE.
 // ⚠️ Le ton est déduit du MESSAGE, pas passé par l'appelant : c'est ce qui
 // empêche deux formulaires de choisir des tons différents pour la même phrase.
-const REFUS_NEUTRES = new Set([REFUS.rienChange, REFUS.nomEnveloppeInchange, REFUS.valorisationsInchangees]);
+// ⚠️ `partsNegatives` y entre alors que son jumeau `montantNegatif` n'y est PAS —
+// écart assumé et signalé (14/08/2026). Un montant négatif est une saisie fautive
+// qu'on corrige ; un `−` sur zéro est un appui qui touche le plancher, sans faute.
+// Si l'usage montre que les deux doivent s'aligner, c'est ici que ça se change.
+const REFUS_NEUTRES = new Set([REFUS.rienChange, REFUS.nomEnveloppeInchange, REFUS.valorisationsInchangees,
+  REFUS.aucuneQuantite, REFUS.valeursAValider, REFUS.partsNegatives, REFUS.partDePlusImpossible]);
 
 // Le canal unique. À appeler en tête de submit : `if (…) return refuser(showToast,
 // REFUS.x);` — la valeur de retour n'a pas de sens pour un gestionnaire

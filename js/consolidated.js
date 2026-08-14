@@ -121,7 +121,7 @@ function ConsolidatedView({ ctx, onNavigate }) {
               <div style={{ textAlign: 'right' }}>
                 <div className="num" style={{ fontSize: 17, fontWeight: 600, color: c.color }}>{fmt(c.value)}<span className="currency-muted"> €</span></div>
                 <div style={{ fontSize: 11, color: COLORS.muted }}>
-                  {totalPatrimoine > 0 ? ((c.value / totalPatrimoine) * 100).toFixed(1) : 0}%
+                  {totalPatrimoine > 0 ? ((c.value / totalPatrimoine) * 100).toFixed(2) : '0.00'}%
                 </div>
               </div>
             </button>
