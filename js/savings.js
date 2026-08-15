@@ -102,7 +102,7 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
       <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-            Total épargne
+            Solde total
           </div>
           <ModuleBadge module="savings" />
         </div>
@@ -238,6 +238,9 @@ function NewSavingsForm({ onSubmit, showToast }) {
 //  VUE DÉTAIL — un livret
 // ============================================================
 function SavingsDetailView({ ctx, saving, onBack }) {
+  // La ligne de titre de la coquille porte le retour et le nom (§ en-tête de
+  // sous-page). Appelé avant tout retour anticipé, comme n'importe quel hook.
+  useEnteteSousPage(ctx, saving.name, onBack);
   const { user, showToast } = ctx;
   const [modal, setModal] = useState(null); // 'add' | 'configure' | null
   const [editingOpId, setEditingOpId] = useState(null);
@@ -311,20 +314,21 @@ function SavingsDetailView({ ctx, saving, onBack }) {
 
   return (
     <div>
-      {/* BREADCRUMB */}
-      <div className="breadcrumb">
-        <button className="breadcrumb-link" onClick={onBack}>
-          <Icon name="arrowLeft" size={13} />
-          Épargne
-        </button>
-        <span className="breadcrumb-sep">/</span>
-        <span className="breadcrumb-current">{saving.name}</span>
-      </div>
+      {/* Fil d'Ariane SUPPRIMÉ le 15/08/2026 — cf. le même commentaire dans
+          `investments.js`. Le retour et le nom vivent dans la ligne de titre. */}
 
-      {/* HERO — nom éditable in-place + module badge + kebab */}
+      {/* HERO — libellé du montant + module badge + kebab.
+          ⚠️ Ce commentaire annonçait un « nom éditable in-place » : c'était FAUX
+          depuis longtemps — la classe posée était `hero-name-static`, et le
+          renommage passe par Réglages. Corrigé le 15/08/2026 en retirant le nom. */}
       <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div className="hero-name-static" title={saving.name}>{saving.name}</div>
+          {/* Libellé du montant, comme les autres hero cards — cf. le commentaire
+              détaillé dans `investments.js`. Le nom du livret vit dans la ligne
+              de titre depuis le 15/08/2026. */}
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
+            Solde
+          </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <ModuleBadge module="savings" />
             <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>

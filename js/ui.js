@@ -418,6 +418,11 @@ function Icon({ name, size = 16, color }) {
     lock: <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
     unlock: <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>,
     chevronDown: <polyline points="6 9 12 15 18 9"/>,
+    // Retour d'une sous-page vers sa page groupée (15/08/2026). Chevron et non
+    // flèche : c'est le geste « on remonte d'un cran », pas « on va à gauche ».
+    // ⚠️ Il REMPLACE `arrowLeft`, qui ne servait qu'aux trois fils d'Ariane et
+    // part avec eux — ne pas réintroduire une seconde façon de dire « retour ».
+    chevronLeft: <polyline points="15 18 9 12 15 6"/>,
     chart: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
     target: <><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>,
     download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
@@ -442,7 +447,10 @@ function Icon({ name, size = 16, color }) {
     check: <polyline points="20 6 9 17 4 12"/>,
     layers: <><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>,
     refresh: <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
-    arrowLeft: <><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></>,
+    // `arrowLeft` a été RETIRÉ le 15/08/2026 : ses trois seuls usages étaient les
+    // trois fils d'Ariane, supprimés le même jour. Le retour se dit désormais avec
+    // `chevronLeft`, et une seule fois. ⚠️ Ne pas le réintroduire « au cas où » —
+    // deux façons de dire « retour » est exactement ce que ce retrait corrige.
     calendar: <><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>,
     trendUp: <><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>,
     eye: <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
@@ -573,6 +581,37 @@ function useEcranCompact() {
     return () => mq.removeListener(onChange);
   }, []);
   return compact;
+}
+
+// En-tête de SOUS-PAGE (15/08/2026) — la vue de détail déclare son nom et son
+// retour ; la coquille (`app.js`) rend la ligne de titre en conséquence. Remplace
+// les TROIS fils d'Ariane (compte courant, épargne, investissements), supprimés
+// le même jour, et supprime les 36 px de saut vertical qu'ils provoquaient.
+//
+// 🔴 `onBack` NE VA PAS DANS L'ÉTAT, et c'est le point à ne surtout pas
+//  « simplifier ». Le handoff proposait `setSousPage({ nom, parent, onBack })`
+//  avec les deps `[nom, parent]` : ça converge, MAIS `onBack` y est utilisé sans
+//  figurer dans les dépendances — et quiconque « corrigera » cet oubli avec une
+//  lambda inline créera une boucle : effet → état du parent → re-rendu → effet…
+//  → React #185, écran blanc (§8 de CLAUDE.md). Le `ref` donne une fonction
+//  toujours FRAÎCHE sans jamais être une dépendance.
+//
+// ⚠️ `nom` falsy = pas de sous-page. Indispensable au compte courant, dont le
+//  retour n'existe QU'EN multi-comptes : un hook ne pouvant pas être appelé
+//  conditionnellement, c'est l'ARGUMENT qui l'est.
+function useEnteteSousPage(ctx, nom, onBack) {
+  const refRetour = useRef(onBack);
+  refRetour.current = onBack;
+  const poser = ctx && ctx.setSousPage;
+  useEffect(() => {
+    if (!poser) return undefined;
+    if (!nom) { poser(null); return undefined; }
+    poser({ nom, onBack: () => { if (refRetour.current) refRetour.current(); } });
+    // ⚠️ Le nettoyage est ESSENTIEL : il rend le titre de rubrique au démontage,
+    //  y compris quand la sous-page disparaît autrement que par le chevron —
+    //  une suppression d'enveloppe appelle `onBack()` elle aussi.
+    return () => poser(null);
+  }, [poser, nom]);
 }
 
 // Le nom d'un support en UNE chaîne, pour les contextes qui ne peuvent PAS

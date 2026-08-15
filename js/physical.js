@@ -40,7 +40,15 @@ function PhysicalView({ ctx }) {
     <div>
       <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.physical}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>Valeur actuelle</div>
+          {/* « Valeur totale » et non « actuelle » (15/08/2026) : cette hero card
+              affiche exactement le même trio que celle des investissements —
+              valeur, plus-value, investi. « Actuelle » y opposait la valeur à
+              l'investi, or cette opposition est déjà écrite en toutes lettres
+              juste à côté, sous son propre libellé. « Totale » dit ce qui n'est
+              écrit nulle part ailleurs : c'est la SOMME du module, par opposition
+              à la valeur d'un actif isolé. Un qualificatif se garde quand il
+              apporte — comme « pointé » sur le compte courant. */}
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>Valeur totale</div>
           <ModuleBadge module="physical" />
         </div>
         <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(totalCurrent)} €</div>

@@ -146,7 +146,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
       <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.investments}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-            Valeur totale investissements
+            Valeur totale
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <ModuleBadge module="investments" />
@@ -365,6 +365,10 @@ function NewPortfolioForm({ onSubmit, showToast }) {
 //  SOUS-PAGE D'UN PORTEFEUILLE
 // ============================================================
 function PortfolioDetailView({ ctx, portfolio, onBack }) {
+  // La ligne de titre de la coquille porte le retour et le nom (§ en-tête de
+  // sous-page). ⚠️ Appelé AVANT tout retour anticipé de ce composant, comme
+  // n'importe quel hook.
+  useEnteteSousPage(ctx, portfolio.name, onBack);
   const { user, refreshPortfolios, showToast } = ctx;
   const [modal, setModal] = useState(null);
   // ID de l'opération en cours d'édition (depuis HistoryOpsTable).
@@ -439,20 +443,31 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
 
   return (
     <div>
-      {/* BREADCRUMB */}
-      <div className="breadcrumb">
-        <button className="breadcrumb-link" onClick={onBack}>
-          <Icon name="arrowLeft" size={13} />
-          Investissements
-        </button>
-        <span className="breadcrumb-sep">/</span>
-        <span className="breadcrumb-current">{portfolio.name}</span>
-      </div>
+      {/* Le fil d'Ariane a été SUPPRIMÉ le 15/08/2026 : il insérait une ligne
+          entre le titre de rubrique et la hero card, soit 36 px de saut vertical
+          mesurés à l'ouverture. Le retour et le nom vivent désormais dans la
+          ligne de titre, posés par `useEnteteSousPage` (déclaré plus haut dans ce
+          composant). Ne pas le réintroduire. */}
 
       {/* HERO */}
       <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.investments}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div className="hero-name-static" title={portfolio.name}>{portfolio.name}</div>
+          {/* Un LIBELLÉ qui dit ce qu'est le montant, comme toutes les hero cards
+              de l'app. Le NOM de l'enveloppe était affiché ici jusqu'au
+              15/08/2026 : il est désormais dans la ligne de titre, juste
+              au-dessus, donc le répéter coûtait une ligne pour ne rien apprendre.
+              ⚠️ « Valeur » tout court, sans « de l'enveloppe » : le type de
+              l'objet est le dernier reste de cette même redite. La règle des huit
+              hero cards, arbitrée le 15/08/2026 : le libellé dit la NATURE du
+              montant (solde = de l'argent qu'on a · valeur = une estimation de
+              marché), et n'ajoute un qualificatif que là où il apporte —
+              « pointé » sur le compte courant, « totale » sur une vue qui somme.
+              ⚠️ Ne pas citer ici les libellés des autres écrans : une première
+              version de ce commentaire les énumérait, et ils ont changé le jour
+              même. Le CHANGELOG porte le tableau complet. */}
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
+            Valeur
+          </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <ModuleBadge module="investments" />
             <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>

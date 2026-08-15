@@ -251,6 +251,11 @@ function CheckingView({ ctx, onBack }) {
   const { currentAccount, updateCheckingAccount, showToast,
           checkingAccounts, renameCheckingAccount, deleteCheckingAccount,
           profile } = ctx;
+  // La ligne de titre de la coquille porte le retour et le nom du compte.
+  // ⚠️ `onBack` n'existe QU'EN multi-comptes : sans lui il n'y a pas de sous-page,
+  //  d'où le nom passé à `null`. Un hook ne s'appelle pas conditionnellement,
+  //  c'est donc l'argument qui l'est (cf. `useEnteteSousPage`).
+  useEnteteSousPage(ctx, onBack ? (currentAccount.name || '(sans nom)') : null, onBack);
   const checking = currentAccount;
   const updateCheckingData = updateCheckingAccount;
   // isMultiMode dépend UNIQUEMENT du toggle profil. Quand l'utilisateur
@@ -525,16 +530,15 @@ function CheckingView({ ctx, onBack }) {
 
   return (
     <div>
-      {/* Breadcrumb retour vers la consolidée (mode multi-comptes uniquement) */}
-      {onBack && (
-        <div className="breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: COLORS.muted }}>
-          <a onClick={onBack} style={{ color: COLORS.accent, cursor: 'pointer', textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <Icon name="arrowLeft" size={12} /> {checkingModuleLabel(profile)}
-          </a>
-          <span style={{ color: COLORS.subtle }}>/</span>
-          <span>{currentAccount.name || <span style={{ color: COLORS.subtle, fontStyle: 'italic' }}>(sans nom)</span>}</span>
-        </div>
-      )}
+      {/* Fil d'Ariane SUPPRIMÉ le 15/08/2026 — cf. `investments.js`. Le retour et
+          le nom du compte vivent dans la ligne de titre, posés plus haut par
+          `useEnteteSousPage`.
+          ⚠️ Ici la droite de cette ligne porte la CHIP DE MOIS : c'est pourquoi
+          aucun libellé de rubrique n'y est affiché, sur ce module comme sur les
+          autres. Mesuré le 15/08/2026 sur 390 px : la ligne fait 358 px, le titre
+          en prend 152 et la chip 169 — il restait 29 px pour un libellé qui en
+          demande 122. Il ne rentre pas, et c'est ce qui a tranché pour toute
+          l'app. */}
       {/* Sélecteur de mois : plus de bandeau au-dessus du hero (la card
           remonte au niveau des autres rubriques). Desktop → chip translucide
           dans le hero ; mobile → chip claire dans la ligne de titre (portal). */}
@@ -557,9 +561,10 @@ function CheckingView({ ctx, onBack }) {
       <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.checking}`, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            {/* Pas de nom du compte dans la hero card : en multi-mode
-                le breadcrumb au-dessus identifie déjà le compte ouvert,
-                et la modification du nom passe par Réglages. */}
+            {/* Pas de nom du compte dans la hero card : en multi-mode c'est la
+                LIGNE DE TITRE qui identifie le compte ouvert (elle portait le
+                fil d'Ariane jusqu'au 15/08/2026), et la modification du nom passe
+                par Réglages. */}
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
               Solde pointé
             </div>

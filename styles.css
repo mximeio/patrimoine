@@ -909,6 +909,81 @@ input[type="month"] {
   height: 24px;
   display: flex; align-items: center;
 }
+/* ===== Ligne de titre en mode SOUS-PAGE (15/08/2026) =====================
+   Remplace les trois fils d'Ariane, qui inséraient une ligne entre le titre de
+   rubrique et la hero card — 36 px de saut vertical mesurés à l'ouverture d'une
+   enveloppe. Ici la hauteur ne bouge pas : la hero card reste au même Y. */
+/* 6 px, et non les 4 px d'origine : c'est l'écart entre la BOÎTE du bouton et la
+   première lettre du titre — donc ce qu'on voit au survol, quand la boîte se
+   remplit. À 4 px le rectangle venait toucher le texte. ⚠️ Ne pas le confondre
+   avec l'écart entre le TRAIT et le titre, qui vaut 6 px de plus : la boîte
+   porte 1 px de marge autour du svg, et le svg 7,3 px de vide autour du tracé
+   (cf. `.btn-retour`). C'est cette confusion qui avait produit un réglage à 0. */
+.titre-retour { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* 🔴 LE FAIT QUI COMMANDE TOUT CE BLOC : l'icône porte 7,3 px de VIDE INTÉGRÉ.
+   Le tracé de `chevronLeft` n'occupe que `x ∈ [8, 16]` d'un viewBox de 24, donc
+   ~7,3 px sur un rendu de 22 px, de chaque côté. Ce vide appartient à l'ICÔNE,
+   pas au bouton. ⇒ **Si la boîte ne déborde pas à gauche, le trait est
+   forcément rentré**, d'au moins ces 7,3 px. On ne peut pas avoir les deux, et
+   ce n'est pas un réglage à trouver.
+   Décision de l'utilisateur du 15/08/2026, sur maquette : **rien ne déborde**.
+   D'où une boîte de 24 px collée à la marge — le trait se pose alors à 8 px du
+   bord, le minimum atteignable.
+   ⚠️ AUCUNE marge négative à droite. Un premier essai en posait une (−4 px) pour
+   rapprocher le TRAIT du titre : elle annulait exactement le `gap`, et au survol
+   la boîte remplie venait toucher la première lettre. Ce qu'on voit au survol
+   c'est la BOÎTE, pas le trait — c'est elle qui doit respirer.
+   ⚠️ Une seule règle pour mobile ET desktop : la surcharge desktop du bouton a
+   été retirée le même jour. Seule la taille du TITRE diffère encore. */
+.btn-retour {
+  width: 24px; height: 24px;
+  margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; padding: 0;
+  color: var(--accent); border-radius: 8px;
+  flex-shrink: 0; cursor: pointer;
+  position: relative; /* ancre de la cible tactile ci-dessous */
+}
+/* 🔴 CIBLE TACTILE DE 44 px SANS BOÎTE DE 44 px. 24 + 10 + 10 = 44. Cette zone
+   n'affiche rien, ne déplace rien et ne participe pas à la mise en page : elle
+   ne fait qu'agrandir ce qui est cliquable. C'est ce qui permet de tenir les
+   deux exigences à la fois — un bouton visuellement petit et aligné, et le
+   minimum de 44 px au doigt. ⚠️ Ne pas la supprimer en la prenant pour un
+   reste : sans elle la cible retombe à 24 px. */
+.btn-retour::after { content: ''; position: absolute; inset: -10px; }
+.btn-retour:active { opacity: .6; }
+@media (hover: hover) {
+  .btn-retour:hover { background: var(--accent-light); }
+}
+/* Desktop : la ligne de titre reste masquée sur les pages de RUBRIQUE — le rail
+   du haut les nomme déjà — mais s'affiche sur les SOUS-PAGES, où elle remplace
+   le fil d'Ariane.
+   ⚠️ Enfermé dans `min-width: 641px` À DESSEIN : la règle qui affiche
+   `.title-row` en mobile vit dans `@media (max-width: 640px)` et y pose le
+   `padding-top` de safe-area. Une règle non bornée, plus spécifique, écraserait
+   ce padding et ferait passer le titre sous l'encoche en PWA. */
+@media (min-width: 641px) {
+  .title-row.title-row-sous-page {
+    display: flex;
+    padding-top: 0;
+    margin-bottom: 12px;
+  }
+  /* 🔴 17 px, et NON les 22 px du handoff — corrigé le 15/08/2026 sur retour de
+     l'utilisateur, après mesure. Ici cette ligne est de la hauteur NETTE : sur
+     desktop `.title-row` était masquée, donc contrairement au mobile elle ne
+     remplace pas une ligne existante mais le fil d'Ariane (13 px, 36 px de haut
+     avec sa marge). À 22 px l'ensemble faisait 38 px : le saut vertical que ce
+     chantier devait supprimer restait entier, et l'écriture pesait bien plus
+     lourd que ce qu'elle remplaçait. À 17 px la ligne retombe à ~32 px, donc
+     SOUS l'ancien fil d'Ariane.
+     ⚠️ La promesse « hauteur inchangée » du handoff n'est structurellement vraie
+     qu'en MOBILE, où la ligne existait déjà et ne fait que changer de contenu. */
+  .title-row.title-row-sous-page .mobile-page-title { font-size: 17px; }
+  /* ⚠️ AUCUNE surcharge du bouton ici, et c'est délibéré : il fait 24 px partout
+     depuis le 15/08/2026. Une taille différente par écran obligerait à recalculer
+     ses deux marges à chaque fois — c'est ce qui avait produit un débordement à
+     gauche et 22 px d'écart à droite. Une seule géométrie, une seule règle. */
+}
 
 .hero-value-big { font-size: 42px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
 /* Le dégradé sombre des 5 hero cards (compte courant, épargne, investissements,
@@ -2962,58 +3037,18 @@ button.stat-card {
 /* ============================================================
    Investissements — vue liste + sous-page portefeuille
    ============================================================ */
-.breadcrumb {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 13px; color: var(--text-muted);
-  margin: 0 0 12px;
-  flex-wrap: wrap;
-}
-.breadcrumb-link {
-  display: inline-flex; align-items: center; gap: 5px;
-  background: none; border: none;
-  color: var(--accent); font-weight: 500;
-  cursor: pointer; padding: 4px 8px;
-  border-radius: 6px;
-  font-family: inherit; font-size: inherit;
-  margin-left: -8px;
-  transition: background 0.15s;
-}
-.breadcrumb-link:hover { background: var(--accent-light); }
-.breadcrumb-sep { color: var(--text-subtle); }
-.breadcrumb-current { color: var(--text); font-weight: 500; }
+/* Les quatre classes `.breadcrumb*` ont été SUPPRIMÉES le 15/08/2026 avec les
+   trois fils d'Ariane qu'elles habillaient (compte courant, épargne,
+   investissements). Le retour vit désormais dans la ligne de titre —
+   `.titre-retour` / `.btn-retour`, plus haut dans ce fichier. Ne pas les
+   recréer : c'est l'en-tête de sous-page qui porte ce rôle. */
 
-.hero-name-edit {
-  background: transparent;
-  border: 1px solid transparent;
-  color: white;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 500;
-  padding: 2px 6px;
-  border-radius: 6px;
-  margin-left: -6px;
-  min-width: 0;
-  max-width: 70%;
-  font-family: inherit;
-  outline: none;
-  transition: background 0.15s, border-color 0.15s;
-}
-.hero-name-edit:hover { background: rgba(255,255,255,0.08); }
-.hero-name-edit:focus { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25); }
-/* Nom affiché (non éditable) dans le hero : le renommage passe par Réglages,
-   comme le Compte courant. Même rendu visuel que .hero-name-edit. */
-.hero-name-static {
-  color: white;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 500;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* `.hero-name-edit` et `.hero-name-static` SUPPRIMÉES le 15/08/2026.
+   La seconde habillait le nom de l'enveloppe et du livret en tête de leur hero
+   card ; ces heroes annoncent désormais leur MONTANT (« Valeur de l'enveloppe »,
+   « Solde du livret ») comme toutes les autres, le nom vivant dans la ligne de
+   titre. La première n'avait déjà plus aucun appelant : le renommage en place
+   qu'elle servait avait disparu, et seul un commentaire l'annonçait encore. */
 
 .hero-kebab {
   width: 32px; height: 32px;
@@ -3408,6 +3443,21 @@ button.stat-card {
   /* Ligne de titre (non-sticky) — pas de safe-area top en paysage,
      la status bar n'est pas en haut. Typo héritée de la règle de base. */
   .title-row { display: flex; padding-top: 6px; margin-bottom: 8px; }
+  /* 🔴 ET LA MÊME CHOSE POUR UNE SOUS-PAGE, explicitement — sans quoi la règle
+     `@media (min-width: 641px)` du haut de ce fichier l'emporte ici.
+     Pourquoi elle s'y applique alors qu'elle vise le DESKTOP : **un téléphone en
+     paysage fait ~844 px de large**, donc il satisfait `min-width: 641px`. Et
+     comme elle porte DEUX classes contre une, elle gagne à la spécificité, quel
+     que soit l'ordre. Ces deux lignes rétablissent l'égalité, à spécificité
+     identique et plus bas dans le fichier.
+     ⚠️ Mesuré le 15/08/2026 à 767×390, seul format où la pane émule le tactile
+     ET dépasse 641 px : sans elles, l'en-tête d'une sous-page valait 24 px contre
+     30 pour une liste, donc la hero card REMONTAIT de 2 px à l'ouverture — le
+     saut que ce chantier devait supprimer, réapparu en paysage et dans l'autre
+     sens. Signalé par l'utilisateur, qui l'avait vu à l'œil.
+     ⚠️ Et le titre passait à 17 px, plus petit sur la sous-page que sur la liste. */
+  .title-row.title-row-sous-page { padding-top: 6px; margin-bottom: 8px; }
+  .title-row.title-row-sous-page .mobile-page-title { font-size: 20px; }
   .month-chip-hero { display: none; }
   /* Barre basse : visible, avec safe-areas LATÉRALES (l'encoche est
      sur un côté en paysage) */
