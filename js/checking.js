@@ -571,24 +571,26 @@ function CheckingView({ ctx, onBack }) {
               {/* Mois figé : pas de création d'opération. Figer/Défiger et
                   Supprimer partagent le même groupe (les deux actions
                   « cycle de vie » du mois) — décision maquette v485. */}
-              {/* Groupe 1 « mouvements du mois » : Nouvelle opération (masquée
-                  si figé) + Tickets resto (toujours visible → consultation même
-                  en figé). Séparateur affiché tant que le groupe a au moins un
-                  item. v574. */}
+              {/* Groupe 1 « mouvements du mois » : Nouvelle opération, masquée
+                  si figé. v574.
+                  L'entrée « Tickets resto » (et sa pastille de comptage) a été
+                  RETIRÉE le 14/08/2026 : c'est la CARTE « Tickets resto » de la
+                  grille, juste en dessous, qui ouvre désormais la fenêtre — y
+                  compris sur un mois figé, la carte étant hors du garde
+                  .frozen-month. Décision de l'utilisateur, seul usager de cette
+                  fonction : deux portes vers la même fenêtre n'apportaient rien,
+                  et les deux vivaient de toute façon dans le même bloc défilant
+                  (seul .app-header est sticky). Ne pas la remettre.
+                  ⚠️ Le séparateur suit donc « Nouvelle opération » SEULE : il
+                  testait aussi `trEnabled`, et le garder ainsi afficherait un
+                  trait sans rien au-dessus sur un mois figé. */}
               {!frozen && (
                 <button className="dropdown-item" onClick={() => setOpCreateSignal(n => n + 1)}>
                   <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
                   Nouvelle opération
                 </button>
               )}
-              {trEnabled && (
-                <button className="dropdown-item" onClick={() => setShowTrManage(true)}>
-                  <span style={{ color: 'var(--warning)', display: 'inline-flex' }}><Icon name="utensils" size={14} /></span>
-                  Tickets resto
-                  <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 800, color: '#b45309', background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 999, padding: '1px 7px' }}>{(m.tr || []).length}</span>
-                </button>
-              )}
-              {(!frozen || trEnabled) && <div className="dropdown-separator" />}
+              {!frozen && <div className="dropdown-separator" />}
               <button className="dropdown-item" onClick={() => setShowRecurring(true)}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="arrowLeftRight" size={14} /></span>
                 Opérations récurrentes
@@ -708,15 +710,33 @@ function CheckingView({ ctx, onBack }) {
             </div>
           );
         })()}
+        {/* La SEULE porte vers la fenêtre « Tickets resto payés » depuis cette
+            vue, depuis le retrait de l'entrée du menu ⋯ (14/08/2026) — la
+            recherche globale l'ouvre par ailleurs (requestOpen('tr')).
+            <button> et non <div onClick> : c'est le motif des lignes ouvrables
+            de l'app (SavingsListRow, PortfolioListRow), le seul atteignable au
+            clavier. Le chevron reprend leur `›` textuel, pas une icône — il n'y
+            a pas de chevronRight au catalogue, et il ne faut pas en ajouter un
+            pour ça.
+            ⚠️ Cette carte est HORS du garde .frozen-month (qui ne couvre que les
+            deux sections en dessous) : sur un mois figé elle ouvre donc la
+            fenêtre, laquelle gère elle-même la consultation seule. C'est voulu,
+            et c'est ce que faisait déjà l'entrée du menu qu'elle remplace. */}
         {trEnabled && (
-          <div className="stat-card">
+          <button
+            type="button"
+            className="stat-card stat-card-clickable"
+            onClick={() => setShowTrManage(true)}
+            aria-label="Ouvrir les tickets resto payés"
+          >
             <div className="stat-card-icon tr-utensils"><Icon name="utensils" size={14} /></div>
             <div className="stat-card-label">Tickets resto</div>
             <div className="stat-card-value" style={{ color: 'var(--warning)' }}>{eur(stats.trTotal)}</div>
             <div className="stat-card-sub">
               {eur(stats.trUserShare)} de ma poche
             </div>
-          </div>
+            <span className="stat-card-arrow" aria-hidden="true">›</span>
+          </button>
         )}
       </div>
 

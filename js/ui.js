@@ -23,14 +23,29 @@ const ModalDirtyContext = React.createContext(null);
 // pas rend exactement le même DOM qu'avant (28 appelants au 09/08/2026, aucun
 // touché). Ne jamais en faire le défaut : c'est ce qui garantit qu'on ne migre
 // que ce qu'on a éprouvé.
-// 🔴 AUCUN APPELANT AUJOURD'HUI, ET C'EST DÉLIBÉRÉ — ne pas retirer cette prop.
-// La mise à jour groupée l'a utilisée le 09/08/2026 (v957) puis y a renoncé le
-// même jour (v965) : sur des données réelles sa fenêtre NE DÉFILE PAS, le pied
-// ne rendait donc le bouton ni plus ni moins atteignable, et il ne restait qu'un
-// motif unique sur 28 modales. La prop reste parce que le chantier « calculer un
-// versement » en aura besoin — son récapitulatif et son message d'état n'ont
-// d'intérêt que visibles en permanence. ⚠️ Le motif est ÉPROUVÉ, y compris le
-// verdict iPhone (§10) : ce qui a été retiré est son usage, pas sa validité.
+// 🔴 AUCUN APPELANT, ET AUCUN EN PERSPECTIVE — ne pas retirer cette prop.
+// DÉCISION EXPLICITE DE L'UTILISATEUR, 14/08/2026 : « on garde footer et
+// .modal-foot, on ne supprime rien », prise une fois la question posée
+// franchement. C'est la SEULE raison qui vaut aujourd'hui.
+// ⚠️ CE COMMENTAIRE A DIT AUTRE CHOSE, et il faut le savoir : il justifiait la
+// conservation par le chantier « calculer un versement », qui « en aurait
+// besoin ». Ce chantier est LIVRÉ (PROD v643) avec son récapitulatif en fin de
+// corps — le verdict iPhone ayant montré que synthèse, message d'état et bouton
+// tiennent dans un seul écran, même en Safari. L'occasion annoncée a donc eu
+// lieu et n'a pas servi. ⇒ Ne pas relire ce motif-là dans une version ancienne
+// du fichier et en conclure que la protection a expiré : elle a changé de
+// fondement, pas de sens.
+// Son histoire, pour ne pas la redécouvrir : la mise à jour groupée l'a utilisée
+// le 09/08/2026 (v957) puis y a renoncé le même jour (v965) — sur des données
+// réelles sa fenêtre NE DÉFILE PAS, le pied ne rendait donc le bouton ni plus ni
+// moins atteignable, et il ne restait qu'un motif unique sur 28 modales.
+// ⚠️ Le motif est ÉPROUVÉ, verdict iPhone compris (§10) : ce qui manque est un
+// usage, pas une validation. Le jour où une modale en aura besoin, il n'y a
+// qu'à passer `footer={…}`.
+// ⚠️ Et la généralisation aux modales existantes est TRANCHÉE PAR LA NÉGATIVE
+// (12/08/2026) — motif principal : huit des neuf zones d'actions contiennent un
+// bouton « Supprimer », qu'un pied figé rendrait visible en permanence. Détail
+// au BACKLOG.md, section ÉCARTÉ.
 // 🔴 UN PIÈGE À CONNAÎTRE AVANT D'Y METTRE UN BOUTON DE SOUMISSION : le pied est
 // un FRÈRE de `children`, donc un `type="submit"` posé dedans est HORS du
 // <form> qui vit dans `children` — il ne soumet rien, sans erreur ni message

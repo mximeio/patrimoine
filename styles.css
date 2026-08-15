@@ -254,15 +254,20 @@ input[type="month"] {
 /* Pied FIGÉ optionnel (prop `footer` de Modal, 09/08/2026) : symétrique de
    .modal-header — même flex-shrink, même fond, un liseré côté corps. Il n'existe
    que si la prop est passée, donc aucune modale existante n'est affectée.
-   🔴 AUCUN APPELANT AUJOURD'HUI — ET C'EST VOULU : ne pas la supprimer.
-   La seule modale qui la passait (mise à jour groupée) est revenue à une zone
-   d'actions en fin de corps le 09/08/2026, la fenêtre ne défilant pas sur des
-   données réelles. La prop et cette règle sont CONSERVÉES pour le chantier
-   « calculer un versement », dont le récapitulatif et le message d'état n'ont
-   d'intérêt que visibles en permanence — c'est lui qui décidera du motif.
-   ⚠️ Un balayage de classes mortes la trouvera et la croira supprimable : elle
-   ne l'est pas. La retirer casserait ce chantier EN SILENCE, la prop continuant
-   d'exister sans sa mise en forme. Cf. la fiche « le pied figé » de BACKLOG.md.
+   🔴 AUCUN APPELANT, ET AUCUN EN PERSPECTIVE — ne pas la supprimer.
+   DÉCISION EXPLICITE DE L'UTILISATEUR, 14/08/2026 : « on garde footer et
+   .modal-foot, on ne supprime rien ». C'est la seule raison qui vaut aujourd'hui,
+   et elle suffit.
+   ⚠️ CE COMMENTAIRE A DIT AUTRE CHOSE : il conservait la règle « pour le chantier
+   calculer un versement, c'est lui qui décidera du motif ». Ce chantier est LIVRÉ
+   (PROD v643) avec son récapitulatif en fin de corps — l'occasion annoncée a eu
+   lieu et n'a pas servi. Ne pas croiser l'ancien motif avec l'état du projet pour
+   en conclure que la protection a expiré : elle a changé de fondement.
+   🔴 UN BALAYAGE DE CLASSES MORTES LA TROUVERA ET LA CROIRA SUPPRIMABLE : elle ne
+   l'est pas — c'est le cas d'école du garé « 57 classes CSS candidates au code
+   mort ». Morte au comptage, vivante par décision. La retirer laisserait la prop
+   `footer` d'`ui.js` exister SANS sa mise en forme, donc un pied cassé au premier
+   appelant, EN SILENCE. Cf. BACKLOG.md, section ÉCARTÉ, « le pied figé ».
    ⚠️ Pas de safe-area en bas, et c'est VÉRIFIÉ, pas oublié : en portrait
    l'overlay pose 14px tout autour, la modale flotte et ne touche jamais le home
    indicator (voir le commentaire de .modal-body en media-query 768px). */
@@ -936,6 +941,48 @@ input[type="month"] {
   position: relative; transition: border-color 0.15s, box-shadow 0.15s;
 }
 .stat-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+/* Carte OUVRABLE (14/08/2026) — un seul appelant : la carte « Tickets resto »
+   du compte courant, qui ouvre sa fenêtre.
+   ⚠️ Le survol de `.stat-card` ci-dessus ne signale RIEN : les 12 cartes de
+   l'app le portent, y compris les 11 qui n'ouvrent rien. D'où les deux ajouts
+   ci-dessous, et eux seuls disent « ça s'ouvre » :
+   - le FOND au survol, `--surface-alt` : c'est la couleur du survol des lignes
+     ouvrables (12 usages, aucune exception ; `--surface-hover` est réservé aux
+     boutons-contrôles — mesuré). Le précédent exact est `.portfolio-list-row`,
+     qui est lui aussi un <button> dessiné comme une carte ;
+   - le chevron, qui lui s'annonce AU DOIGT — l'app est d'abord une PWA sur
+     iPhone, où il n'y a pas de curseur : `cursor: pointer` seul n'aurait rien
+     annoncé sur l'appareil principal.
+   La remise à zéro du style natif est indispensable : sans elle, WebKit impose
+   sa police, son centrage et son fond au <button>. */
+button.stat-card {
+  font: inherit; color: inherit; text-align: left; width: 100%;
+  -webkit-appearance: none; appearance: none;
+}
+.stat-card-clickable { cursor: pointer; }
+.stat-card-clickable:hover { background: var(--surface-alt); }
+/* Même traitement que `.portfolio-list-arrow`, dont il reprend le rôle. Placé
+   en bas à droite : le haut-droite est occupé par `.stat-card-icon`. */
+.stat-card-arrow {
+  position: absolute; right: 14px; bottom: 14px;
+  color: var(--text-subtle); font-size: 16px; line-height: 1;
+}
+/* Le chevron est en `position: absolute`, donc il ne pousse RIEN : sans cette
+   réserve, un sous-titre long lui passerait dessous. C'est exactement ce que
+   `.stat-card-label` fait déjà (`padding-right: 32px`) pour l'icône du coin
+   haut-droite — même problème, même idiome.
+   ⚠️ 10px, et ce chiffre se DÉDUIT, il ne se choisit pas : le chevron n'empiète
+   que de 5 px dans la boîte de contenu (elle s'arrête à 16 px du bord, il
+   commence à 21), donc 5 px de réserve + 5 px de respiration.
+   ⚠️ Mesuré le 14/08/2026 en layout MOBILE, seul cas serré — la carte n'y fait
+   que 176 px, contre 293 en desktop : « 28,01 € de ma poche » occupe 122 px et
+   « 999,99 € … » 130 px, pour 134 px utiles. Les trois chiffres tiennent sur une
+   ligne ; à quatre, le sous-titre REVIENT À LA LIGNE au lieu de chevaucher le
+   chevron — la dégradation est propre, et ce cas demanderait ~80 tickets dans le
+   mois. 🔴 Un premier essai à 24 px faisait replier le sous-titre RÉEL, donc
+   grandir la carte et casser l'alignement des quatre. Ne pas remonter ce
+   nombre sans remesurer sur un écran de 390 px. */
+.stat-card-clickable .stat-card-sub { padding-right: 10px; }
 .stat-card-icon {
   position: absolute; top: 12px; right: 12px;
   width: 26px; height: 26px; border-radius: 7px;
