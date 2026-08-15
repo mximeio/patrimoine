@@ -483,6 +483,47 @@ function CheckingView({ ctx, onBack }) {
     if (trSkipped.length > 0) showToast(trSkipMessage(trSkipped));
   };
 
+  // VERROU D'INTERFACE du mois figé — le niveau 2 du verrou v485, posé sur les
+  // deux wrappers .frozen-month (corps + modale TR). SOURCE UNIQUE : le même
+  // prédicat servait aux deux endroits, recopié à l'identique.
+  //
+  // 🔴 IL NE VISE QUE `.tx-check-hit` — RENVERSÉ le 15/08/2026, et ne pas le
+  // remettre en liste blanche. Il interceptait TOUT clic sauf le chevron des
+  // composites, ce qui a produit deux défauts signalés par l'utilisateur :
+  //  - la bulle de note (`.op-note`, un InfoTip) était INATTEIGNABLE AU TAP.
+  //    Elle s'ouvre au survol OU au clic ; le garde ne mange que le clic, donc
+  //    elle marchait sur desktop et jamais sur iPhone, où il n'y a que le tap.
+  //    Personne n'avait rouvert cette liste quand la note est arrivée : le
+  //    garde est de la v485 (17/07/2026), la note de la v596 (23/07) ;
+  //  - fermer cette bulle en tapant À CÔTÉ redéclenchait le toast, alors que
+  //    le geste ne visait qu'à la refermer. ⚠️ Irrattrapable côté clic : la
+  //    bulle ferme sur `mousedown`, React a committé son démontage AVANT que
+  //    le `click` n'arrive — il n'y a plus rien à détecter à ce moment-là.
+  //
+  // Ce qu'on ne perd pas, RELEVÉ avant de renverser : `.tx-check-hit` est le
+  // SEUL geste mutant qui subsiste ici (2 occurrences, SimpleTxRow et
+  // CompositeTxRow — ni les composantes ni les lignes TR n'en ont). Tout le
+  // reste est déjà neutralisé ailleurs : crayons et boutons d'ajout masqués
+  // par le CSS .frozen-month, œil hidePointed non rendu, D&D coupé par noDrag
+  // (v489), montants en readOnly. Et le FILET DE NIVEAU 1 (updateMonth, plus
+  // haut) rattrape de toute façon toute écriture, avec le MÊME message.
+  // ⚠️ `preventDefault` ne bloque AUCUN toggle natif — son ancien commentaire
+  // l'affirmait, or il n'y a pas une seule case à cocher sous ces wrappers
+  // (les deux du fichier vivent dans le kebab et dans OperationForm, hors
+  // d'atteinte sur un mois figé). Il est gardé parce qu'il ne coûte rien.
+  // ⚠️ Sur la modale TR le garde est donc INERTE aujourd'hui — on l'y laisse
+  // pour le jour où un pointage y apparaîtrait ; c'est son wrapper qui compte,
+  // pour le CSS.
+  // Ce que ça coûte, assumé : un clic sur un libellé n'explique plus pourquoi
+  // rien ne se passe. Restent le cadenas de la chip, les cases atténuées, et
+  // le message dès qu'on tente de dé/pointer — le geste le plus naturel.
+  const gardeMoisFige = frozen ? (e) => {
+    if (!e.target.closest('.tx-check-hit')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    showToast('Mois figé — défige-le via le menu ⋯');
+  } : undefined;
+
   // Gel / dégel du mois (v485). Confirmations en confirm() natif, comme
   // partout ailleurs dans l'app. Le drapeau frozen ne change aucun montant :
   // pas de cascade TR à recalculer.
@@ -745,20 +786,15 @@ function CheckingView({ ctx, onBack }) {
         )}
       </div>
 
-      {/* Mois FIGÉ : verrou d'interface par-dessus le filet updateMonth.
-          Le handler en phase de CAPTURE intercepte tous les clics des deux
-          sections (pointage, crayons, ajouts, dates…) → toast pédagogique,
-          SAUF le chevron des lignes composites (déplier/replier = pure
-          consultation). preventDefault bloque aussi le toggle natif.
+      {/* Mois FIGÉ : verrou d'interface par-dessus le filet updateMonth. Le
+          handler en phase de CAPTURE ne vise QUE le pointage — tout le reste
+          de la ligne (note, chevron, libellé) est de la consultation. Son
+          pourquoi, et le relevé de ce qu'il laisse passer, sont sur
+          `gardeMoisFige` (une seule fois, plus haut).
           Le CSS .frozen-month masque crayons et boutons d'ajout. */}
       <div
         className={frozen ? 'frozen-month' : undefined}
-        onClickCapture={frozen ? (e) => {
-          if (e.target.closest('.composite-chevron')) return;
-          e.preventDefault();
-          e.stopPropagation();
-          showToast('Mois figé — défige-le via le menu ⋯');
-        } : undefined}
+        onClickCapture={gardeMoisFige}
       >
       <OpsSection
         showToast={showToast}
@@ -792,17 +828,14 @@ function CheckingView({ ctx, onBack }) {
 
       {showTrManage && trEnabled && (
         <Modal title={`Tickets resto payés — ${monthLabel(curKey)}`} onClose={() => setShowTrManage(false)} noDirtyGuard>
-          {/* Mois figé : consultation seule. On réutilise le MÊME garde que le
-              corps (wrapper .frozen-month + capture) → boutons d'ajout masqués
-              (CSS), crayons interceptés (toast) ; liste + tuiles consultables. */}
+          {/* Mois figé : consultation seule. MÊME garde que le corps (wrapper
+              .frozen-month + capture) — c'est le CSS qui fait le travail ici
+              (crayons et bouton d'ajout masqués), le handler n'ayant aucun
+              `.tx-check-hit` à intercepter dans les lignes TR. Cf.
+              `gardeMoisFige`. */}
           <div
             className={frozen ? 'frozen-month' : undefined}
-            onClickCapture={frozen ? (e) => {
-              if (e.target.closest('.composite-chevron')) return;
-              e.preventDefault();
-              e.stopPropagation();
-              showToast('Mois figé — défige-le via le menu ⋯');
-            } : undefined}
+            onClickCapture={gardeMoisFige}
           >
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <div style={{ flex: 1, background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 10, padding: '9px 12px' }}>
