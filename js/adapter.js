@@ -836,6 +836,29 @@ const Adapter = {
         ...DEFAULT_CHECKING,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        // 🔴 `seededAt` — LE MARQUEUR DE SEMIS, et il n'est PAS décoratif.
+        //
+        //  C'est ce champ que les règles Firestore regardent
+        //  (`_documents/firestore.rules`) : **une écriture qui l'apporte ne
+        //  peut que CRÉER, jamais modifier**. C'est donc la seule protection
+        //  du 31/07/2026 qu'aucun bug client ne peut franchir — si ce semis
+        //  part alors que le document existe côté SERVEUR (cache vide, garde
+        //  `vientDuCache` contournée, transaction qui n'a rien vu), le serveur
+        //  le refuse au lieu d'écraser les données.
+        //  ⚠️ LE RETIRER DÉSARME LA RÈGLE EN SILENCE : l'écriture redeviendrait
+        //  un `set()` par défaut indistinguable d'une modification légitime, et
+        //  rien ne le signalerait — ni les tests, ni l'app. Le semis
+        //  continuerait de fonctionner, c'est bien ça le piège.
+        //  ⚠️ Il n'a PAS besoin de survivre dans le document : le `.set()`
+        //  complet d'`updateCheckingAccount` l'efface au premier enregistrement,
+        //  et c'est sans effet — la protection porte sur l'ÉCRITURE de semis,
+        //  pas sur l'état stocké. `_normalizeCheckingAccount` ne le remonte
+        //  jamais au state React (il ne garde que ses champs connus), donc un
+        //  export ne le contient pas et un import ne le renvoie pas : c'est ce
+        //  qui garantit qu'import et restauration ne sont pas gênés.
+        //  ⇒ Éprouvé par `_precompil/rules-test.js` (37 assertions), dont trois
+        //    mutations qui vérifient que le filet attrape bien sa disparition.
+        seededAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
     });
   },
