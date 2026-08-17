@@ -736,9 +736,37 @@ const Adapter = {
         if (vientDuCache(snap)) { onChange({ ...DEFAULT_PROFILE }); return; }
         // 1er login CONFIRMÉ par le serveur : on initialise le profil par
         // défaut. Le set déclenchera un nouveau snapshot qui notifiera l'app.
+        //
+        //  🔴 UN NOUVEAU COMPTE NAÎT AVEC COMPTE COURANT + ÉPARGNE SEULEMENT.
+        //  Investissements et actifs physiques sont ÉTEINTS ; l'utilisateur les
+        //  active dans les Paramètres s'il en a besoin — même parti que pour les
+        //  tickets resto (cf. `_seedDefaultCheckingAccount`).
+        //  Décision de l'utilisateur, 17/08/2026.
+        //
+        //  ⚠️ POURQUOI CE N'EST PAS DANS `DEFAULT_PROFILE`, ET C'EST PLUS GRAVE
+        //  QUE POUR LES TR. Cet objet est aussi le socle de LECTURE : juste en
+        //  dessous, `modulesEnabled: { ...DEFAULT_PROFILE.modulesEnabled,
+        //  ...(data.modulesEnabled || {}) }` complète les profils dont une clé
+        //  manque. Y basculer `investments`/`physical` à `false` **désactiverait
+        //  le module chez tout utilisateur EXISTANT dont la clé est absente** —
+        //  ses données resteraient en base mais deviendraient invisibles, sans
+        //  que personne ne l'ait décidé.
+        //  🔴 Et on ne peut PAS vérifier que tous les profils portent ces clés :
+        //  les règles interdisent de lire le profil d'un autre utilisateur (c'est
+        //  leur rôle). Le socle reste donc PERMISSIF, et le défaut se pose ICI,
+        //  à la création — le seul endroit où il ne peut toucher personne.
+        //  ⚠️ `loadProfile` (plus haut) porte un second semis avec le même
+        //  travers, non corrigé : elle est MORTE (aucun appelant, vérifié le
+        //  15/08/2026) et doit être supprimée, cf. son entrée garée au backlog.
+        //  Ne pas l'aligner — ce serait donner vie à du code à retirer.
         try {
           await this._profileRef(uidStr).set({
             ...DEFAULT_PROFILE,
+            modulesEnabled: {
+              ...DEFAULT_PROFILE.modulesEnabled,
+              investments: false,
+              physical: false,
+            },
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
         } catch (e) { console.warn('[subscribeProfile] init failed', e); }
@@ -834,6 +862,25 @@ const Adapter = {
       tx.set(ref, {
         name: 'Compte principal',
         ...DEFAULT_CHECKING,
+        // Tickets restaurants ÉTEINTS sur le premier compte, comme sur tous les
+        // suivants (`createCheckingAccount`, plus haut, le fait depuis toujours).
+        // ⚠️ Doit rester APRÈS le spread de DEFAULT_CHECKING, dont `settings`
+        // porte `trEnabled: true` — l'ordre est ce qui fait la règle ici.
+        //
+        //  🔴 POURQUOI CE N'EST PAS DANS `DEFAULT_CHECKING` DIRECTEMENT. Cet objet
+        //  sert aussi de socle de LECTURE : `_normalizeCheckingAccount` fait
+        //  `{ ...DEFAULT_CHECKING.settings, ...(migrated.settings || {}) }` pour
+        //  compléter les comptes anciens. Y basculer `trEnabled` à `false`
+        //  changerait donc l'interprétation d'un compte EXISTANT dont la clé est
+        //  absente — il passerait de « TR actifs » à « TR éteints », sans que rien
+        //  ne l'ait décidé. Le défaut se pose donc à la CRÉATION, jamais dans le
+        //  socle. *(La lecture, elle, teste `trEnabled !== false` : une clé absente
+        //  vaut « actif », et c'est ce qui protège les comptes d'avant.)*
+        //
+        //  Demandé par l'utilisateur le 17/08/2026, après avoir constaté
+        //  l'incohérence : le PREMIER compte naissait avec les TR, tous les
+        //  suivants sans. Personne ne l'avait relevée.
+        settings: { ...DEFAULT_CHECKING.settings, trEnabled: false },
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         // 🔴 `seededAt` — LE MARQUEUR DE SEMIS, et il n'est PAS décoratif.

@@ -354,8 +354,12 @@ const REFUS = {
   // tutoiement de l'app, oubliés par le premier inventaire parce qu'ils refusent
   // une ACTION et non un submit. Relevé par l'utilisateur le 10/08/2026.
   // ⚠️ Le prédicat de `plusieursComptes` repose sur `accountsCount`, dont le défaut
-  // est au RANG 2 du backlog (`?.length || 1` vaut 1 sur une liste non chargée).
-  // On change le CANAL, jamais le prédicat : le corriger relève de ce chantier.
+  // relève du chantier **« l'ambiguïté d'une collection vide »** (`BACKLOG.md`) :
+  // `?.length || 1` vaut 1 sur une liste non chargée. On change le CANAL, jamais
+  // le prédicat — le corriger appartient à ce chantier.
+  // *(Ce renvoi disait « RANG 2 du backlog » et s'est périmé le 17/08/2026, quand
+  // une fiche livrée est sortie et que les rangs se sont recalés. Un rang ne
+  // décrit qu'un INSTANT : on nomme le chantier, jamais sa position.)*
   // ⚠️ Formulation NEUTRE : ce message sert à la fois au MODULE « Compte courant »
   // et à l'OPTION « Plusieurs comptes courants ». La première rédaction disait
   // « avant de désactiver cette option », ce qui était faux pour le module —
