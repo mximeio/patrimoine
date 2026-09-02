@@ -2714,7 +2714,16 @@ button.stat-card {
      « Aucune modification du nom. Les supports sont enregistrés au fil de la
      saisie. » — fait 3 lignes, 68 px de haut, et descend donc à 88 px. 88 + 8 px
      de respiration = 96. ⇒ **Ajouter un message de refus plus long oblige à
-     revérifier ici** : le seuil ne se déduit d'aucune règle, il se mesure. */
+     revérifier ici** : le seuil ne se déduit d'aucune règle, il se mesure.
+     🟢 **LE CONTRÔLE PRÉALABLE QUI ÉVITE DE REMESURER — 01/09/2026.** Ce message de
+     référence fait **78 caractères** : c'est le PLAFOND que le 96 px honore. Un message
+     plus COURT ne peut occuper ni plus de lignes ni plus de hauteur dans la même boîte,
+     donc il est couvert d'office. ⇒ **Compter les caractères du nouveau message d'abord** ;
+     sous 78, il n'y a rien à remesurer. Au-dessus, remesurer ici.
+     Mesuré à 375 px sur `patrimoine-dev` le 01/09/2026 (les 6 messages de « calculer un
+     versement », toast capturé par observateur DOM, `animation: none` posée avant lecture) :
+     le plus long des six fait **60 car.**, soit 2 lignes et un bas à **72 px** — 24 px de
+     marge sous le seuil. Les trois messages d'une ligne descendent à 56 px. */
   top: 96px;
 }
 .toast.update .act {

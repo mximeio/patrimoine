@@ -517,9 +517,18 @@ function App() {
       if (currentAccountId === id) setCurrentAccountId(newList[0]?.id || null);
     } catch (e) { showToast('Erreur de suppression', 'error'); }
   };
-  const refreshSavings = async () => { const s = await Adapter.listSavings(user.uid); setSavings(s); return s; };
-  const refreshPortfolios = async () => { const p = await Adapter.listPortfolios(user.uid); setPortfolios(p); return p; };
-  const refreshPhysical = async () => { const p = await Adapter.listPhysical(user.uid); setPhysical(p); return p; };
+  // 🔴 `refreshSavings` / `refreshPortfolios` / `refreshPhysical` SUPPRIMÉES le
+  // 01/09/2026. Elles relisaient la collection entière (`listX`) pour alimenter
+  // le MÊME `setX` que l'abonnement temps réel juste au-dessus — donc elles ne
+  // faisaient que refaire, en une lecture SERVEUR, ce que `subscribeX` livrait
+  // déjà tout seul. `refreshSavings` n'avait même plus d'appelant.
+  // ⚠️ Ce n'était pas neutre : une lecture serveur PEND indéfiniment sur une
+  // PWA réveillée par iOS (mesuré > 15 s le 01/09/2026), là où une écriture
+  // s'applique en local en 3 ms. Ces relectures étaient donc le point de gel le
+  // plus coûteux des trois modules, pour zéro gain.
+  // ⚠️ Ne pas les rétablir « pour rafraîchir après une écriture » : l'écriture
+  // est appliquée localement, l'abonnement la remonte immédiatement, et c'est
+  // LUI qui fait autorité — y compris pour annuler un refus serveur.
 
   const handleSignOut = () => {
     if (!confirm('Te déconnecter de ce compte ?')) return;
@@ -549,7 +558,6 @@ function App() {
     // Autres
     savings, portfolios, physical, snapshots,
     updateProfile,
-    refreshSavings, refreshPortfolios, refreshPhysical,
     showToast,
     // En-tête de sous-page : les vues de détail le posent via `useEnteteSousPage`.
     setSousPage,

@@ -58,6 +58,17 @@ const fmtNoDec = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 
 // du MÊME chiffre, et le CSS bascule de l'une à l'autre (l'exacte en desktop, l'arrondie
 // sur smartphone, cf. styles.css §589). Les passer tous deux à deux décimales
 // supprimerait la version compacte pensée pour le téléphone.
+// 🔻 ROGNAGE DES ZÉROS DE QUEUE — EXAMINÉ ET ÉCARTÉ LE 01/09/2026. Afficher « 70.5 % »
+// au lieu de « 70.50 % », et « 70 % » au lieu de « 70.00 % », a été proposé puis écarté :
+//   • `tabular-nums` (styles.css:225) égalise la LARGEUR des chiffres, pas leur NOMBRE —
+//     un point décimal placé différemment d'une ligne à l'autre casse l'alignement que
+//     `minWidth: 50; textAlign: right` paie exprès (cf. investments.js, légende d'allocation) ;
+//   • la largeur deviendrait dépendante de la valeur, donc un même poids passant de 70.00
+//     à 70.5 puis 70.48 gigoterait dans sa colonne au fil des saisies ;
+//   • une cible « 15 % » face à un poids calculé « 15.03 % » rouvre la gêne MÊME qui a fait
+//     naître la règle ci-dessus — cause différente (la valeur, non le fichier), effet identique.
+// ⇒ Quand la compacité est vraiment nécessaire, c'est `.cmpd-exact` / `.cmpd-round` qui
+//   répond : pilotée par l'ÉCRAN, jamais par la valeur.
 // ⚠️ Ne concerne PAS les montants en euros : eux ont déjà `fmt` / `fmtNoDec`.
 const eur = (n) => eurFormatter.format(n || 0).replace(',', '.');
 const r2 = (n) => Math.round(n * 100) / 100;

@@ -292,20 +292,37 @@ function SavingsDetailView({ ctx, saving, onBack }) {
     } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); return false; }
   };
 
-  const handleAddOp = async (op) => {
-    await Adapter.addSavingsOperation(user.uid, saving.id, op);
+  // 🔴 MOTIF DU COMPTE COURANT (01/09/2026) — on rend la main SANS attendre
+  // l'accusé du serveur, exactement comme `updateCheckingAccount` (app.js).
+  // Pourquoi : la promesse d'une écriture Firestore ne se résout qu'à l'accusé
+  // SERVEUR, alors que l'écriture s'applique en local immédiatement. Sur une
+  // PWA qu'iOS vient de réveiller — canal mort mais non détecté —, cette
+  // promesse PEND sans jamais rejeter : la fenêtre restait ouverte et figée,
+  // sans le moindre retour. C'est le symptôme rapporté par l'utilisateur.
+  // ⚠️ Rien n'est perdu pour autant : l'écriture est appliquée et durable en
+  // local, et `subscribeSavings` (app.js) fait AUTORITÉ — un refus serveur est
+  // annulé par Firestore, l'abonnement remonte la valeur d'origine et l'écran
+  // revient seul à la vérité. Le `.catch()` ne sert qu'à le DIRE.
+  // ⚠️ Ne pas remettre `await` devant l'appel « pour être sûr que c'est
+  // enregistré » : attendre l'accusé, ce n'est pas attendre la sauvegarde.
+  const signaleEchec = (p) => p.catch((e) => {
+    console.error(e);
+    showToast('Erreur de sauvegarde', 'error');
+  });
+  const handleAddOp = (op) => {
+    signaleEchec(Adapter.addSavingsOperation(user.uid, saving.id, op, saving.operations));
     setModal(null);
     showToast('Opération ajoutée', 'success');
   };
-  const handleUpdateOp = async (opId, patch) => {
-    await Adapter.updateSavingsOperation(user.uid, saving.id, opId, patch);
+  const handleUpdateOp = (opId, patch) => {
+    signaleEchec(Adapter.updateSavingsOperation(user.uid, saving.id, opId, patch, saving.operations));
     setEditingOpId(null);
     showToast('Opération modifiée');
   };
-  const handleDeleteOp = async (op) => {
+  const handleDeleteOp = (op) => {
     const label = (op.label || '').trim() || 'cette opération';
     if (!confirm(`Supprimer "${label}" ?`)) return false;
-    await Adapter.deleteSavingsOperation(user.uid, saving.id, op.id);
+    signaleEchec(Adapter.deleteSavingsOperation(user.uid, saving.id, op.id, saving.operations));
     showToast('Opération supprimée');
     return true;
   };

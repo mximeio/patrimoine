@@ -588,10 +588,25 @@ const Adapter = {
   //  Le solde affiché est calculé : initialBalance + somme(in+interest)
   //  - somme(out). Les opérations sont triées par date desc à l'affichage.
   // ============================================================
-  async addSavingsOperation(uidStr, savingId, op) {
+  // 🔴 AUCUNE RELECTURE DU DOCUMENT — l'appelant fournit les opérations
+  // courantes (01/09/2026). C'était le SEUL endroit de tout l'adapter qui
+  // lisait avant d'écrire, et ça bloquait le geste.
+  // **Mesuré au navigateur** : canal sain, `ref.get()` prend 25-62 ms ; canal
+  // MORT MAIS NON DÉTECTÉ — une PWA qu'iOS vient de réveiller —, il PEND
+  // au-delà de 15 s sans jamais rejeter. L'écriture, elle, s'applique
+  // localement en 3 ms quoi qu'il arrive. Le geste se bloquait donc AVANT
+  // d'avoir rien mis en file, ce qui explique le symptôme rapporté :
+  // « ajouter une opération d'épargne rame, je dois tuer l'app ».
+  // ⚠️ La relecture était REDONDANTE : `app.js` tient un `subscribeSavings`
+  // permanent, donc le composant a déjà ces opérations dans son état. C'est le
+  // motif de `updatePortfolioData(uid, id, data)` et de `updateCheckingAccount`
+  // — l'appelant compose, l'adapter ne fait qu'écrire.
+  // ⚠️ Ne PAS « sécuriser » en réintroduisant un `get()` : ça rouvrirait le
+  // défaut. Le garde-fou contre l'écrasement, c'est l'abonnement temps réel,
+  // qui garde l'état du composant à jour.
+  async addSavingsOperation(uidStr, savingId, op, operationsActuelles) {
     const ref = this._savingsCol(uidStr).doc(savingId);
-    const snap = await ref.get();
-    const current = snap.exists ? (snap.data().operations || []) : [];
+    const current = operationsActuelles || [];
     const newOp = { id: op.id || Math.random().toString(36).slice(2, 10), ...op };
     await ref.update({
       operations: [...current, newOp],
@@ -599,22 +614,17 @@ const Adapter = {
     });
     return newOp.id;
   },
-  async updateSavingsOperation(uidStr, savingId, opId, patch) {
+  async updateSavingsOperation(uidStr, savingId, opId, patch, operationsActuelles) {
     const ref = this._savingsCol(uidStr).doc(savingId);
-    const snap = await ref.get();
-    if (!snap.exists) return;
-    const current = snap.data().operations || [];
-    const next = current.map(o => o.id === opId ? { ...o, ...patch } : o);
+    const current = operationsActuelles || [];
     await ref.update({
-      operations: next,
+      operations: current.map(o => o.id === opId ? { ...o, ...patch } : o),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   },
-  async deleteSavingsOperation(uidStr, savingId, opId) {
+  async deleteSavingsOperation(uidStr, savingId, opId, operationsActuelles) {
     const ref = this._savingsCol(uidStr).doc(savingId);
-    const snap = await ref.get();
-    if (!snap.exists) return;
-    const current = snap.data().operations || [];
+    const current = operationsActuelles || [];
     await ref.update({
       operations: current.filter(o => o.id !== opId),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),

@@ -3,7 +3,7 @@
 // ============================================================
 
 function PhysicalView({ ctx }) {
-  const { user, physical, refreshPhysical, showToast } = ctx;
+  const { user, physical, showToast } = ctx;
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState(null);
 
@@ -12,24 +12,32 @@ function PhysicalView({ ctx }) {
   const totalGain = totalCurrent - totalInvested;
   const totalGainPct = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
 
-  const handleCreate = async (data) => {
-    await Adapter.createPhysical(user.uid, { ...data, priceUpdatedAt: todayIso() });
-    await refreshPhysical();
+  // 🔴 MOTIF DU COMPTE COURANT (01/09/2026) — on rend la main sans attendre
+  // l'accusé serveur, et le `refreshPhysical()` qui suivait chaque écriture a
+  // disparu : il relisait la collection ENTIÈRE alors que `subscribePhysical`
+  // (app.js) alimente déjà le même `setPhysical`. Cette relecture était donc
+  // redondante, et surtout c'était une lecture SERVEUR — qui pend
+  // indéfiniment sur une PWA réveillée par iOS (mesuré : > 15 s, cf. le
+  // commentaire de `addSavingsOperation` dans `adapter.js`).
+  // ⚠️ L'abonnement fait AUTORITÉ : un refus serveur est annulé par Firestore
+  // et l'écran revient seul à la vérité. Le `.catch()` ne fait que le dire.
+  const signaleEchec = (p, msg) => p.catch((e) => { console.error(e); showToast(msg, 'error'); });
+  const handleCreate = (data) => {
+    signaleEchec(Adapter.createPhysical(user.uid, { ...data, priceUpdatedAt: todayIso() }),
+      'Erreur de sauvegarde');
     setShowNew(false);
     showToast('Actif créé', 'success');
   };
-  const handleUpdate = async (id, patch) => {
+  const handleUpdate = (id, patch) => {
     const update = { ...patch };
     if (patch.unitCurrentPrice !== undefined) update.priceUpdatedAt = todayIso();
-    await Adapter.updatePhysical(user.uid, id, update);
-    await refreshPhysical();
+    signaleEchec(Adapter.updatePhysical(user.uid, id, update), 'Erreur de sauvegarde');
     setEditId(null);
     showToast('Actif mis à jour');
   };
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
     if (!confirm('Supprimer cet actif ?')) return false;
-    await Adapter.deletePhysical(user.uid, id);
-    await refreshPhysical();
+    signaleEchec(Adapter.deletePhysical(user.uid, id), 'Erreur de suppression');
     showToast('Actif supprimé');
     return true;
   };

@@ -10,7 +10,7 @@ const SHOW_ALLOCATION_DONUT = false;
 const ALLOCATION_MIN_SUPPORTS = 2;
 
 function InvestmentsView({ ctx }) {
-  const { user, portfolios, refreshPortfolios, showToast } = ctx;
+  const { user, portfolios, showToast } = ctx;
   const [activeId, setActiveId] = useState(null); // null = vue liste, sinon id du portefeuille
   const [showCreate, setShowCreate] = useState(false);
 
@@ -34,16 +34,21 @@ function InvestmentsView({ ctx }) {
     return () => window.removeEventListener('patrimoine:open', onOpen);
   }, [portfolios]);
 
-  const handleCreate = async (name) => {
-    try {
-      await Adapter.createPortfolio(user.uid, name);
-      await refreshPortfolios();
-      setShowCreate(false);
-      showToast('Enveloppe créée', 'success');
-    } catch (e) {
-      console.error(e);
-      showToast('Erreur de création', 'error');
-    }
+  // 🔴 MOTIF DU COMPTE COURANT (01/09/2026) — on rend la main sans attendre
+  // l'accusé serveur, et le `refreshPortfolios()` a disparu : il relisait la
+  // collection ENTIÈRE alors que `subscribePortfolios` (app.js) alimente déjà
+  // le même `setPortfolios`. Redondant, et c'était une lecture SERVEUR, qui
+  // pend indéfiniment sur une PWA réveillée par iOS (mesuré > 15 s, cf. le
+  // commentaire de `addSavingsOperation` dans `adapter.js`).
+  // ⚠️ Ici la saisie perdue en cas de refus tardif est UN NOM : c'est ce qui
+  // rend l'échange acceptable. Là où la saisie est lourde — `handleUpdateData`
+  // et la mise à jour groupée des valorisations — l'attente est CONSERVÉE, et
+  // leurs commentaires disent pourquoi.
+  const handleCreate = (name) => {
+    Adapter.createPortfolio(user.uid, name)
+      .catch((e) => { console.error(e); showToast('Erreur de création', 'error'); });
+    setShowCreate(false);
+    showToast('Enveloppe créée', 'success');
   };
 
   // Aucun portefeuille → état vide + bouton créer
@@ -369,7 +374,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   // sous-page). ⚠️ Appelé AVANT tout retour anticipé de ce composant, comme
   // n'importe quel hook.
   useEnteteSousPage(ctx, portfolio.name, onBack);
-  const { user, refreshPortfolios, showToast } = ctx;
+  const { user, showToast } = ctx;
   const [modal, setModal] = useState(null);
   // ID de l'opération en cours d'édition (depuis HistoryOpsTable).
   // Null = pas de modale d'édition ouverte. Quand on a un id, on rend
@@ -406,21 +411,40 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   // une panne d'Adapter. ⇒ Le succès ne s'annonce qu'une fois l'écriture faite,
   // et **on ne ferme pas** en cas d'échec : la saisie reste à l'écran, donc
   // rejouable.
-  const handleUpdateData = async (newData) => {
-    try {
-      await Adapter.updatePortfolioData(user.uid, portfolio.id, newData);
-      await refreshPortfolios();
-      return true;
-    } catch (e) { console.error(e); showToast('Erreur de sauvegarde', 'error'); return false; }
+  // 🔴 L'ARBITRAGE CI-DESSUS EST RENVERSÉ — 01/09/2026, sur décision de
+  // l'utilisateur, après un RETOUR D'USAGE sur son iPhone. Il avait gardé son
+  // attente au chantier du gel de l'épargne (v1030) ; l'usage a tranché :
+  // « ça a fini par passer tout seul au bout de 5 à 10 secondes », fenêtre figée.
+  //
+  // 🔴 CE QUE L'USAGE A APPRIS, et qu'aucune mesure n'avait dit : cette attente
+  // protégeait d'un REFUS serveur — qui ne se produit pas (les règles autorisent
+  // le propriétaire ; il faudrait une session expirée, auquel cas TOUT échoue).
+  // Ce qui se produit, c'est une LENTEUR de rétablissement du canal après le
+  // réveil de l'app. Contre elle, l'attente ne protège de rien : elle la fait
+  // subir. On échangeait un inconfort CERTAIN contre une garantie théorique.
+  // ⚠️ Et attendre l'accusé N'EST PAS attendre la sauvegarde : l'écriture est
+  // appliquée et DURABLE en local dès le clic, `subscribePortfolios` la remonte
+  // aussitôt, et Firestore la rejoue jusqu'à ce qu'elle passe.
+  //
+  // ⚠️ CE QU'ON PERD, ASSUMÉ : sur un vrai refus, le formulaire sera déjà fermé
+  // et la saisie à refaire. Le défaut REPRODUIT que raconte le commentaire du
+  // dessus — « succès PUIS erreur, saisie perdue entre les deux » — ne revient
+  // PAS pour autant : on ne promet plus un succès qu'on n'a pas, on annonce
+  // l'enregistrement local, qui a bien eu lieu.
+  // ⚠️ Le booléen de retour est CONSERVÉ : trois appelants s'en servent pour
+  // fermer et poser leur toast. Il vaut désormais « c'est parti », plus « le
+  // serveur a confirmé ».
+  const handleUpdateData = (newData) => {
+    Adapter.updatePortfolioData(user.uid, portfolio.id, newData)
+      .catch((e) => { console.error(e); showToast('Erreur de sauvegarde', 'error'); });
+    return true;
   };
 
-  const handleRename = async (newName) => {
+  const handleRename = (newName) => {
     if (!newName || newName === portfolio.name) return;
-    try {
-      await Adapter.renamePortfolio(user.uid, portfolio.id, newName);
-      await refreshPortfolios();
-      showToast('Enveloppe renommée');
-    } catch (e) { console.error(e); showToast('Erreur de renommage', 'error'); }
+    Adapter.renamePortfolio(user.uid, portfolio.id, newName)
+      .catch((e) => { console.error(e); showToast('Erreur de renommage', 'error'); });
+    showToast('Enveloppe renommée');
   };
 
   // 🔴 RENVOIE UN BOOLÉEN, et ce n'est pas cosmétique : l'appelant ne doit fermer la
@@ -432,13 +456,11 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   const handleDelete = async () => {
     if (!confirm(`Supprimer l'enveloppe « ${portfolio.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return false;
     if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return false;
-    try {
-      await Adapter.deletePortfolio(user.uid, portfolio.id);
-      await refreshPortfolios();
-      showToast('Enveloppe supprimée');
-      onBack();
-      return true;
-    } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); return false; }
+    Adapter.deletePortfolio(user.uid, portfolio.id)
+      .catch((e) => { console.error(e); showToast('Erreur de suppression', 'error'); });
+    showToast('Enveloppe supprimée');
+    onBack();
+    return true;
   };
 
   return (
@@ -1358,12 +1380,11 @@ function DeltaMontant({ valeur }) {
 // plus rien ». La règle « champ vide = valeur inchangée » exige de garder la
 // chaîne telle quelle. Le refus du négatif, lui, est repris ici.
 function UpdateAllValuesModal({ ctx, onClose }) {
-  const { user, portfolios, refreshPortfolios, showToast } = ctx;
+  const { user, portfolios, showToast } = ctx;
   // MÊME expression que la liste « Mes enveloppes » : l'ordre et les couleurs
   // doivent coïncider avec l'écran du dessous, sinon on lit deux listes.
   const ordonnees = sortByNumber(portfolios, p => computePortfolioStats(p.data).totalValue);
   const [saisie, setSaisie] = useState({});
-  const [busy, setBusy] = useState(false);
   // TOUT est déplié à l'ouverture. *La règle « les plus anciennes sont dépliées »
   // a existé du matin au soir du 09/08/2026, puis a été retirée avec l'affichage
   // des dates — décision de l'utilisateur. Motif : la date ne servait qu'à
@@ -1426,30 +1447,45 @@ function UpdateAllValuesModal({ ctx, onClose }) {
   const totalGeneralInitial = ordonnees.reduce((a, p) => a + sousTotalInitial(p), 0);
   const deltaGeneral = r2(totalGeneral - totalGeneralInitial);
 
-  const enregistrer = async () => {
-    if (busy) return;
+  // 🔴 ON N'ATTEND PLUS L'ACCUSÉ SERVEUR — 01/09/2026, sur un RETOUR D'USAGE de
+  // l'utilisateur sur son iPhone : « ça a fini par passer tout seul au bout de
+  // 5 à 10 secondes », fenêtre figée et bouton grisé pendant tout ce temps.
+  // C'était le dernier endroit à garder son attente, et le seul qu'on avait
+  // volontairement laissé de côté au chantier du gel de l'épargne (v1030).
+  //
+  // 🔴 CE QUE LE RETOUR D'USAGE A TRANCHÉ, et qu'aucune mesure n'avait dit :
+  // cette attente protégeait d'un REFUS serveur — qui ne s'est pas produit. Ce
+  // qui se produit, c'est une LENTEUR (canal qui se rétablit après le réveil de
+  // l'app : 5-10 s contre 176 ms sur un canal sain, §10). Contre elle, l'attente
+  // ne protège de rien : elle la fait subir. On échangeait un inconfort CERTAIN
+  // contre une garantie sur un cas qui n'arrive pas.
+  // ⚠️ Et attendre l'accusé N'EST PAS attendre la sauvegarde : l'écriture est
+  // appliquée et DURABLE en local dès le clic. Ces 5-10 s étaient de la
+  // confirmation, pas de l'enregistrement.
+  //
+  // ⚠️ CE QU'ON PERD, ASSUMÉ : sur un vrai refus (session expirée), la fenêtre
+  // sera déjà fermée — le toast NOMME l'enveloppe, mais la saisie est à refaire.
+  // L'ancien commentaire disait « on ne ferme que si tout est passé, sinon la
+  // saisie resterait perdue » : cet arbitrage est RENVERSÉ, en connaissance de
+  // cause et sur décision de l'utilisateur. C'est le compromis que le compte
+  // courant retenait déjà, et l'app est désormais uniforme sur ce point.
+  // ⚠️ `busy` disparaît avec l'attente : plus rien à attendre, donc plus de
+  // bouton grisé. Ne pas le réintroduire « par prudence ».
+  const enregistrer = () => {
     // Refus ANNONCÉ (10/08/2026) : remplace un `return` nu, donc un clic mort.
     if (!modifiees.length) return refuser(showToast, REFUS.valorisationsInchangees);
-    setBusy(true);
-    // Une écriture par enveloppe, puis UN SEUL refreshPortfolios (spec §1.4).
-    // On continue après un échec et on NOMME l'enveloppe fautive : pas d'échec
-    // silencieux sur un chemin qui écrit.
-    const echecs = [];
+    // Une écriture par enveloppe. On NOMME toujours l'enveloppe fautive — le §10
+    // exige « pas d'échec silencieux sur un chemin qui écrit », et cette
+    // exigence-là est tenue : on perd la SIMULTANÉITÉ du message, pas le message.
     for (const m of modifiees) {
       const p = ordonnees.find(x => x.id === m.id);
-      try {
-        await Adapter.updatePortfolioData(user.uid, m.id, {
-          ...(p.data || {}), currentValues: m.currentValues, currentValuesDate: todayIso(),
-        });
-      } catch (e) { console.error(e); echecs.push(p ? p.name : m.id); }
+      Adapter.updatePortfolioData(user.uid, m.id, {
+        ...(p.data || {}), currentValues: m.currentValues, currentValuesDate: todayIso(),
+      }).catch((e) => {
+        console.error(e);
+        showToast(`Échec sur : ${p ? p.name : m.id}`, 'error');
+      });
     }
-    await refreshPortfolios();
-    setBusy(false);
-    // ⚠️ On ne ferme QUE si tout est passé : sinon la saisie des enveloppes en
-    // échec resterait perdue. Celles qui ont réussi cessent d'elles-mêmes d'être
-    // « modifiées » (l'abonnement temps réel remonte leur nouvelle valeur), donc
-    // la fenêtre ne montre plus que ce qui reste à enregistrer.
-    if (echecs.length) { showToast(`Échec sur : ${echecs.join(', ')}`, 'error'); return; }
     showToast(`${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''} mise${modifiees.length > 1 ? 's' : ''} à jour`, 'success');
     onClose();
   };
@@ -1476,10 +1512,12 @@ function UpdateAllValuesModal({ ctx, onClose }) {
           modales de l'app (on lit la condition, puis on agit), et le bouton
           redevient le dernier élément de la fenêtre. */}
       <div className="maj-note">Seules les enveloppes modifiées seront écrites et redatées.</div>
-      <button type="button" className="btn btn-accent btn-lg" disabled={busy} onClick={enregistrer}>
-        {busy ? 'Enregistrement…'
-          : modifiees.length ? `Enregistrer ${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''}`
-          : 'Enregistrer'}
+      {/* Plus de `disabled={busy}` ni d'état « Enregistrement… » (01/09/2026) :
+          l'enregistrement ne dure plus, il n'y a donc plus rien à signaler.
+          ⚠️ Le bouton reste TOUJOURS actif, conformément à la doctrine du
+          10/08/2026 — un refus s'annonce par un toast, jamais par un grisé. */}
+      <button type="button" className="btn btn-accent btn-lg" onClick={enregistrer}>
+        {modifiees.length ? `Enregistrer ${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''}` : 'Enregistrer'}
       </button>
     </div>
   );
