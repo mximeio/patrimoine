@@ -860,10 +860,27 @@ function porteDuTravail(compte) {
 async function maybeAutoBackup(user, dataObj) {
   try {
     const list = await Adapter.listBackups(user.uid);
-    const last = list[0];
-    if (last && last.at) {
-      const ageDays = (Date.now() - new Date(last.at).getTime()) / 86400000;
-      if (ageDays < BACKUP_AUTO_INTERVAL_DAYS) return; // sauvegarde récente : rien à faire
+    // 🔴 ON NE REGARDE QUE LES AUTOMATIQUES — décision de l'utilisateur du
+    // 03/09/2026. Avant, on prenait `list[0]`, donc la dernière sauvegarde de
+    // N'IMPORTE QUEL type, et une « avant import » remettait le compteur à zéro.
+    // ⚠️ Son argument, qui a renversé la recommandation inverse : *« une
+    // sauvegarde avant import n'est pas une vraie sauvegarde que je pourrais
+    // utiliser — si on a fait un import, on peut avoir tout changé »*. Elle est
+    // l'instantané du monde d'AVANT, un filet pour annuler l'opération : la
+    // compter comme « instantané récent » de l'état courant est faux. Idem pour
+    // `pre-restore`.
+    // ⇒ La règle est désormais celle qu'annonce la fenêtre : **une automatique
+    // par semaine, quoi qu'il arrive** — une manuelle ne la décale plus non plus.
+    // ⚠️ Coût ASSUMÉ, chiffré avant de trancher : des instantanés redondants
+    // consomment les `BACKUP_KEEP` emplacements, donc la plus ancienne
+    // sauvegarde remonte moins loin (~5-6 semaines au lieu de ~9 sur son
+    // historique réel). Choisi en connaissance de cause, au profit d'une cadence
+    // LISIBLE — un mécanisme de sécurité qui se comporte comme on le croit vaut
+    // mieux qu'un mécanisme plus fin qu'on comprend mal.
+    const lastAuto = list.find(b => b && b.type === 'auto');
+    if (lastAuto && lastAuto.at) {
+      const ageDays = (Date.now() - new Date(lastAuto.at).getTime()) / 86400000;
+      if (ageDays < BACKUP_AUTO_INTERVAL_DAYS) return; // automatique récente : rien à faire
     }
     // Garde « données non vides » : inutile de poser un instantané auto pour
     // un compte tout neuf encore vide (rotation à 10 → sans danger, juste inutile).
@@ -977,18 +994,38 @@ function BackupsCard({ ctx }) {
         est posée chaque semaine à l'ouverture ; les {BACKUP_KEEP} dernières sont conservées.
       </p>
 
-      {backups !== null && (
-        <div className={`backup-status${last ? '' : ' none'}`}>
-          <span className="ic">
-            <Icon name={last ? 'check' : 'calendar'} size={16} />
-          </span>
-          <span className="txt">
-            {last
-              ? `À jour — dernière sauvegarde ${backupRelativeAge(last.at)}.`
-              : "Aucune sauvegarde pour le moment."}
-          </span>
-        </div>
-      )}
+      {/* 🔴 « À JOUR » N'EST PLUS INCONDITIONNEL — corrigé le 03/09/2026.
+          Cette étiquette affichait « À jour » dès qu'UNE sauvegarde existait,
+          quel que soit son âge : elle l'a dit pendant cinq semaines alors que
+          l'auto-sauvegarde ne s'exécutait plus (cf. `app.js`, la garde `joint`).
+          🔴 C'est le plus grave des deux défauts : le premier a coupé le
+          mécanisme, celui-ci a empêché de le voir. **Un indicateur qui ne peut
+          pas dire « non » ne dit rien.**
+          ⚠️ Le seuil est `BACKUP_AUTO_INTERVAL_DAYS`, la MÊME constante qui
+          déclenche l'automatique — et ce n'est pas cosmétique : si l'étiquette
+          avait son propre seuil, les deux dériveraient et elle se remettrait à
+          mentir. Un état affiché se déduit de la règle, il ne la paraphrase pas.
+          ⚠️ Texte volontairement FACTUEL au-delà du seuil, sans accusation ni
+          consigne : on retire l'affirmation fausse, on n'en ajoute pas une autre.
+          L'utilisateur a « Sauvegarder maintenant » juste en dessous. */}
+      {backups !== null && (() => {
+        const ancienne = last && last.at
+          && (Date.now() - new Date(last.at).getTime()) / 86400000 >= BACKUP_AUTO_INTERVAL_DAYS;
+        return (
+          <div className={`backup-status${last ? (ancienne ? ' ancienne' : '') : ' none'}`}>
+            <span className="ic">
+              <Icon name={!last ? 'calendar' : ancienne ? 'history' : 'check'} size={16} />
+            </span>
+            <span className="txt">
+              {!last
+                ? "Aucune sauvegarde pour le moment."
+                : ancienne
+                  ? `Dernière sauvegarde ${backupRelativeAge(last.at)}.`
+                  : `À jour — dernière sauvegarde ${backupRelativeAge(last.at)}.`}
+            </span>
+          </div>
+        );
+      })()}
 
       <button className="btn btn-secondary backup-save" onClick={doManualBackup} disabled={busy}>
         <Icon name="cloudUp" size={15} /> {busy ? 'Sauvegarde…' : 'Sauvegarder maintenant'}

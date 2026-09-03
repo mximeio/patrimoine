@@ -2774,6 +2774,16 @@ button.stat-card {
   margin: 0 0 12px; font-size: 12px; color: var(--text-muted);
 }
 .backup-status .ic { color: var(--text-subtle); flex-shrink: 0; display: inline-flex; }
+/* Sauvegarde plus ancienne que l'intervalle automatique (03/09/2026). Teinte
+   d'AVERTISSEMENT, pas d'erreur : rien n'est cassé et aucune donnée n'est
+   perdue — c'est un signal à voir, pas une alarme. Même arbitrage que la carte
+   « À rafraîchir » des investissements, qui signale sans dramatiser.
+   ⚠️ La variable CSS est `--warning` ; son homologue JS s'appelle
+   `COLORS.warning`. Les deux jeux de noms diffèrent ailleurs (`--text-muted`
+   contre `COLORS.muted`), et un `var(--muted)` écrit de mémoire ne fait RIEN,
+   en silence — c'est le piège du §10 qui a déjà coûté une passe entière. */
+.backup-status.ancienne { color: var(--warning); }
+.backup-status.ancienne .ic { color: var(--warning); }
 .backup-save { margin-bottom: 4px; }
 .backup-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .backup-row {

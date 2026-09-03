@@ -379,13 +379,29 @@ function App() {
   const autoBackupTried = useRef(false);
   useEffect(() => {
     if (!dataLoaded || !user || !profile) return;
-    if (autoBackupTried.current) return;
-    autoBackupTried.current = true;
     // ⚠️ `joint` et `chargesMember` sont passés pour que la sauvegarde auto
     // contienne AUSSI les charges (cf. l'en-tête de backups.js). Et l'effet
     // attend que `joint` soit tranché — comme la reprise d'import juste en
     // dessous — sinon une course le ferait sauvegarder sans les charges.
+    // 🔴 CETTE GARDE PASSE AVANT LE DRAPEAU, ET L'ORDRE EST TOUT LE SUJET
+    // (corrigé le 03/09/2026, défaut vécu par l'utilisateur pendant 5 semaines).
+    // Elle avait été insérée APRÈS `autoBackupTried.current = true` le
+    // 31/07/2026 : la tentative unique de la session était donc consommée par un
+    // `return` qui ne sauvegardait rien. L'effet se rejoue bien quand `joint`
+    // arrive — il est dans les dépendances — mais le drapeau est déjà levé.
+    // ⇒ **L'auto-sauvegarde ne s'est plus exécutée du 31/07 au 03/09.** Dernière
+    // AUTO réelle : 27/07. Et personne ne l'a vu, parce que l'étiquette de la
+    // fenêtre affichait « À jour » quel que soit l'âge (corrigé aussi).
+    // ⚠️ La course est STRUCTURELLE, pas occasionnelle : `joint` démarre à
+    // `undefined` et ne fait PAS partie des six clés qui déclenchent
+    // `dataLoaded` — rien ne garantit son ordre d'arrivée.
+    // ⚠️ Le même correctif avait été appliqué le 31/07 à la reprise d'import
+    // JUSTE EN DESSOUS, où l'ordre est correct. Deux effets, un seul bien fait :
+    // au prochain motif partagé, **vérifier les deux**, ne pas se fier au fait
+    // que le premier soit juste.
     if (joint === undefined) return;
+    if (autoBackupTried.current) return;
+    autoBackupTried.current = true;
     maybeAutoBackup(user, { profile, checkingAccounts, savings, portfolios, physical,
       joint, chargesMember: !!(joint && Array.isArray(joint.members) && joint.members.includes(user.uid)) });
   }, [dataLoaded, user, profile, joint]);
