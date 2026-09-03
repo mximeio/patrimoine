@@ -371,27 +371,19 @@ const Adapter = {
   // Données partagées (compte joint) — un seul doc partagé entre membres.
   _jointRef() { return fbDb.collection('joint').doc('main'); },
 
-  async loadProfile(uidStr) {
-    const snap = await this._profileRef(uidStr).get();
-    if (!snap.exists) {
-      // 🔴 cf. `vientDuCache` : un profil « absent » lu depuis le cache ne doit
-      // PAS être remplacé par le profil par défaut — ça effacerait les modules
-      // activés (dont `multiCheckingAccounts`, absent de DEFAULT_PROFILE, donc
-      // la perte serait invisible).
-      if (vientDuCache(snap)) return { ...DEFAULT_PROFILE };
-      await this._profileRef(uidStr).set({
-        ...DEFAULT_PROFILE,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      return { ...DEFAULT_PROFILE };
-    }
-    const data = snap.data();
-    return {
-      ...DEFAULT_PROFILE,
-      ...data,
-      modulesEnabled: { ...DEFAULT_PROFILE.modulesEnabled, ...(data.modulesEnabled || {}) },
-    };
-  },
+  // 🔴 `loadProfile` A ÉTÉ SUPPRIMÉE LE 03/09/2026 — ne pas la réintroduire.
+  // Elle était MORTE depuis longtemps (aucun appelant dans tout le projet, tests
+  // et smoke test compris, vérifié le 15/08 puis le 03/09/2026) : la lecture du
+  // profil passe par `subscribeProfile`, qui est un abonnement temps réel.
+  // ⚠️ **Ce n'était pas du simple ménage : c'était du CODE MORT QUI ÉCRIT.** Elle
+  // portait un second chemin de semis (`set({ ...DEFAULT_PROFILE })`) — et il
+  // n'avait PAS été aligné sur la décision du 17/08/2026, qui veut qu'un compte
+  // neuf naisse avec compte courant + épargne seulement. Le commentaire de
+  // `subscribeProfile` le disait déjà : « ne pas l'aligner, ce serait donner vie
+  // à du code à retirer ». On la retire donc, plutôt que de maintenir deux semis
+  // dont un faux.
+  // ⇒ **Il n'existe plus qu'UN seul point de création du profil**, dans
+  // `subscribeProfile`, et c'est lui qui porte les défauts voulus (§5).
   async saveProfile(uidStr, profile) {
     await this._profileRef(uidStr).set({
       ...profile,
@@ -765,10 +757,10 @@ const Adapter = {
         //  les règles interdisent de lire le profil d'un autre utilisateur (c'est
         //  leur rôle). Le socle reste donc PERMISSIF, et le défaut se pose ICI,
         //  à la création — le seul endroit où il ne peut toucher personne.
-        //  ⚠️ `loadProfile` (plus haut) porte un second semis avec le même
-        //  travers, non corrigé : elle est MORTE (aucun appelant, vérifié le
-        //  15/08/2026) et doit être supprimée, cf. son entrée garée au backlog.
-        //  Ne pas l'aligner — ce serait donner vie à du code à retirer.
+        //  ⚠️ `loadProfile` portait un second semis avec le même
+        //  travers, non corrigé — elle a été SUPPRIMÉE le 03/09/2026 (morte, aucun
+        //  appelant). Ce bloc est donc désormais le SEUL point de création du profil.
+        //  Ne pas en réintroduire un second.
         try {
           await this._profileRef(uidStr).set({
             ...DEFAULT_PROFILE,
