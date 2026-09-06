@@ -1879,8 +1879,28 @@ button.stat-card {
    hors flux, dans la chip) reproduit la chip avec le mois complet pour
    donner sa largeur « cible » avec les vraies règles CSS (15px en
    variante light, chevrons 26px, paddings réels). */
+/* 🔴 ANCRÉ À DROITE, ET CE N'EST PAS UN DÉTAIL DE GOÛT — corrigé le 06/09/2026.
+   `visibility: hidden` empêche la PEINTURE, pas le DÉBORDEMENT : la boîte du
+   clone continue de compter dans le `scrollWidth` de tous ses ancêtres.
+   Le clone garde TOUJOURS la largeur du mois complet (214 px pour « Septembre
+   2026 »), alors que la chip, elle, se réduit à 153 px dès que `useShort`
+   s'enclenche. Ancré sur `left: 0`, il dépassait donc de 61 px vers la droite
+   d'une chip collée au bord droit de la ligne de titre — d'où une barre de
+   défilement horizontale de 45 px sur `.main-container` (overflow-x: auto).
+   Symptôme observé : compte courant de SEPTEMBRE sur iPhone 15 Pro (393 pt),
+   rien sur iPhone 17 Pro Max (440 pt). Les deux moitiés de l'explication :
+   - le mois : seuls Septembre (214 px), Novembre et Décembre (210 px) font
+     basculer en mode court à 393 pt — Octobre (193) et les autres tiennent ;
+   - l'écran : au-delà de 414 pt le mode court ne s'enclenche plus, le clone
+     se superpose exactement à la chip, et rien ne dépasse. Mesuré : débordement
+     à 320/360/375/390/393 pt, nul à 414/428/430/440.
+   ⚠️ NE PAS « corriger » par un `overflow: hidden` sur .month-chip ou
+   .title-row-slot : le popover du calendrier vit dans la chip, il serait rogné.
+   ⚠️ NE PAS revenir à `left` : la chip est TOUJOURS collée au bord droit de la
+   ligne de titre, c'est vers la gauche (côté titre, largement à l'intérieur du
+   conteneur) que le clone peut s'étendre sans rien faire déborder. */
 .mc-measure {
-  position: absolute; left: 0; top: 0;
+  position: absolute; right: 0; left: auto; top: 0;
   visibility: hidden; pointer-events: none;
   display: inline-flex; align-items: center; gap: 2px;
   padding: 3px; white-space: nowrap;
