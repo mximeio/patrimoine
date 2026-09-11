@@ -33,6 +33,7 @@
 (function () {
   var erreurs = [];
   var affichee = false;
+  var echecs = {};   // url -> true, pour distinguer « bloqué » de « inopérant »
 
   // Les globales que l'app attend. Leur absence est souvent LA cause, et la
   // voir d'un coup d'œil sur une capture d'écran évite un aller-retour.
@@ -45,6 +46,78 @@
     return out.join('  ·  ');
   }
 
+  // 🔴 « firebase : ok » ne dit RIEN d'utile : la globale existe dès que
+  // firebase-app-compat est chargé, alors que ce sont les SOUS-ESPACES
+  // (auth, firestore) qui portent le service. Le 11/09/2026, un appareil a
+  // planté sur `firebase.firestore` indéfini alors que cette ligne annonçait
+  // « ok ». Un indicateur qui ne peut pas dire non ne dit rien.
+  function etatDeFirebase() {
+    if (typeof window.firebase === 'undefined') return 'firebase ABSENT';
+    var f = window.firebase, out = [];
+    out.push('SDK ' + (f.SDK_VERSION || '?'));
+    out.push('apps=' + (f.apps && f.apps.length !== undefined ? f.apps.length : '?'));
+    out.push('initializeApp:' + typeof f.initializeApp);
+    out.push('auth:' + typeof f.auth);
+    out.push('firestore:' + typeof f.firestore);
+    try {
+      out.push('FieldPath:' + (f.firestore ? typeof f.firestore.FieldPath : 'n/a'));
+      out.push('FieldValue:' + (f.firestore ? typeof f.firestore.FieldValue : 'n/a'));
+    } catch (e) { out.push('statics: lecture impossible (' + e.message + ')'); }
+    return out.join('  ·  ');
+  }
+
+  // État de CHAQUE script externe.
+  //
+  // 🔴 ON NE PEUT PAS SE FIER À L'ÉVÉNEMENT `error` POUR CES BALISES-LÀ : elles
+  // sont déclarées dans index.html AVANT js/config.js, donc leur échec de
+  // chargement survient AVANT que ce piège soit posé. Dire « chargé » parce
+  // qu'aucun échec n'a été signalé serait un mensonge — exactement le travers
+  // de l'ancien indicateur « firebase : ok ».
+  // ⇒ On vérifie donc le RÉSULTAT : la globale que chaque script doit définir.
+  //   C'est la seule preuve disponible après coup, et c'est celle qui compte —
+  //   un script peut aussi se charger sans s'exécuter correctement.
+  var GLOBALES_ATTENDUES = [
+    ['react-dom', function () { return window.ReactDOM; }],
+    ['react', function () { return window.React; }],
+    ['prop-types', function () { return window.PropTypes; }],
+    ['recharts', function () { return window.Recharts; }],
+    ['firebase-app', function () { return window.firebase; }],
+    ['firebase-auth', function () { return window.firebase && window.firebase.auth; }],
+    ['firebase-firestore', function () { return window.firebase && window.firebase.firestore; }],
+  ];
+
+  function attenduPour(src) {
+    // react-dom avant react : « react » est contenu dans « react-dom ».
+    for (var i = 0; i < GLOBALES_ATTENDUES.length; i++) {
+      if (src.indexOf(GLOBALES_ATTENDUES[i][0]) !== -1) return GLOBALES_ATTENDUES[i];
+    }
+    return null;
+  }
+
+  function etatDesScripts() {
+    var out = [];
+    var tags = document.getElementsByTagName('script');
+    for (var i = 0; i < tags.length; i++) {
+      var src = tags[i].src || '';
+      if (!src || src.indexOf('://') === -1) continue;
+      if (src.indexOf(window.location.origin) === 0) continue;   // nos propres fichiers
+      var etat;
+      if (echecs[src]) {
+        etat = 'ÉCHEC DE CHARGEMENT';
+      } else {
+        var att = attenduPour(src);
+        if (!att) etat = 'chargement non vérifiable';
+        else {
+          var v;
+          try { v = att[1](); } catch (e) { v = undefined; }
+          etat = (typeof v === 'undefined') ? 'GLOBALE ABSENTE (non exécuté ?)' : 'ok';
+        }
+      }
+      out.push('  [' + etat + '] ' + src.replace(/^https:\/\//, ''));
+    }
+    return out.join('\n');
+  }
+
   function texteComplet() {
     var l = [];
     l.push('Patrimoine — rapport d\'erreur');
@@ -54,13 +127,17 @@
     l.push('Date : ' + new Date().toISOString());
     l.push('Navigateur : ' + navigator.userAgent);
     l.push('Globales : ' + etatDesGlobales());
+    l.push('Firebase : ' + etatDeFirebase());
     l.push('En ligne : ' + (navigator.onLine === false ? 'non' : 'oui'));
     l.push('Écran : ' + window.innerWidth + ' x ' + window.innerHeight
       + '  (doc ' + (document.documentElement ? document.documentElement.scrollWidth : '?') + ')');
+    l.push('Scripts externes :');
+    l.push(etatDesScripts());
     l.push('');
     for (var i = 0; i < erreurs.length; i++) {
       var e = erreurs[i];
       l.push('--- ' + (i + 1) + '/' + erreurs.length + ' [' + e.origine + '] ---');
+      if (e.firebase) l.push('Firebase à cet instant : ' + e.firebase);
       // La pile commence en général par le message : ne pas le répéter. Sur une
       // capture d'écran de téléphone, deux lignes gagnées sont deux lignes de
       // pile visibles en plus.
@@ -185,6 +262,11 @@
   window.__patrimoineErreur = function (err, origine, source) {
     var e = err || {};
     erreurs.push({
+      // ⚠️ Photo prise ICI, à l'instant de l'erreur — surtout pas au moment du
+      // rendu de l'overlay. Un sous-espace Firebase peut être indéfini pendant
+      // le plantage et présent une seconde plus tard : lire à l'affichage
+      // masquerait précisément la cause.
+      firebase: etatDeFirebase(),
       origine: origine || 'inconnue',
       message: String(e.message || e || 'erreur sans message'),
       stack: e.stack ? String(e.stack).split('\n').slice(0, 8).join('\n') : '',
@@ -203,9 +285,9 @@
   window.addEventListener('error', function (ev) {
     var cible = ev && ev.target;
     if (cible && cible !== window && (cible.tagName === 'SCRIPT' || cible.tagName === 'LINK')) {
-      window.__patrimoineErreur(
-        new Error('Ressource non chargée'), 'ressource',
-        cible.src || cible.href || '(url inconnue)');
+      var url = cible.src || cible.href || '(url inconnue)';
+      echecs[url] = true;
+      window.__patrimoineErreur(new Error('Ressource non chargée'), 'ressource', url);
       return;
     }
     window.__patrimoineErreur(
