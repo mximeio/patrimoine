@@ -34,6 +34,21 @@
   var erreurs = [];
   var affichee = false;
   var echecs = {};   // url -> true, pour distinguer « bloqué » de « inopérant »
+  // Ressources dont l'échec est CONNU, ATTENDU et SANS EFFET. Les signaler
+  // polluerait chaque rapport, sur chaque appareil, et noierait le vrai signal.
+  //  • apis.google.com/js/api.js : chargeur gapi qu'injecte firebase-auth-compat
+  //    pour les connexions par iframe (popup/redirect). Cette app n'utilise que
+  //    l'email/mot de passe, et son CSP ne liste pas apis.google.com — le blocage
+  //    est donc VOULU. Il reste listé dans « Scripts externes » du rapport, mais
+  //    ne compte pas comme un incident.
+  var BENIGNES = ['apis.google.com/js/api.js'];
+  function benigne(url) {
+    for (var i = 0; i < BENIGNES.length; i++) {
+      if (url.indexOf(BENIGNES[i]) !== -1) return true;
+    }
+    return false;
+  }
+
   var aRendu = false;  // l'app a-t-elle déjà affiché quelque chose ? (constaté sur #root)
 
   function rootVide() {
@@ -186,10 +201,18 @@
   //      • #root plein → l'app vit → pastille discrète, consultable au doigt.
   //  En DEV, on montre tout : c'est à ça que sert un environnement de test.
   // ============================================================
+  // ⚠️ PAS DE CAS PARTICULIER POUR LE DEV — retiré le 11/09/2026, quelques
+  // minutes après l'avoir écrit. « En dev on montre tout » semblait sage : en
+  // pratique, l'environnement de test affichait l'écran de panne en permanence
+  // à cause d'une ressource bénigne (voir BÉNIGNES ci-dessous), sur une
+  // application qui fonctionnait. Un garde-fou qui crie au loup à chaque
+  // chargement n'apprend qu'une chose à son utilisateur : l'ignorer.
+  // ⇒ Une seule règle, la même dans les deux environnements, et fondée sur le
+  //   FAIT observé — l'écran est-il vide ? — et non sur la gravité supposée.
   function fatale(origine) {
-    if (window.FIREBASE_ENV === 'dev') return true;       // dev : tout est visible
-    if (origine === 'rendu React') return true;           // React a démonté l'arbre
-    return false;                                          // le chien de garde tranchera
+    // Seul cas où la panne est certaine sans rien mesurer : React a démonté
+    // l'arbre, donc #root EST vide. Tout le reste, le chien de garde tranche.
+    return origine === 'rendu React';
   }
 
   function pastille() {
@@ -338,7 +361,8 @@
     var cible = ev && ev.target;
     if (cible && cible !== window && (cible.tagName === 'SCRIPT' || cible.tagName === 'LINK')) {
       var url = cible.src || cible.href || '(url inconnue)';
-      echecs[url] = true;
+      echecs[url] = true;   // gardé pour « Scripts externes », même si bénin
+      if (benigne(url)) return;
       window.__patrimoineErreur(new Error('Ressource non chargée'), 'ressource', url);
       return;
     }
