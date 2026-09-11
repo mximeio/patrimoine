@@ -1490,7 +1490,64 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = 
 }
 
 // ============================================================
+//  GARDE-FOU DE RENDU
+//
+//  🔴 POURQUOI. Avec React 18 (`createRoot`), une exception pendant le rendu
+//  DÉMONTE tout l'arbre : #root se vide et l'utilisateur voit une page
+//  parfaitement blanche, sans un mot. Sur iPhone, sans Mac, il n'a aucun moyen
+//  d'ouvrir une console — le défaut est donc invisible ET indiagnosticable.
+//  C'est exactement ce qui s'est produit chez un utilisateur le 11/09/2026.
+//
+//  ⚠️ `window.onerror` (posé dans config.js) NE VOIT PAS les erreurs de rendu
+//  React : React les intercepte et les relance hors du contexte où onerror
+//  pourrait les capter. Il faut donc un ErrorBoundary, et c'est le SEUL moyen.
+//  Les deux se complètent, ils ne se remplacent pas.
+//
+//  ⚠️ Classe et non fonction : les hooks n'exposent toujours pas d'équivalent
+//  à `componentDidCatch`. Ce n'est pas un choix de style.
+//
+//  L'affichage est délégué à `window.__patrimoineErreur` (config.js) : le même
+//  rapport, quelle que soit l'origine de l'erreur — et un rendu en DOM brut,
+//  qui ne peut pas échouer à son tour puisqu'il ne dépend ni de React ni de
+//  styles.css.
+// ============================================================
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { plante: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { plante: true };
+  }
+
+  componentDidCatch(error, info) {
+    // `componentStack` dit QUEL composant a levé — l'information la plus utile
+    // du rapport, et celle qu'aucune autre source ne donne.
+    const pile = info && info.componentStack
+      ? String(info.componentStack).split('\n').slice(0, 8).join('\n')
+      : '';
+    if (typeof window.__patrimoineErreur === 'function') {
+      window.__patrimoineErreur(error, 'rendu React', pile);
+    } else {
+      console.error('[Patrimoine] erreur de rendu', error, info);
+    }
+  }
+
+  render() {
+    // Sur erreur on rend `null` et on laisse l'overlay DOM de config.js parler.
+    // Rendre un écran de repli EN REACT serait fragile : si l'erreur vient du
+    // socle (une globale absente), le repli échouerait à son tour.
+    return this.state.plante ? null : this.props.children;
+  }
+}
+
+// ============================================================
 //  MOUNT
 // ============================================================
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
