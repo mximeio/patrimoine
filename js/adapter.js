@@ -209,14 +209,49 @@ function _normalizePortfolioDoc(obj) {
   return { ...obj, data: migratePortfolioData(obj.data) };
 }
 
+// ============================================================
+//  🔴 NAMESPACES FIREBASE CAPTURÉS UNE FOIS POUR TOUTES
+//
+//  Ne JAMAIS relire `window.firebase` en cours d'exécution. Ce fichier est
+//  chargé après les scripts CDN (index.html fait foi), donc la globale est
+//  bonne ICI, à cet instant précis — et c'est la seule garantie qu'on ait.
+//
+//  🔴 CE N'EST PAS DE LA PRUDENCE THÉORIQUE — mesuré le 11/09/2026 sur
+//  l'iPhone d'une utilisatrice. Une EXTENSION SAFARI injectait dans la page
+//  son propre Firebase (12.12.0, app + analytics) et ÉCRASAIT
+//  `window.firebase`. Le paquet injecté ne porte ni `auth` ni `firestore`.
+//  Conséquence exacte, et elle est instructive :
+//    • `init()` passait : il capture `fbAuth` et `fbDb` AVANT l'injection ;
+//    • la connexion marchait, et cinq abonnements sur six aussi — ils
+//      n'utilisent que `fbDb`, une référence capturée ;
+//    • `subscribeSnapshots`, SEUL à relire la globale (pour
+//      `FieldPath.documentId()`), tombait sur le Firebase de l'extension →
+//      `firebase.firestore` indéfini → exception → écran blanc.
+//  Le diagnostic a pris sept échanges parce que le symptôme (page blanche)
+//  ne disait rien et que le code marchait partout ailleurs.
+//
+//  ⚠️ Ce que ça protège dépasse largement les snapshots : les 26
+//  `FieldValue.serverTimestamp()` ci-dessous sont sur le chemin de TOUTE
+//  écriture. Sans capture, aucune sauvegarde ne serait passée sur cet
+//  appareil.
+//
+//  ⚠️ `window.firebase` reste lu à un seul endroit du projet, dans le filet
+//  de diagnostic de config.js — et c'est VOULU : lui doit voir la globale
+//  telle qu'elle est réellement, pollution comprise. C'est ce qui a permis
+//  de trouver.
+// ============================================================
+const FB = window.firebase;
+const FS = FB && FB.firestore;   // namespace Firestore + ses statics (FieldValue, FieldPath…)
+const FBAUTH = FB && FB.auth;    // namespace Auth + ses statics (EmailAuthProvider…)
+
 let fbAuth = null, fbDb = null;
 
 const Adapter = {
   init() {
     if (window.CONFIG_NEEDED) return;
-    firebase.initializeApp(window.FIREBASE_CONFIG);
-    fbAuth = firebase.auth();
-    fbDb = firebase.firestore();
+    FB.initializeApp(window.FIREBASE_CONFIG);
+    fbAuth = FBAUTH();
+    fbDb = FS();
     // settings() ne peut être appelée qu'une seule fois, avant toute autre op.
     // - experimentalAutoDetectLongPolling : transport long-polling auto-détecté,
     //   passe mieux à travers les bloqueurs de pub (ERR_BLOCKED_BY_CLIENT).
@@ -225,7 +260,7 @@ const Adapter = {
     const settings = { experimentalAutoDetectLongPolling: true };
     let usedNewCacheAPI = false;
     try {
-      const ns = firebase.firestore;
+      const ns = FS;
       if (typeof ns.persistentLocalCache === 'function') {
         // ⚠️ SANS gestionnaire multi-onglets — même raison que le
         // `enablePersistence()` ci-dessous. Cette branche ne tourne pas
@@ -324,7 +359,7 @@ const Adapter = {
     if (!user) throw new Error('Non connecté');
     if (newPassword.length < 6) throw new Error('Le nouveau mot de passe doit faire au moins 6 caractères.');
     // Ré-authentification requise par Firebase pour les opérations sensibles
-    const cred = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+    const cred = FBAUTH.EmailAuthProvider.credential(user.email, currentPassword);
     await user.reauthenticateWithCredential(cred);
     await user.updatePassword(newPassword);
   },
@@ -387,7 +422,7 @@ const Adapter = {
   async saveProfile(uidStr, profile) {
     await this._profileRef(uidStr).set({
       ...profile,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     }, { merge: true });
   },
 
@@ -457,8 +492,8 @@ const Adapter = {
     };
     await ref.set({
       ...payload,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: FS.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
     return ref.id;
   },
@@ -489,7 +524,7 @@ const Adapter = {
     // disparaissent du document dès cette première écriture.
     await this._checkingAccountsCol(uidStr).doc(id).set({
       ...rest,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
 
@@ -525,9 +560,9 @@ const Adapter = {
     // obligatoire : un FieldPath ne peut pas être une clé d'objet littéral.
     const args = [];
     for (const mKey of keys) {
-      args.push(new firebase.firestore.FieldPath('months', mKey), months[mKey]);
+      args.push(new FS.FieldPath('months', mKey), months[mKey]);
     }
-    args.push('updatedAt', firebase.firestore.FieldValue.serverTimestamp());
+    args.push('updatedAt', FS.FieldValue.serverTimestamp());
 
     try {
       await this._checkingAccountsCol(uidStr).doc(id).update(...args);
@@ -543,7 +578,7 @@ const Adapter = {
   async renameCheckingAccount(uidStr, id, name) {
     await this._checkingAccountsCol(uidStr).doc(id).update({
       name,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
 
@@ -559,15 +594,15 @@ const Adapter = {
     const ref = this._savingsCol(uidStr).doc();
     await ref.set({
       ...payload,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: FS.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
     return ref.id;
   },
   async updateSavings(uidStr, id, patch) {
     await this._savingsCol(uidStr).doc(id).update({
       ...patch,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
   async deleteSavings(uidStr, id) { await this._savingsCol(uidStr).doc(id).delete(); },
@@ -602,7 +637,7 @@ const Adapter = {
     const newOp = { id: op.id || Math.random().toString(36).slice(2, 10), ...op };
     await ref.update({
       operations: [...current, newOp],
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
     return newOp.id;
   },
@@ -611,7 +646,7 @@ const Adapter = {
     const current = operationsActuelles || [];
     await ref.update({
       operations: current.map(o => o.id === opId ? { ...o, ...patch } : o),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
   async deleteSavingsOperation(uidStr, savingId, opId, operationsActuelles) {
@@ -619,7 +654,7 @@ const Adapter = {
     const current = operationsActuelles || [];
     await ref.update({
       operations: current.filter(o => o.id !== opId),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
 
@@ -631,20 +666,20 @@ const Adapter = {
     const ref = this._portfoliosCol(uidStr).doc();
     await ref.set({
       name,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: FS.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
       data: data || DEFAULT_PORTFOLIO_DATA,
     });
     return ref.id;
   },
   async updatePortfolioData(uidStr, id, data) {
     await this._portfoliosCol(uidStr).doc(id).update({
-      data, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      data, updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
   async renamePortfolio(uidStr, id, name) {
     await this._portfoliosCol(uidStr).doc(id).update({
-      name, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      name, updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
   async deletePortfolio(uidStr, id) { await this._portfoliosCol(uidStr).doc(id).delete(); },
@@ -657,15 +692,15 @@ const Adapter = {
     const ref = this._physicalCol(uidStr).doc();
     await ref.set({
       ...payload,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: FS.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
     return ref.id;
   },
   async updatePhysical(uidStr, id, patch) {
     await this._physicalCol(uidStr).doc(id).update({
       ...patch,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
   async deletePhysical(uidStr, id) { await this._physicalCol(uidStr).doc(id).delete(); },
@@ -677,7 +712,7 @@ const Adapter = {
   // ============================================================
   async listSnapshots(uidStr) {
     const snap = await this._snapshotsCol(uidStr)
-      .orderBy(firebase.firestore.FieldPath.documentId(), 'asc')
+      .orderBy(FS.FieldPath.documentId(), 'asc')
       .get();
     return snap.docs.map(d => ({ monthKey: d.id, ...d.data() }));
   },
@@ -685,7 +720,7 @@ const Adapter = {
     await this._snapshotsCol(uidStr).doc(monthKey).set({
       ...data,
       monthKey,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FS.FieldValue.serverTimestamp(),
     });
   },
 
@@ -708,7 +743,7 @@ const Adapter = {
     const ref = this._backupsCol(uidStr).doc();
     await ref.set({
       ...entry,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: FS.FieldValue.serverTimestamp(),
     });
     return ref.id;
   },
@@ -769,7 +804,7 @@ const Adapter = {
               investments: false,
               physical: false,
             },
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdAt: FS.FieldValue.serverTimestamp(),
           });
         } catch (e) { console.warn('[subscribeProfile] init failed', e); }
         return;
@@ -883,8 +918,8 @@ const Adapter = {
         //  l'incohérence : le PREMIER compte naissait avec les TR, tous les
         //  suivants sans. Personne ne l'avait relevée.
         settings: { ...DEFAULT_CHECKING.settings, trEnabled: false },
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: FS.FieldValue.serverTimestamp(),
+        updatedAt: FS.FieldValue.serverTimestamp(),
         // 🔴 `seededAt` — LE MARQUEUR DE SEMIS, et il n'est PAS décoratif.
         //
         //  C'est ce champ que les règles Firestore regardent
@@ -907,7 +942,7 @@ const Adapter = {
         //  qui garantit qu'import et restauration ne sont pas gênés.
         //  ⇒ Éprouvé par `_precompil/rules-test.js` (37 assertions), dont trois
         //    mutations qui vérifient que le filet attrape bien sa disparition.
-        seededAt: firebase.firestore.FieldValue.serverTimestamp(),
+        seededAt: FS.FieldValue.serverTimestamp(),
       });
     });
   },
@@ -932,7 +967,7 @@ const Adapter = {
 
   subscribeSnapshots(uidStr, onChange) {
     return this._snapshotsCol(uidStr)
-      .orderBy(firebase.firestore.FieldPath.documentId(), 'asc')
+      .orderBy(FS.FieldPath.documentId(), 'asc')
       .onSnapshot((snap) => {
         onChange(snap.docs.map(d => ({ monthKey: d.id, ...d.data() })));
       }, (err) => console.error('[subscribeSnapshots]', err));
@@ -963,7 +998,7 @@ const Adapter = {
     // merge:true pour ne toucher qu'aux champs fournis. On n'inclut JAMAIS
     // `members` : les règles refuseraient l'écriture s'il changeait.
     await this._jointRef().set(
-      { ...patch, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+      { ...patch, updatedAt: FS.FieldValue.serverTimestamp() },
       { merge: true }
     );
   },
