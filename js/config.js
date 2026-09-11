@@ -34,6 +34,12 @@
   var erreurs = [];
   var affichee = false;
   var echecs = {};   // url -> true, pour distinguer « bloqué » de « inopérant »
+  var aRendu = false;  // l'app a-t-elle déjà affiché quelque chose ? (constaté sur #root)
+
+  function rootVide() {
+    var r = document.getElementById('root');
+    return !r || r.childElementCount === 0;
+  }
 
   // Les globales que l'app attend. Leur absence est souvent LA cause, et la
   // voir d'un coup d'œil sur une capture d'écran évite un aller-retour.
@@ -161,6 +167,47 @@
     return b;
   }
 
+  // ============================================================
+  //  🔴 UNE ERREUR N'EST PAS UNE PANNE — corrigé le 11/09/2026, AVANT la prod.
+  //
+  //  Première version : l'overlay s'affichait pour TOUTE erreur. En dev c'est
+  //  ce qu'on veut. En prod, c'était un remède pire que le mal — une promesse
+  //  rejetée bénigne (une écriture qui échoue hors ligne, par exemple) aurait
+  //  recouvert une application parfaitement fonctionnelle d'un écran noir
+  //  « L'application n'a pas pu démarrer ».
+  //  Pire : ça annulait l'isolation des abonnements d'app.js. Un abonnement
+  //  isolé qui échoue laisse l'app démarrer… et l'overlay la recouvrait
+  //  aussitôt. Les deux garde-fous se contredisaient.
+  //
+  //  ⇒ Le critère est un FAIT OBSERVÉ, pas la gravité supposée de l'erreur :
+  //    **l'application affiche-t-elle quelque chose ?** Même principe que
+  //    `_signalerCacheVide` dans adapter.js — on mesure la conséquence.
+  //      • #root vide  → l'app est morte → overlay plein écran ;
+  //      • #root plein → l'app vit → pastille discrète, consultable au doigt.
+  //  En DEV, on montre tout : c'est à ça que sert un environnement de test.
+  // ============================================================
+  function fatale(origine) {
+    if (window.FIREBASE_ENV === 'dev') return true;       // dev : tout est visible
+    if (origine === 'rendu React') return true;           // React a démonté l'arbre
+    return false;                                          // le chien de garde tranchera
+  }
+
+  function pastille() {
+    if (affichee || document.getElementById('patrimoine-pastille') || !document.body) return;
+    var b = document.createElement('button');
+    b.id = 'patrimoine-pastille';
+    b.type = 'button';
+    b.textContent = '⚠︎';
+    b.title = 'Un incident technique a été enregistré';
+    b.setAttribute('aria-label', 'Voir le rapport d\'incident');
+    b.style.cssText = 'position:fixed;left:10px;bottom:10px;z-index:2147483646;width:30px;'
+      + 'height:30px;border-radius:50%;border:0;background:rgba(180,83,9,.92);color:#fff;'
+      + 'font:15px/1 -apple-system,system-ui,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.3);'
+      + 'padding:0;opacity:.85;';
+    b.onclick = function () { b.remove(); afficher(); };
+    document.body.appendChild(b);
+  }
+
   function afficher() {
     if (affichee || !document.body) return;
     affichee = true;
@@ -275,9 +322,14 @@
     // Une ressource manquante n'est pas forcément fatale (une police, par
     // exemple). On la CONSIGNE mais on laisse le chien de garde décider :
     // il n'affichera que si l'app n'a effectivement rien rendu.
-    if (origine !== 'ressource') {
+    if (fatale(origine)) {
       if (document.body) afficher(); else document.addEventListener('DOMContentLoaded', afficher);
+    } else if (aRendu) {
+      // L'app a déjà affiché quelque chose : elle vit. On ne la recouvre pas.
+      if (document.body) pastille(); else document.addEventListener('DOMContentLoaded', pastille);
     }
+    // Sinon : rien pour l'instant. Le chien de garde décidera en regardant
+    // si l'écran est resté vide — il est le seul à pouvoir le savoir.
     rafraichir();
     return true;
   };
@@ -307,9 +359,14 @@
     var essais = 0;
     var t = setInterval(function () {
       essais++;
-      var root = document.getElementById('root');
-      var vide = !root || root.childElementCount === 0;
-      if (!vide) { clearInterval(t); return; }      // l'app affiche : rien à dire
+      if (!rootVide()) {
+        aRendu = true;
+        clearInterval(t);
+        // L'app tourne, mais des incidents ont été enregistrés pendant le
+        // démarrage : on le signale sans rien recouvrir.
+        if (erreurs.length > 0) pastille();
+        return;
+      }
       if (essais >= 4) {                            // ~8 s de page vide
         clearInterval(t);
         if (erreurs.length === 0) {
