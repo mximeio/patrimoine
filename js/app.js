@@ -240,45 +240,80 @@ function App() {
       if (firstSeen.size === KEYS.length) setDataLoaded(true);
     };
 
-    const unsubs = [
-      Adapter.subscribeProfile(user.uid, (p) => {
-        setProfile(p);
-        markFirst('profile');
-      }),
-      Adapter.subscribeCheckingAccounts(user.uid, (ca) => {
-        setCheckingAccounts(ca);
-        // On garde l'id courant UNIQUEMENT s'il existe encore dans la
-        // liste reçue (le compte peut avoir été supprimé depuis un autre
-        // appareil). Sinon, repli sur le premier compte. Les deux setState
-        // sont batchés par React 18 (createRoot) → un seul rendu cohérent.
-        setCurrentAccountId(prev =>
-          (prev && ca.some(a => a.id === prev)) ? prev : (ca[0]?.id || null)
-        );
-        markFirst('accounts');
-      }),
-      Adapter.subscribeSavings(user.uid, (s) => {
-        setSavings(s);
-        markFirst('savings');
-      }),
-      Adapter.subscribePortfolios(user.uid, (pf) => {
-        setPortfolios(pf);
-        markFirst('portfolios');
-      }),
-      Adapter.subscribePhysical(user.uid, (ph) => {
-        setPhysical(ph);
-        markFirst('physical');
-      }),
-      Adapter.subscribeSnapshots(user.uid, (sn) => {
-        setSnapshots(sn);
-        markFirst('snapshots');
-      }),
-      // Charges partagées : non bloquant pour dataLoaded (les non-membres
-      // n'y ont jamais accès). onDenied → null (pas d'accès / doc absent).
-      Adapter.subscribeJoint(
-        (j) => setJoint(j),
-        () => setJoint(null),
-      ),
-    ];
+    // ============================================================
+    //  🔴 CHAQUE ABONNEMENT EST ISOLÉ — ajouté le 11/09/2026.
+    //
+    //  Le défaut corrigé : ces abonnements étaient créés dans un tableau
+    //  littéral, donc dans UNE SEULE expression. La 6ᵉ (`subscribeSnapshots`)
+    //  a levé sur l'appareil d'un utilisateur, et comme l'effet entier
+    //  échouait, l'application n'affichait plus RIEN — écran blanc, alors que
+    //  les cinq premiers abonnements avaient réussi et que seule la courbe
+    //  d'évolution dépendait du sixième.
+    //
+    //  ⚠️ `markFirst` EST APPELÉ MÊME EN CAS D'ÉCHEC, et ce n'est pas une
+    //  négligence : `dataLoaded` ne bascule que lorsque les six clés ont été
+    //  vues. Sans cet appel, un abonnement mort laisserait la roue de
+    //  chargement tourner indéfiniment — on aurait troqué une page blanche
+    //  contre une attente sans fin, ce qui n'est pas mieux.
+    //  ⇒ La donnée manquante reste vide, le reste de l'app fonctionne, et
+    //    l'erreur est REMONTÉE (filet de config.js) au lieu d'être avalée.
+    //
+    //  ⚠️ `cle` vaut null pour les charges : elles ne comptent pas dans
+    //  `KEYS`, et marquer une clé inconnue ferait atteindre `KEYS.length` à
+    //  `firstSeen` avec une vraie clé encore manquante — donc un `dataLoaded`
+    //  prématuré. Le null est ce qui l'empêche.
+    // ============================================================
+    const unsubs = [];
+    const abonner = (cle, creer) => {
+      try {
+        unsubs.push(creer());
+      } catch (e) {
+        if (typeof window.__patrimoineErreur === 'function') {
+          window.__patrimoineErreur(e, 'abonnement ' + (cle || 'charges'));
+        } else {
+          console.error('[abonnement ' + (cle || 'charges') + ']', e);
+        }
+        if (cle) markFirst(cle);
+      }
+    };
+
+    abonner('profile', () => Adapter.subscribeProfile(user.uid, (p) => {
+      setProfile(p);
+      markFirst('profile');
+    }));
+    abonner('accounts', () => Adapter.subscribeCheckingAccounts(user.uid, (ca) => {
+      setCheckingAccounts(ca);
+      // On garde l'id courant UNIQUEMENT s'il existe encore dans la
+      // liste reçue (le compte peut avoir été supprimé depuis un autre
+      // appareil). Sinon, repli sur le premier compte. Les deux setState
+      // sont batchés par React 18 (createRoot) → un seul rendu cohérent.
+      setCurrentAccountId(prev =>
+        (prev && ca.some(a => a.id === prev)) ? prev : (ca[0]?.id || null)
+      );
+      markFirst('accounts');
+    }));
+    abonner('savings', () => Adapter.subscribeSavings(user.uid, (s) => {
+      setSavings(s);
+      markFirst('savings');
+    }));
+    abonner('portfolios', () => Adapter.subscribePortfolios(user.uid, (pf) => {
+      setPortfolios(pf);
+      markFirst('portfolios');
+    }));
+    abonner('physical', () => Adapter.subscribePhysical(user.uid, (ph) => {
+      setPhysical(ph);
+      markFirst('physical');
+    }));
+    abonner('snapshots', () => Adapter.subscribeSnapshots(user.uid, (sn) => {
+      setSnapshots(sn);
+      markFirst('snapshots');
+    }));
+    // Charges partagées : non bloquant pour dataLoaded (les non-membres
+    // n'y ont jamais accès). onDenied → null (pas d'accès / doc absent).
+    abonner(null, () => Adapter.subscribeJoint(
+      (j) => setJoint(j),
+      () => setJoint(null),
+    ));
 
     return () => {
       // Libération propre de toutes les subscriptions Firestore au logout
@@ -1490,7 +1525,64 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = 
 }
 
 // ============================================================
+//  GARDE-FOU DE RENDU
+//
+//  🔴 POURQUOI. Avec React 18 (`createRoot`), une exception pendant le rendu
+//  DÉMONTE tout l'arbre : #root se vide et l'utilisateur voit une page
+//  parfaitement blanche, sans un mot. Sur iPhone, sans Mac, il n'a aucun moyen
+//  d'ouvrir une console — le défaut est donc invisible ET indiagnosticable.
+//  C'est exactement ce qui s'est produit chez un utilisateur le 11/09/2026.
+//
+//  ⚠️ `window.onerror` (posé dans config.js) NE VOIT PAS les erreurs de rendu
+//  React : React les intercepte et les relance hors du contexte où onerror
+//  pourrait les capter. Il faut donc un ErrorBoundary, et c'est le SEUL moyen.
+//  Les deux se complètent, ils ne se remplacent pas.
+//
+//  ⚠️ Classe et non fonction : les hooks n'exposent toujours pas d'équivalent
+//  à `componentDidCatch`. Ce n'est pas un choix de style.
+//
+//  L'affichage est délégué à `window.__patrimoineErreur` (config.js) : le même
+//  rapport, quelle que soit l'origine de l'erreur — et un rendu en DOM brut,
+//  qui ne peut pas échouer à son tour puisqu'il ne dépend ni de React ni de
+//  styles.css.
+// ============================================================
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { plante: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { plante: true };
+  }
+
+  componentDidCatch(error, info) {
+    // `componentStack` dit QUEL composant a levé — l'information la plus utile
+    // du rapport, et celle qu'aucune autre source ne donne.
+    const pile = info && info.componentStack
+      ? String(info.componentStack).split('\n').slice(0, 8).join('\n')
+      : '';
+    if (typeof window.__patrimoineErreur === 'function') {
+      window.__patrimoineErreur(error, 'rendu React', pile);
+    } else {
+      console.error('[Patrimoine] erreur de rendu', error, info);
+    }
+  }
+
+  render() {
+    // Sur erreur on rend `null` et on laisse l'overlay DOM de config.js parler.
+    // Rendre un écran de repli EN REACT serait fragile : si l'erreur vient du
+    // socle (une globale absente), le repli échouerait à son tour.
+    return this.state.plante ? null : this.props.children;
+  }
+}
+
+// ============================================================
 //  MOUNT
 // ============================================================
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
