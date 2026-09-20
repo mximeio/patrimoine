@@ -50,6 +50,9 @@
   }
 
   var aRendu = false;  // l'app a-t-elle déjà affiché quelque chose ? (constaté sur #root)
+  var dansLeFilet = false;   // garde de ré-entrance, cf. __patrimoineErreur
+  var MAX_ERREURS = 20;      // au-delà, on compte sans stocker
+  var omises = 0;
 
   function rootVide() {
     var r = document.getElementById('root');
@@ -155,6 +158,11 @@
     l.push('Scripts externes :');
     l.push(etatDesScripts());
     l.push('');
+    if (omises > 0) {
+      l.push('⚠︎ ' + omises + ' erreur(s) supplémentaire(s) non détaillée(s) — '
+        + 'plafond de ' + MAX_ERREURS + ' atteint (boucle probable).');
+      l.push('');
+    }
     for (var i = 0; i < erreurs.length; i++) {
       var e = erreurs[i];
       l.push('--- ' + (i + 1) + '/' + erreurs.length + ' [' + e.origine + '] ---');
@@ -329,31 +337,62 @@
     if (z) z.textContent = texteComplet();
   }
 
+  // ============================================================
+  //  🔴 DEUX GARDES, ET AUCUNE N'EST THÉORIQUE.
+  //
+  //  RÉ-ENTRANCE. Ce code s'exécute DANS un gestionnaire d'erreur. S'il lève à
+  //  son tour — une lecture de `navigator`, un DOM à moitié construit — le
+  //  navigateur signale cette nouvelle exception… à ce même gestionnaire. La
+  //  boucle est infinie et elle fige l'onglet. Un filet qui peut se prendre
+  //  lui-même est pire que pas de filet : il transforme une erreur isolée en
+  //  page gelée.
+  //  ⇒ `dansLeFilet` coupe la récursion, et le `try/catch` interne garantit
+  //    que RIEN ne ressort d'ici. En dernier recours, la console.
+  //
+  //  BORNE. `erreurs` était sans limite. Or ce projet a déjà connu une boucle
+  //  de rendu React (#185, cf. ui.js) : des milliers d'erreurs identiques par
+  //  seconde, chacune poussée dans le tableau, et `texteComplet()` rappelée à
+  //  chaque fois pour reconstruire une chaîne de plus en plus longue. Le filet
+  //  posé pour diagnostiquer le gel en serait devenu la cause.
+  //  ⇒ 20 entrées suffisent largement à comprendre ; au-delà on compte.
+  // ============================================================
   window.__patrimoineErreur = function (err, origine, source) {
-    var e = err || {};
-    erreurs.push({
-      // ⚠️ Photo prise ICI, à l'instant de l'erreur — surtout pas au moment du
-      // rendu de l'overlay. Un sous-espace Firebase peut être indéfini pendant
-      // le plantage et présent une seconde plus tard : lire à l'affichage
-      // masquerait précisément la cause.
-      firebase: etatDeFirebase(),
-      origine: origine || 'inconnue',
-      message: String(e.message || e || 'erreur sans message'),
-      stack: e.stack ? String(e.stack).split('\n').slice(0, 8).join('\n') : '',
-      source: source ? String(source).replace(/^\s*\n?/, '').replace(/\n\s+/g, ' > ') : '',
-    });
-    // Une ressource manquante n'est pas forcément fatale (une police, par
-    // exemple). On la CONSIGNE mais on laisse le chien de garde décider :
-    // il n'affichera que si l'app n'a effectivement rien rendu.
-    if (fatale(origine)) {
-      if (document.body) afficher(); else document.addEventListener('DOMContentLoaded', afficher);
-    } else if (aRendu) {
-      // L'app a déjà affiché quelque chose : elle vit. On ne la recouvre pas.
-      if (document.body) pastille(); else document.addEventListener('DOMContentLoaded', pastille);
+    if (dansLeFilet) return true;      // déjà en train de traiter : on ne rentre pas
+    dansLeFilet = true;
+    try {
+      var e = err || {};
+      if (erreurs.length < MAX_ERREURS) {
+        erreurs.push({
+          // ⚠️ Photo prise ICI, à l'instant de l'erreur — surtout pas au moment
+          // du rendu de l'overlay. Un sous-espace Firebase peut être indéfini
+          // pendant le plantage et présent une seconde plus tard : lire à
+          // l'affichage masquerait précisément la cause.
+          firebase: etatDeFirebase(),
+          origine: origine || 'inconnue',
+          message: String(e.message || e || 'erreur sans message'),
+          stack: e.stack ? String(e.stack).split('\n').slice(0, 8).join('\n') : '',
+          source: source ? String(source).replace(/^\s*\n?/, '').replace(/\n\s+/g, ' > ') : '',
+        });
+      } else {
+        omises++;
+      }
+
+      if (fatale(origine)) {
+        if (document.body) afficher(); else document.addEventListener('DOMContentLoaded', afficher);
+      } else if (aRendu) {
+        // L'app a déjà affiché quelque chose : elle vit. On ne la recouvre pas.
+        if (document.body) pastille(); else document.addEventListener('DOMContentLoaded', pastille);
+      }
+      // Sinon : rien pour l'instant. Le chien de garde décidera en regardant
+      // si l'écran est resté vide — il est le seul à pouvoir le savoir.
+      rafraichir();
+    } catch (interne) {
+      // On ne relance JAMAIS : ce serait rouvrir la boucle que `dansLeFilet`
+      // vient de fermer.
+      try { console.error('[filet] le rapport a lui-même échoué', interne); } catch (_) {}
+    } finally {
+      dansLeFilet = false;
     }
-    // Sinon : rien pour l'instant. Le chien de garde décidera en regardant
-    // si l'écran est resté vide — il est le seul à pouvoir le savoir.
-    rafraichir();
     return true;
   };
 
