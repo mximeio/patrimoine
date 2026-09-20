@@ -3469,6 +3469,106 @@ button.stat-card {
 }
 
 /* ============================================================
+   LE VOILE iOS 27 — pourquoi le titre a besoin de 44 px (20/09/2026)
+   ------------------------------------------------------------
+   🔴 SYMPTÔME : en PWA installée, portrait, le titre de rubrique est FLOU en
+   permanence. Pas en paysage, pas dans Safari, pas sur desktop.
+   CAUSE : depuis iOS 26 — aggravé en 27 — le système peint un VOILE en haut de
+   la webview d'une app installée. Mesuré sur l'appareil de l'utilisateur, il
+   descend à ≈ 35 px ; deux cas publics en mesurent 38 sur d'autres iPhone.
+
+   🔴 CE QUI A CASSÉ LA RÈGLE D'ORIGINE, et ce n'est pas elle qui a bougé.
+   `.title-row` pose `calc(env(safe-area-inset-top, 0px) + 10px)`, et son
+   commentaire affirme que ce terme « évite que le titre passe sous la status
+   bar ». MESURÉ le 20/09/2026 dans la PWA : `env(safe-area-inset-top)` vaut
+   **0** — iOS insère déjà la webview SOUS la barre de statut (`screen` 956 −
+   `innerHeight` 894 = les 62 px de la barre). Ce terme ne protège donc plus
+   rien, et le titre retombe à 10 px, soit en plein dans le voile (sa boîte de
+   24 px occupait 10 → 34).
+   ⚠️ La phrase du commentaire était VRAIE le jour où elle a été écrite. C'est
+   la plateforme qui a changé, pas le CSS — d'où un défaut qui apparaît sans
+   qu'aucun commit ne l'ait introduit.
+
+   ⚠️ AUCUN AUTRE LEVIER N'EXISTE : ni CSS ni meta ne désactivent ce voile.
+   Éprouvé publiquement — une couleur opaque sous les 200 premiers pixels laisse
+   la teinte altérée à 100 px. C'est un MATÉRIAU TRANSLUCIDE, pas un flou qu'on
+   pourrait saturer en peignant dessous. Ne pas réessayer cette piste.
+   ⚠️ Et `viewport-fit=cover` est HORS DE CAUSE : les quatre insets valent 0,
+   le contenu ne passe pas sous la barre. Testé par la mesure, pas supposé.
+
+   POURQUOI `max()` ET PAS `+ 44px` : si Apple rétablit un inset non nul dans
+   une version ultérieure, l'ancienne branche reprend la main toute seule et les
+   deux dégagements ne se CUMULENT pas. La règle se périme sans intervention.
+   🔴 POURQUOI 35, ET POURQUOI CE N'EST PAS UN AJUSTEMENT AU PIXEL PRÈS.
+   Il faut distinguer DEUX seuils, et c'est toute la question :
+     • le voile s'éteint (opacité nulle) à **+38** ;
+     • le TEXTE redevient NET bien avant, à **+34**.
+   La mesure publiée qui fait foi est celle de grappa-irc (PR #2247), sur un
+   appareil RÉEL de géométrie identique à celle de l'utilisateur — 440 px CSS de
+   large, barre de statut de 62 px, Safari 27 :
+       « Contrast at the clearance's own edge:
+         27% at +0, 71% at +18, 91% at +26, crisp at +34 »
+   ⇒ **35 est au-dessus du seuil de netteté, pas tangent à la limite du voile.**
+   C'est la marge de 91 % → net qui est franchie, pas celle de l'opacité.
+   (Option A de `_maquettes/maquette-voile-ios27-titre.html`, arbitrée par
+   l'utilisateur le 20/09/2026.)
+
+   ⚠️ CE QUE CE COMMENTAIRE A DIT DE FAUX PENDANT DEUX COMMITS, parce que la
+   même erreur se reproduirait sans ça : il affirmait que « deux cas publics
+   mesurent 38 px », et Claude recommandait 44 sur cette base. **C'était une
+   confusion de deux sources.** L'autre (mORA, PR #77) mesure **35**, pas 38 —
+   et sur SIMULATEUR, donc c'est la plus faible des deux. Aucune source ne donne
+   38 comme seuil de LISIBILITÉ ; 38 est le seuil d'OPACITÉ, qui ne commande
+   rien ici.
+   ⇒ **Ne pas remonter ce chiffre « par prudence » sans relire la courbe de
+   contraste ci-dessus.** Ce serait payer 9 px d'écran pour une marge qui existe
+   déjà.
+
+   ⚠️ PORTRAIT ET `html.pwa-standalone` UNIQUEMENT — les deux conditions sont
+   nécessaires. Le paysage n'a pas de voile (pas de barre de statut en haut) et
+   garde ses 6 px du bloc landscape ; Safari et le desktop n'ont pas la classe.
+   ⚠️ Et le gate DOIT rester `(max-width: 640px) and (orientation: portrait)` :
+   ce sélecteur porte DEUX classes, il gagnerait à la spécificité contre le
+   `.title-row` du bloc landscape — qui s'applique aux téléphones couchés, larges
+   de ~956 px. Même piège que celui documenté dans ce bloc landscape.
+
+   ⚠️ CE QUE ÇA NE CORRIGE PAS, et c'est assumé : le voile mange ce qui se
+   trouve en haut, quoi que ce soit. Au DÉFILEMENT, les lignes passent dessous et
+   sont délavées au passage — comportement voulu par Apple, les apps natives font
+   pareil. Seul l'état AU REPOS est repris, le seul où le titre est flou en
+   permanence. Ne pas rouvrir le sujet pour l'état défilé.
+
+   🔴 CETTE RÈGLE NE SAIT PAS QUAND ELLE DEVIENDRA INUTILE — et c'est son point
+   faible, soulevé par l'utilisateur le jour de sa pose. Deux futurs :
+     • Apple RÉTABLIT un inset non nul → `max()` fait son travail, l'ancienne
+       branche reprend la main seule. Rien à faire.
+     • Apple RETIRE le voile en laissant l'inset à 0 → `max(10px, 35px)` vaut
+       toujours 35, et **25 px d'écran sont perdus pour rien, sans que rien ne
+       le signale**. C'est le cas le PLUS probable, la régression étant suivie
+       côté WebKit.
+   ⚠️ **Aucune détection automatique n'est possible** : le voile est peint par le
+   compositeur, la page ne peut pas l'observer. Ni `@supports`, ni mesure JS.
+   ⇒ **LE CONTRÔLE EST MANUEL ET COÛTE DIX SECONDES** : remettre `35px` à `10px`,
+   déposer sur DEV, ouvrir la PWA, regarder le titre. S'il est net, le voile a
+   disparu et cette règle entière se retire.
+   ⚠️ **MAIS CE N'EST PAS UNE CORVÉE À SUIVRE** : le coût de ne jamais le faire
+   est de **25 px d'écran**, rien d'autre — ni données, ni panne, ni régression.
+   ⇒ **Ne pas en faire un point de contrôle périodique.** Si tu lis ce bloc,
+   c'est que l'occasion s'est présentée : c'est le bon moment, et le seul.
+   🔴 **ET SURTOUT : LE TITRE NE RÉVÉLERA JAMAIS QUE LE VOILE A DISPARU.** Une
+   fois ce dégagement posé, il ne bouge plus quoi qu'il arrive — regarder le
+   titre ne peut donc rien apprendre. **Le seul signal est dans l'état DÉFILÉ** :
+   le voile délave aussi la première ligne qui passe sous le bord haut. Le jour
+   où elle reste nette au passage, le voile est parti.
+   La fiche garée du `BACKLOG.md` porte le même avertissement et le seuil.
+   ============================================================ */
+@media (max-width: 640px) and (orientation: portrait) {
+  html.pwa-standalone .title-row {
+    padding-top: max(calc(env(safe-area-inset-top, 0px) + 10px), 35px);
+  }
+}
+
+/* ============================================================
    PAYSAGE TÉLÉPHONE — la barre basse reste en place (cohérence
    avec le portrait : le pouce trouve la nav au même endroit),
    mais TOUJOURS compacte (icônes seules) pour préserver la
