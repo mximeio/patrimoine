@@ -979,6 +979,14 @@ input[type="month"] {
      ⚠️ La promesse « hauteur inchangée » du handoff n'est structurellement vraie
      qu'en MOBILE, où la ligne existait déjà et ne fait que changer de contenu. */
   .title-row.title-row-sous-page .mobile-page-title { font-size: 17px; }
+  /* 🔴 24/09/2026 — PAS DE CHIP DE MOIS DANS CETTE LIGNE SUR DESKTOP. La chip du
+     Compte courant y est portée pour le MOBILE ; sur desktop, c'est celle de la
+     hero card qui sert. Tant que `.title-row` était masquée, la question ne se
+     posait pas ; depuis qu'elle s'affiche sur les sous-pages (compte courant en
+     multi-comptes), les DEUX sélecteurs étaient visibles — relevé par
+     l'utilisateur. ⚠️ Rétabli dans le bloc paysage téléphone, qui masque la
+     chip de la hero card et reçoit aussi cette règle (cf. ce bloc). */
+  .title-row.title-row-sous-page .title-row-slot { display: none; }
   /* ⚠️ AUCUNE surcharge du bouton ici, et c'est délibéré : il fait 24 px partout
      depuis le 15/08/2026. Une taille différente par écran obligerait à recalculer
      ses deux marges à chaque fois — c'est ce qui avait produit un débordement à
@@ -3540,6 +3548,10 @@ button.stat-card {
      ⚠️ Et le titre passait à 17 px, plus petit sur la sous-page que sur la liste. */
   .title-row.title-row-sous-page { padding-top: 6px; margin-bottom: 8px; }
   .title-row.title-row-sous-page .mobile-page-title { font-size: 20px; }
+  /* Même raison : la règle desktop masque la chip de la ligne de titre d'une
+     sous-page, or ici c'est la SEULE chip (celle de la hero card est masquée
+     juste en dessous). Sans cette ligne, plus aucun sélecteur de mois. */
+  .title-row.title-row-sous-page .title-row-slot { display: flex; }
   .month-chip-hero { display: none; }
   /* Barre basse : visible, avec safe-areas LATÉRALES (l'encoche est
      sur un côté en paysage) */

@@ -1668,6 +1668,14 @@ function getCheckingOpDisplay(op) {
 // pleins, puis ajoutait +22px → la colonne ressortait bien plus large que le
 // montant, laissant un vide à gauche du nombre (aligné à droite). Ici on ajoute
 // seulement le padding de l'input (6+6) + le gap du wrap (2) + une petite marge.
+// 🔴 24/09/2026 — ON MESURE AVEC DES « 0 » À LA PLACE DES CHIFFRES. Le canvas
+// ignore `tabular-nums` : il mesurait des chiffres proportionnels, où le « 1 »
+// est étroit, alors que l'écran les affiche tous à la même largeur. La colonne
+// dépendait donc de la VALEUR : « − 3 115.00 € » mesuré 78,5 px, « − 3 160.00 € »
+// 82,1 px, pour 86,1 px affichés dans les deux cas — à 3 115, les montants à
+// quatre chiffres perdaient leur dernier caractère (signalé sur octobre 2026).
+// Le « 0 » proportionnel d'Inter vaut 85,8 px sur ce montant : l'écart restant
+// est couvert par la marge.
 const _amtCanvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
 const _amtCtx = _amtCanvas ? _amtCanvas.getContext('2d') : null;
 if (_amtCtx) _amtCtx.font = '500 14px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -1679,7 +1687,7 @@ function amountColVar(items) {
     const s = fmtSigned('out', n || 0) + ' €';
     if (s.length > maxLen) maxLen = s.length;
     if (_amtCtx) {
-      const w = _amtCtx.measureText(s).width;
+      const w = _amtCtx.measureText(s.replace(/\d/g, '0')).width;
       if (w > maxW) maxW = w;
     }
   };
