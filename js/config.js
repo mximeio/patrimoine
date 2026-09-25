@@ -235,13 +235,23 @@
       + 'height:30px;border-radius:50%;border:0;background:rgba(180,83,9,.92);color:#fff;'
       + 'font:15px/1 -apple-system,system-ui,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.3);'
       + 'padding:0;opacity:.85;';
-    b.onclick = function () { b.remove(); afficher(); };
+    b.onclick = function () { b.remove(); afficher(true); };
     document.body.appendChild(b);
   }
 
-  function afficher() {
+  // `depuisPastille` : ouvert au doigt depuis la pastille, donc l'app VIT
+  // derrière. ⚠️ Comparé à `=== true` : `afficher` sert aussi de gestionnaire
+  // à DOMContentLoaded, qui lui passe un Event — truthy.
+  //
+  // 🔴 L'app vivante doit pouvoir REFERMER le rapport — corrigé le 25/09/2026.
+  // Jusque-là, la seule sortie était « Recharger » : pensée pour l'app morte,
+  // elle effaçait, dans le cas de la pastille, l'état même qu'on voulait
+  // observer (vécu : impossible de vérifier si les écritures passaient encore
+  // après l'erreur IndexedDB du retour de veille iOS).
+  function afficher(depuisPastille) {
     if (affichee || !document.body) return;
     affichee = true;
+    var vivante = depuisPastille === true;
 
     var fond = document.createElement('div');
     fond.id = 'patrimoine-erreur';
@@ -250,11 +260,13 @@
       + '-webkit-text-size-adjust:100%;';
 
     var titre = document.createElement('div');
-    titre.textContent = 'L\'application n\'a pas pu démarrer';
+    titre.textContent = vivante ? 'Un incident technique a été enregistré'
+      : 'L\'application n\'a pas pu démarrer';
     titre.style.cssText = 'font-size:19px;font-weight:700;color:#fca5a5;margin-bottom:4px;';
 
     var sous = document.createElement('div');
-    sous.textContent = 'Fais une capture de cet écran et envoie-la. Tes données ne sont pas touchées.';
+    sous.textContent = (vivante ? 'L\'application continue de fonctionner. ' : '')
+      + 'Fais une capture de cet écran et envoie-la. Tes données ne sont pas touchées.';
     sous.style.cssText = 'color:#94a3b8;font-size:13px;margin-bottom:14px;';
 
     // Zone de texte plutôt qu'un <pre> : sur iPhone, c'est ce qui permet de
@@ -275,6 +287,16 @@
     var actions = document.createElement('div');
     actions.style.cssText = 'box-sizing:border-box;display:flex;gap:8px;flex-wrap:wrap;'
       + 'margin-top:12px;max-width:100%;';
+
+    if (vivante) {
+      // Referme SANS recharger, et remet la pastille : le rapport reste
+      // consultable, et les erreurs suivantes continuent de s'y ajouter.
+      actions.appendChild(bouton('Fermer', '#334155', function () {
+        fond.remove();
+        affichee = false;
+        pastille();
+      }));
+    }
 
     actions.appendChild(bouton('Copier le rapport', '#4f46e5', function () {
       var txt = texteComplet();
