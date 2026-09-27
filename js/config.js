@@ -54,6 +54,30 @@
   var MAX_ERREURS = 20;      // au-delà, on compte sans stocker
   var omises = 0;
 
+  // Promesses rejetées CONNUES, ÉPROUVÉES sans effet : comptées, jamais
+  // signalées. Même logique que BENIGNES, mais sur le MESSAGE, les promesses
+  // n'ayant pas d'URL.
+  //  • « Attempt to get records from database without an in-progress
+  //    transaction » : erreur IndexedDB de WebKit. iOS ferme la base locale
+  //    de la PWA mise en veille, Firebase y lit au réveil. Éprouvé le
+  //    27/09/2026 sur iPhone, pastille présente : écritures en ligne ET hors
+  //    ligne (mode avion, PWA tuée, réouverture) arrivées sur un autre
+  //    appareil. On reconnaît un fragment, pas la phrase entière, pour tenir
+  //    face à une variante de formulation.
+  // ⚠️ Toujours COMPTÉES dans le rapport : si une autre erreur fait apparaître
+  //   la pastille, on voit si celle-ci l'accompagnait.
+  var PROMESSES_BENIGNES = [
+    ['in-progress transaction', 'IndexedDB (veille iOS)'],
+  ];
+  var ignorees = {};   // libellé -> nombre
+  function promesseBenigne(raison) {
+    var m = String((raison && raison.message) || raison || '');
+    for (var i = 0; i < PROMESSES_BENIGNES.length; i++) {
+      if (m.indexOf(PROMESSES_BENIGNES[i][0]) !== -1) return PROMESSES_BENIGNES[i][1];
+    }
+    return null;
+  }
+
   function rootVide() {
     var r = document.getElementById('root');
     return !r || r.childElementCount === 0;
@@ -158,6 +182,9 @@
     l.push('Scripts externes :');
     l.push(etatDesScripts());
     l.push('');
+    var connues = [];
+    for (var k in ignorees) connues.push(ignorees[k] + ' × ' + k);
+    if (connues.length) l.push('Erreurs connues ignorées : ' + connues.join('  ·  '));
     if (omises > 0) {
       l.push('⚠︎ ' + omises + ' erreur(s) supplémentaire(s) non détaillée(s) — '
         + 'plafond de ' + MAX_ERREURS + ' atteint (boucle probable).');
@@ -433,6 +460,8 @@
   }, true);   // CAPTURE : indispensable pour voir les balises qui échouent
 
   window.addEventListener('unhandledrejection', function (ev) {
+    var connue = promesseBenigne(ev && ev.reason);
+    if (connue) { ignorees[connue] = (ignorees[connue] || 0) + 1; rafraichir(); return; }
     window.__patrimoineErreur((ev && ev.reason) || new Error('promesse rejetée'), 'promesse');
   });
 
