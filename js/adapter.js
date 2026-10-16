@@ -453,7 +453,8 @@ const Adapter = {
     // « Compte principal » est celui d'un NOUVEL UTILISATEUR — profil absent
     // côté serveur —, dans `_seedDefaultCheckingAccount`, appelé par
     // `subscribeProfile` seul. Semer ailleurs ressusciterait un compte
-    // supprimé (symptôme 3 du rang 1 du backlog, corrigé en DEV v1066).
+    // supprimé (symptôme 3 du chantier « l'ambiguïté d'une collection vide »,
+    // corrigé en v1066 — récit au CHANGELOG).
     return snap.docs.map(d => this._normalizeCheckingAccount(d.id, d.data()));
   },
 
@@ -819,8 +820,8 @@ const Adapter = {
   //  corrigé, mais l'abonnement semait encore le « Compte principal » sur un
   //  vide confirmé par le serveur — or un vide confirmé ne distingue pas
   //  « n'a jamais eu de compte » de « les a tous supprimés » : un onglet neuf
-  //  ressuscitait un compte supprimé (symptôme 3 du rang 1 du backlog,
-  //  reproduit le 16/10/2026). Il ne levait pas non plus le bon signal :
+  //  ressuscitait un compte supprimé (symptôme 3 du chantier « l'ambiguïté
+  //  d'une collection vide », reproduit le 16/10/2026). Il ne levait pas non plus le bon signal :
   //  l'étiquette « données indisponibles » s'allumait à tort à 0 compte
   //  (symptôme 2).
   //  ⇒ Le semis vit dans `_seedDefaultCheckingAccount`, appelé par

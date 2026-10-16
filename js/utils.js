@@ -365,9 +365,10 @@ const REFUS = {
   // tutoiement de l'app, oubliés par le premier inventaire parce qu'ils refusent
   // une ACTION et non un submit. Relevé par l'utilisateur le 10/08/2026.
   // ⚠️ Le prédicat de `plusieursComptes` repose sur `accountsCount`, dont le défaut
-  // relève du chantier **« l'ambiguïté d'une collection vide »** (`BACKLOG.md`) :
+  // relève du chantier **« l'ambiguïté d'une collection vide »**, clos en PROD v660 :
   // `?.length || 1` vaut 1 sur une liste non chargée. On change le CANAL, jamais
-  // le prédicat — le corriger appartient à ce chantier.
+  // le prédicat — le corriger appartient à ses restes, garés au `BACKLOG.md`
+  // (« les restes de l'ambiguïté d'une collection vide »).
   // *(Ce renvoi disait « RANG 2 du backlog » et s'est périmé le 17/08/2026, quand
   // une fiche livrée est sortie et que les rangs se sont recalés. Un rang ne
   // décrit qu'un INSTANT : on nomme le chantier, jamais sa position.)*
@@ -378,8 +379,8 @@ const REFUS = {
   // d'origine avaient deux variantes ; les unifier a fait perdre cette nuance.
   plusieursComptes:   (n) => `${n} comptes courants existent. Il faut n'en garder qu'un seul d'abord.`,
   compteCourantRequis: "Le module Compte courant doit être activé d'abord.",
-  // 🔴 PROFIL PROVISOIRE — chantier « l'ambiguïté d'une collection vide » (`BACKLOG.md`),
-  // piste « 1 bis » du 16/10/2026. Un onglet sans cache et hors ligne n'a pas pu lire le
+  // 🔴 PROFIL PROVISOIRE — chantier « l'ambiguïté d'une collection vide » (clos en PROD v660,
+  // récit au CHANGELOG), piste « 1 bis » du 16/10/2026. Un onglet sans cache et hors ligne n'a pas pu lire le
   // profil : `subscribeProfile` propage `DEFAULT_PROFILE`, les interrupteurs affichent des
   // défauts, et en basculer un écrirait la map `modulesEnabled` entière par-dessus les
   // vrais réglages. ⚠️ « non chargés » et NON « hors ligne » — arbitrage de l'utilisateur :
