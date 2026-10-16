@@ -332,7 +332,7 @@ const Adapter = {
       // utilisable » — une première version de l'indicateur s'appuyait dessus
       // et annonçait « tout va bien » précisément dans le cas à signaler.
       // ⇒ Le signal utilisé est la CONSÉQUENCE observée, pas l'intention
-      //   déclarée : cf. `_signalerCacheVide` et `subscribeCheckingAccounts`.
+      //   déclarée : cf. `_signalerCacheVide` et `subscribeProfile`.
       fbDb.enablePersistence().catch(() => {});
     }
   },
@@ -378,16 +378,20 @@ const Adapter = {
   //  alors incapable d'afficher les données, et ne peut pas savoir si elles
   //  existent. C'est exactement ce que l'utilisateur voit à l'écran (des 0),
   //  et c'est l'état qui a précédé la destruction de données du 31/07/2026.
+  //  🔴 LEVÉ PAR `subscribeProfile` DEPUIS LA DEV v1066, et non plus par les
+  //  comptes : à 0 compte courant, une collection vide lue dans le cache ne dit
+  //  pas si le vide est confirmé — l'étiquette s'affichait à tort, en ligne, et
+  //  pour de bon (le serveur, qui confirme un vide identique, n'est jamais
+  //  livré). Le profil, lui, existe toujours chez un utilisateur : s'il manque
+  //  du cache, c'est que l'onglet n'a vraiment pas les données.
   //  ⚠️ Ne PAS revenir à `enablePersistence()` comme source : elle résout à
   //  true même dans un onglet sans cache utilisable (mesuré). On mesure la
   //  conséquence, pas l'intention.
   //  Événement personnalisé, comme `patrimoine:open` (§7) : l'adapter ne
   //  connaît pas React.
-  //  ⚠️ Transitoire au démarrage EN LIGNE : le premier instantané peut venir
-  //  du cache et être vide avant la réponse du serveur. C'est sans effet
-  //  visible — le tag vit dans le menu « ⋯ » (fermé), et la pastille ne
-  //  rougit que si l'app se croit aussi hors ligne. Il est effacé dès qu'une
-  //  donnée arrive.
+  //  ✅ Plus de transitoire au démarrage EN LIGNE (mesuré le 16/10/2026) : un
+  //  onglet sans cache attend le serveur avant de livrer le profil, il ne
+  //  livre donc jamais une absence venue du cache tant qu'il est en ligne.
   // ============================================================
   _cacheVide: false,
   //  Renvoie true si un événement a réellement été émis, false si l'appel
@@ -445,11 +449,11 @@ const Adapter = {
   async listCheckingAccounts(uidStr) {
     const col = this._checkingAccountsCol(uidStr);
     const snap = await col.get();
-    // NB : on ne fait PLUS d'auto-création quand snap est vide. Cette
-    // logique de migration legacy doit rester exclusivement dans
-    // subscribeCheckingAccounts (au cold boot), sinon n'importe quel
-    // appel après suppression peut ressusciter un "Compte principal"
-    // fantôme.
+    // NB : AUCUNE auto-création quand snap est vide. Le seul semis du
+    // « Compte principal » est celui d'un NOUVEL UTILISATEUR — profil absent
+    // côté serveur —, dans `_seedDefaultCheckingAccount`, appelé par
+    // `subscribeProfile` seul. Semer ailleurs ressusciterait un compte
+    // supprimé (symptôme 3 du rang 1 du backlog, corrigé en DEV v1066).
     return snap.docs.map(d => this._normalizeCheckingAccount(d.id, d.data()));
   },
 
@@ -776,45 +780,28 @@ const Adapter = {
         // arrivée, est un changement de DONNÉES : il est livré et lève le drapeau.
         // ⚠️ Jamais un champ du profil : `updateProfile` recopie l'objet entier
         // dans `saveProfile`, le drapeau partirait en base.
-        if (vientDuCache(snap)) { onChange({ ...DEFAULT_PROFILE }, { provisoire: true }); return; }
-        // 1er login CONFIRMÉ par le serveur : on initialise le profil par
-        // défaut. Le set déclenchera un nouveau snapshot qui notifiera l'app.
-        //
-        //  🔴 UN NOUVEAU COMPTE NAÎT AVEC COMPTE COURANT + ÉPARGNE SEULEMENT.
-        //  Investissements et actifs physiques sont ÉTEINTS ; l'utilisateur les
-        //  active dans les Paramètres s'il en a besoin — même parti que pour les
-        //  tickets resto (cf. `_seedDefaultCheckingAccount`).
-        //  Décision de l'utilisateur, 17/08/2026.
-        //
-        //  ⚠️ POURQUOI CE N'EST PAS DANS `DEFAULT_PROFILE`, ET C'EST PLUS GRAVE
-        //  QUE POUR LES TR. Cet objet est aussi le socle de LECTURE : juste en
-        //  dessous, `modulesEnabled: { ...DEFAULT_PROFILE.modulesEnabled,
-        //  ...(data.modulesEnabled || {}) }` complète les profils dont une clé
-        //  manque. Y basculer `investments`/`physical` à `false` **désactiverait
-        //  le module chez tout utilisateur EXISTANT dont la clé est absente** —
-        //  ses données resteraient en base mais deviendraient invisibles, sans
-        //  que personne ne l'ait décidé.
-        //  🔴 Et on ne peut PAS vérifier que tous les profils portent ces clés :
-        //  les règles interdisent de lire le profil d'un autre utilisateur (c'est
-        //  leur rôle). Le socle reste donc PERMISSIF, et le défaut se pose ICI,
-        //  à la création — le seul endroit où il ne peut toucher personne.
-        //  ⚠️ `loadProfile` portait un second semis avec le même
-        //  travers, non corrigé — elle a été SUPPRIMÉE le 03/09/2026 (morte, aucun
-        //  appelant). Ce bloc est donc désormais le SEUL point de création du profil.
-        //  Ne pas en réintroduire un second.
+        // 🔴 Et c'est ICI que se lève le signal « cet onglet n'a pas tes
+        // données » (`_signalerCacheVide`) : un profil absent du cache est la
+        // preuve qu'il n'y a rien à afficher.
+        if (vientDuCache(snap)) {
+          this._signalerCacheVide(true);
+          onChange({ ...DEFAULT_PROFILE }, { provisoire: true });
+          return;
+        }
+        this._signalerCacheVide(false);   // le serveur a répondu : plus de doute
+        // 1er login CONFIRMÉ par le serveur : on sème le NOUVEL UTILISATEUR —
+        // profil ET « Compte principal », dans une seule transaction
+        // (`_seedDefaultCheckingAccount`). Les écritures déclencheront de
+        // nouveaux instantanés, qui notifieront l'app.
+        // 🔴 C'est le SEUL semis automatique de l'app. Un profil présent prouve
+        // que l'utilisateur n'est pas nouveau : à 0 compte, c'est qu'il les a
+        // supprimés, et rien ne doit les ressusciter.
         try {
-          await this._profileRef(uidStr).set({
-            ...DEFAULT_PROFILE,
-            modulesEnabled: {
-              ...DEFAULT_PROFILE.modulesEnabled,
-              investments: false,
-              physical: false,
-            },
-            createdAt: FS.FieldValue.serverTimestamp(),
-          });
+          await this._seedDefaultCheckingAccount(uidStr);
         } catch (e) { console.warn('[subscribeProfile] init failed', e); }
         return;
       }
+      this._signalerCacheVide(false);   // un vrai profil : l'onglet a les données
       const data = snap.data();
       onChange({
         ...DEFAULT_PROFILE,
@@ -824,48 +811,26 @@ const Adapter = {
     }, (err) => console.error('[subscribeProfile]', err));
   },
 
+  // ============================================================
+  //  🔴 LECTURE SEULE depuis la DEV v1066 — n'y remettre AUCUNE écriture.
+  //  C'est ICI que les données ont été détruites le 31/07/2026 : une collection
+  //  vide venant du cache prise pour un premier lancement, et un `set()` sur
+  //  `doc('main')` qui écrasait 31 mois. La garde `vientDuCache` l'avait
+  //  corrigé, mais l'abonnement semait encore le « Compte principal » sur un
+  //  vide confirmé par le serveur — or un vide confirmé ne distingue pas
+  //  « n'a jamais eu de compte » de « les a tous supprimés » : un onglet neuf
+  //  ressuscitait un compte supprimé (symptôme 3 du rang 1 du backlog,
+  //  reproduit le 16/10/2026). Il ne levait pas non plus le bon signal :
+  //  l'étiquette « données indisponibles » s'allumait à tort à 0 compte
+  //  (symptôme 2).
+  //  ⇒ Le semis vit dans `_seedDefaultCheckingAccount`, appelé par
+  //    `subscribeProfile` seul ; le signal, dans `subscribeProfile` aussi.
+  //    `seenAnyAccount` n'a plus de raison d'être : il n'y a plus de semis
+  //    à empêcher ici.
+  // ============================================================
   subscribeCheckingAccounts(uidStr, onChange) {
-    // Flag local à cette subscription. Dès qu'on a vu AU MOINS un compte
-    // (boot avec un compte existant OU migration auto réussie), on
-    // bascule à true et on n'auto-créera plus jamais "Compte principal"
-    // dans cette session. Sinon, supprimer tous les comptes ressuscite
-    // un fantôme. La migration legacy ne doit s'exécuter qu'au COLD
-    // boot d'un user qui n'a jamais eu de comptes courants.
-    let seenAnyAccount = false;
-    return this._checkingAccountsCol(uidStr).onSnapshot(async (snap) => {
-      if (!snap.empty) {
-        seenAnyAccount = true;
-        this._signalerCacheVide(false);   // des données : l'onglet est utilisable
-        onChange(snap.docs.map(d => this._normalizeCheckingAccount(d.id, d.data())));
-        return;
-      }
-      // Collection vide
-      if (seenAnyAccount) {
-        // L'utilisateur vient de supprimer son dernier compte : on
-        // propage simplement la liste vide. Pas d'auto-recréation.
-        onChange([]);
-        return;
-      }
-      // 🔴 LA GARDE — cf. `vientDuCache`. C'est ICI que les données ont été
-      // détruites le 31/07/2026 : une collection vide venant du cache était
-      // prise pour un cold boot, et le `set()` sur `doc('main')` écrasait les
-      // 31 mois. On affiche le vide, on n'écrit rien.
-      if (vientDuCache(snap)) {
-        // 🔴 Le signal : on lit depuis le cache et il est vide. On ne sait pas
-        // si des données existent — donc on n'écrit rien, et on le DIT.
-        this._signalerCacheVide(true);
-        onChange([]);
-        return;
-      }
-      this._signalerCacheVide(false);   // le serveur a répondu : plus de doute
-      // Premier snapshot vide CONFIRMÉ PAR LE SERVEUR → cold boot d'un
-      // utilisateur sans compte courant : auto-création du « Compte principal »
-      // par défaut. (v583 : l'ancienne migration depuis `checking/main` a été
-      // retirée — plus aucun doc legacy n'existe.)
-      try {
-        await this._seedDefaultCheckingAccount(uidStr);
-        seenAnyAccount = true; // le set déclenchera un autre snapshot
-      } catch (e) { console.warn('[subscribeCheckingAccounts] auto-create failed', e); }
+    return this._checkingAccountsCol(uidStr).onSnapshot((snap) => {
+      onChange(snap.docs.map(d => this._normalizeCheckingAccount(d.id, d.data())));
     }, (err) => console.error('[subscribeCheckingAccounts]', err));
   },
 
@@ -896,12 +861,61 @@ const Adapter = {
   //  transaction ne serait jamais exercé (le harnais n'a pas de vrai
   //  `runTransaction`), et une mutation qui retirerait le `d.exists` passerait
   //  inaperçue — constaté en posant ces tests. En production il est absent.
+  //
+  //  🆕 DEV v1066 — LE SEMIS D'UN NOUVEL UTILISATEUR : PROFIL ET « COMPTE
+  //  PRINCIPAL », DANS UNE SEULE TRANSACTION. Appelé par `subscribeProfile`
+  //  seul, sur un profil absent CONFIRMÉ par le serveur.
+  //  ⚠️ Le nom est gardé exprès malgré le profil en plus : les règles Firestore
+  //  (`_documents/firestore.rules`, en commentaire) et `rules-test.js` le citent,
+  //  et les règles doivent rester identiques au caractère près à la console.
+  //  - Tout ou rien : un profil semé sans son compte ne serait jamais rattrapé,
+  //    puisque seul un profil ABSENT déclenche ce semis.
+  //  - 🔴 On ne sème QUE si le profil est encore absent À LA RELECTURE. S'il
+  //    existe, un autre contexte vient de semer (ou l'utilisateur n'est pas
+  //    nouveau) : on ne touche à RIEN, compte compris.
+  //  - Firestore exige toutes les lectures d'une transaction AVANT ses écritures.
   async _seedDefaultCheckingAccount(uidStr, runner) {
     const run = runner || ((fn) => fbDb.runTransaction(fn));
+    const profilRef = this._profileRef(uidStr);
     const ref = this._checkingAccountsCol(uidStr).doc('main');
     await run(async (tx) => {
+      const p = await tx.get(profilRef);
       const d = await tx.get(ref);
-      if (d.exists) return;   // déjà là → ne RIEN écraser
+      if (p.exists) return;   // pas un nouvel utilisateur → ne RIEN écrire
+      //
+      //  🔴 UN NOUVEAU COMPTE NAÎT AVEC COMPTE COURANT + ÉPARGNE SEULEMENT.
+      //  Investissements et actifs physiques sont ÉTEINTS ; l'utilisateur les
+      //  active dans les Paramètres s'il en a besoin — même parti que pour les
+      //  tickets resto (le compte, juste en dessous).
+      //  Décision de l'utilisateur, 17/08/2026.
+      //
+      //  ⚠️ POURQUOI CE N'EST PAS DANS `DEFAULT_PROFILE`, ET C'EST PLUS GRAVE
+      //  QUE POUR LES TR. Cet objet est aussi le socle de LECTURE : dans
+      //  `subscribeProfile`, `modulesEnabled: { ...DEFAULT_PROFILE.modulesEnabled,
+      //  ...(data.modulesEnabled || {}) }` complète les profils dont une clé
+      //  manque. Y basculer `investments`/`physical` à `false` **désactiverait
+      //  le module chez tout utilisateur EXISTANT dont la clé est absente** —
+      //  ses données resteraient en base mais deviendraient invisibles, sans
+      //  que personne ne l'ait décidé.
+      //  🔴 Et on ne peut PAS vérifier que tous les profils portent ces clés :
+      //  les règles interdisent de lire le profil d'un autre utilisateur (c'est
+      //  leur rôle). Le socle reste donc PERMISSIF, et le défaut se pose ICI,
+      //  à la création — le seul endroit où il ne peut toucher personne.
+      //  ⚠️ `loadProfile` portait un second semis avec le même
+      //  travers, non corrigé — elle a été SUPPRIMÉE le 03/09/2026 (morte, aucun
+      //  appelant). Ce bloc est donc désormais le SEUL point de création du profil
+      //  (déplacé ici depuis `subscribeProfile` en DEV v1066, sans changer de valeurs).
+      //  Ne pas en réintroduire un second.
+      tx.set(profilRef, {
+        ...DEFAULT_PROFILE,
+        modulesEnabled: {
+          ...DEFAULT_PROFILE.modulesEnabled,
+          investments: false,
+          physical: false,
+        },
+        createdAt: FS.FieldValue.serverTimestamp(),
+      });
+      if (d.exists) return;   // compte déjà là → ne RIEN écraser
       tx.set(ref, {
         name: 'Compte principal',
         ...DEFAULT_CHECKING,
