@@ -353,6 +353,119 @@ function countLossLabel(curCounts, snapCounts, key) {
 //    renforcer les deux chemins. Tests : `_precompil/tests.js`.
 // ============================================================
 
+// ============================================================
+//  🔴 LES MONTANTS D'UN FICHIER — lisibles, puis CONVERTIS en nombres.
+//
+//  Rang 1 du 16/10/2026, « les valorisations d'un import ne sont pas validées ».
+//  Un montant en TEXTE (`"1200"`) passait la validation et partait en base tel
+//  quel : les sommes de l'app (`s + (x || 0)`) le CONCATÉNAIENT. Reproduit par un
+//  vrai geste sur un compte de test : patrimoine affiché 110 070 001 200 600 500 €,
+//  point du mois gravé faux dans l'historique, et un achat de 42,50 € qui
+//  réécrivait la valorisation à 120 042,50 — un vrai nombre, irrattrapable.
+//  ⇒ Une chaîne numérique est CONVERTIE (décision de l'utilisateur : la valeur est
+//    sans ambiguïté, et un vieux fichier reste importable) ; le reste est refusé.
+//
+//  ⚠️ « Numérique » = l'écriture DÉCIMALE SIMPLE, et elle seule : `Number()`
+//  accepterait aussi `"0x10"` (16), `"1e3"` (1000) ou un tableau vide (0). Le
+//  format français (`"1 200,50"`) reste refusé : la virgule est ambiguë.
+//  ⚠️ `""` est un montant VIDE, donc 0 — la règle de l'app (vide = 0 à la
+//  sauvegarde). Pour une CIBLE, vide veut dire « pas de cible » : `null`.
+// ============================================================
+const MONTANT_DECIMAL = /^\s*[-+]?(\d+(\.\d*)?|\.\d+)\s*$/;
+function montantLisible(v) {
+  if (typeof v === 'number') return Number.isFinite(v);
+  if (typeof v === 'string') return v.trim() === '' || MONTANT_DECIMAL.test(v);
+  return false;
+}
+const versMontant = (v) => (typeof v === 'string' && montantLisible(v) ? (v.trim() === '' ? 0 : Number(v)) : v);
+const versCible = (v) => (typeof v === 'string' && montantLisible(v) ? (v.trim() === '' ? null : Number(v)) : v);
+
+// Convertit en nombres les 21 champs numériques que l'app écrit elle-même — et
+// EUX SEULS : un ticker `"500"`, un ISIN, un libellé ou un identifiant restent du
+// texte. Un `null` reste `null`, une valeur illisible reste telle quelle (la
+// validation la refuse). Pure, sans mutation de l'entrée, et idempotente.
+// 🔴 APPELÉE À DEUX ENDROITS : dans `ReplaceConfirmModal`, pour que la
+// comparaison montre les vrais totaux — elle se calcule AVANT l'écriture —, et
+// en tête de `restorePersonalData`, point d'écriture unique de l'import, de la
+// restauration et de la reprise après rechargement.
+// ⚠️ Hors liste, exprès : les charges partagées, dont tous les lecteurs
+// convertissent déjà (`charges.js`).
+function normaliserMontants(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+  const estObjet = (o) => o && typeof o === 'object' && !Array.isArray(o);
+  const avec = (o, champs, f) => {
+    const r = { ...o };
+    champs.forEach((k) => { if (r[k] !== undefined) r[k] = f(r[k]); });
+    return r;
+  };
+  // Une ligne du compte courant (opération, ticket resto, récurrent) et ses composantes.
+  const ligne = (op) => {
+    if (!estObjet(op)) return op;
+    const r = avec(op, ['amount'], versMontant);
+    if (Array.isArray(r.components)) r.components = r.components.map((c) => (estObjet(c) ? avec(c, ['amount'], versMontant) : c));
+    return r;
+  };
+  const lignes = (l) => (Array.isArray(l) ? l.map(ligne) : l);
+  const compte = (acc) => {
+    if (!estObjet(acc)) return acc;
+    const r = avec(acc, ['initialBalance'], versMontant);
+    if (estObjet(r.settings)) {
+      r.settings = avec(r.settings, ['trFaceValue', 'trOwnShare'], versMontant);
+      r.settings.recurringOperations = lignes(r.settings.recurringOperations);
+    }
+    if (estObjet(r.months)) {
+      r.months = Object.fromEntries(Object.entries(r.months).map(([mk, m]) => {
+        if (!estObjet(m)) return [mk, m];
+        const mm = { ...m };
+        ['operations', 'entries', 'exits', 'tr'].forEach((k) => { if (mm[k] !== undefined) mm[k] = lignes(mm[k]); });
+        return [mk, mm];
+      }));
+    }
+    return r;
+  };
+  const out = { ...data };
+  if (Array.isArray(data.checkingAccounts)) out.checkingAccounts = data.checkingAccounts.map(compte);
+  if (estObjet(data.checking)) out.checking = compte(data.checking);
+  if (Array.isArray(data.savings)) {
+    out.savings = data.savings.map((s) => {
+      if (!estObjet(s)) return s;
+      const r = avec(s, ['initialBalance', 'balance'], versMontant);
+      if (Array.isArray(r.operations)) r.operations = r.operations.map((op) => (estObjet(op) ? avec(op, ['amount'], versMontant) : op));
+      return r;
+    });
+  }
+  if (Array.isArray(data.portfolios)) {
+    out.portfolios = data.portfolios.map((p) => {
+      if (!estObjet(p) || !estObjet(p.data)) return p;
+      const d = { ...p.data };
+      if (estObjet(d.currentValues)) {
+        d.currentValues = Object.fromEntries(Object.entries(d.currentValues).map(([k, v]) => [k, versMontant(v)]));
+      }
+      if (Array.isArray(d.operations)) {
+        d.operations = d.operations.map((op) => (estObjet(op) ? avec(op, ['amount', 'marketValue', 'costBasis'], versMontant) : op));
+      }
+      if (Array.isArray(d.etfs)) d.etfs = d.etfs.map((e) => (estObjet(e) ? avec(e, ['target'], versCible) : e));
+      if (estObjet(d.dca)) d.dca = avec(d.dca, ['min', 'max'], versMontant);
+      return { ...p, data: d };
+    });
+  }
+  if (Array.isArray(data.physical)) {
+    out.physical = data.physical.map((a) => (estObjet(a) ? avec(a, ['quantity', 'unitPurchasePrice', 'unitCurrentPrice'], versMontant) : a));
+  }
+  return out;
+}
+
+// Les totaux d'un fichier pour la fenêtre de comparaison — sortis de la vue pour être
+// testés (§10 : une condition écrite dans le JSX est une condition sans test).
+// - sur les montants CONVERTIS : la comparaison se calcule AVANT l'écriture, donc sans
+//   ça elle affichait les sommes concaténées (« 1 200 710 570 € », reproduit le 16/10/2026) ;
+// - 🔴 JAMAIS sur un fichier refusé : une opération d'enveloppe illisible (`"x"`) fait
+//   lever `computePortfolioStats`, et la fenêtre plantait au lieu d'afficher son refus.
+//   Ses totaux ne s'affichent pas dans ce cas — des totaux vides suffisent.
+function totauxDuFichier(payload) {
+  return computeRubriqueTotals(validatePatrimoineData(payload).ok ? normaliserMontants(payload) : {});
+}
+
 // Validation stricte : vérifie la version, les types des champs
 // principaux, et qu'au moins une rubrique de données est présente.
 // Retourne { ok: bool, errors: [string] }.
@@ -381,45 +494,78 @@ function validatePatrimoineData(data) {
       errors.push(`le champ '${k}' n'est pas un tableau`);
     }
   }
-  const badAmount = (v) => v != null && !Number.isFinite(Number(v));
+  // 🔴 « Lisible » = un nombre fini, ou une chaîne en écriture DÉCIMALE simple — cf.
+  // `montantLisible`, plus haut. Avant le 16/10/2026 : `Number.isFinite(Number(v))`,
+  // qui laissait passer `"0x10"`, `"1e3"`, un booléen ou un tableau vide.
+  const badAmount = (v) => v != null && !montantLisible(v);
   const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-  if (Array.isArray(data.checkingAccounts)) {
-    data.checkingAccounts.forEach((acc, i) => {
-      if (!acc || typeof acc !== 'object') {
-        errors.push(`checkingAccounts[${i}] n'est pas un objet`);
-        return;
-      }
+  // Les composantes d'une ligne composite, contrôlées comme la ligne elle-même.
+  const composantes = (op, chemin) => {
+    if (op && Array.isArray(op.components)) {
+      op.components.forEach((c, k) => {
+        if (c && badAmount(c.amount)) errors.push(`${chemin}.components[${k}] : montant invalide "${c.amount}"`);
+      });
+    }
+  };
+  // Un compte courant — `checkingAccounts[i]`, ou l'ancien `checking` (format v2).
+  const validerCompte = (acc, chemin) => {
       if (badAmount(acc.initialBalance)) {
-        errors.push(`checkingAccounts[${i}].initialBalance n'est pas un nombre`);
+        errors.push(`${chemin}.initialBalance n'est pas un nombre`);
+      }
+      const st = acc.settings;
+      if (st != null && typeof st === 'object' && !Array.isArray(st)) {
+        ['trFaceValue', 'trOwnShare'].forEach((k) => {
+          if (badAmount(st[k])) errors.push(`${chemin}.settings.${k} n'est pas un nombre`);
+        });
+        if (st.recurringOperations != null && !Array.isArray(st.recurringOperations)) {
+          errors.push(`${chemin}.settings.recurringOperations n'est pas un tableau`);
+        } else {
+          (st.recurringOperations || []).forEach((op, j) => {
+            if (op && badAmount(op.amount)) errors.push(`${chemin}.settings.recurringOperations[${j}] : montant invalide "${op.amount}"`);
+            composantes(op, `${chemin}.settings.recurringOperations[${j}]`);
+          });
+        }
       }
       if (acc.months != null && (typeof acc.months !== 'object' || Array.isArray(acc.months))) {
-        errors.push(`checkingAccounts[${i}].months n'est pas un objet`);
+        errors.push(`${chemin}.months n'est pas un objet`);
       } else if (acc.months) {
         for (const [mk, m] of Object.entries(acc.months)) {
           if (!MONTH_KEY_RE.test(mk)) {
-            errors.push(`checkingAccounts[${i}] : clé de mois invalide "${mk}" (attendu AAAA-MM)`);
+            errors.push(`${chemin} : clé de mois invalide "${mk}" (attendu AAAA-MM)`);
             continue;
           }
           if (!m || typeof m !== 'object') {
-            errors.push(`checkingAccounts[${i}].months["${mk}"] n'est pas un objet`);
+            errors.push(`${chemin}.months["${mk}"] n'est pas un objet`);
             continue;
           }
           for (const listKey of ['operations', 'entries', 'exits', 'tr']) {
             const list = m[listKey];
             if (list == null) continue;
             if (!Array.isArray(list)) {
-              errors.push(`checkingAccounts[${i}].months["${mk}"].${listKey} n'est pas un tableau`);
+              errors.push(`${chemin}.months["${mk}"].${listKey} n'est pas un tableau`);
               continue;
             }
             list.forEach((op, j) => {
               if (op && badAmount(op.amount)) {
-                errors.push(`checkingAccounts[${i}].months["${mk}"].${listKey}[${j}] : montant invalide "${op.amount}"`);
+                errors.push(`${chemin}.months["${mk}"].${listKey}[${j}] : montant invalide "${op.amount}"`);
               }
+              composantes(op, `${chemin}.months["${mk}"].${listKey}[${j}]`);
             });
           }
         }
       }
+  };
+  if (Array.isArray(data.checkingAccounts)) {
+    data.checkingAccounts.forEach((acc, i) => {
+      if (!acc || typeof acc !== 'object') {
+        errors.push(`checkingAccounts[${i}] n'est pas un objet`);
+        return;
+      }
+      validerCompte(acc, `checkingAccounts[${i}]`);
     });
+  }
+  if (data.checking && typeof data.checking === 'object' && !Array.isArray(data.checking)) {
+    validerCompte(data.checking, 'checking');
   }
   if (Array.isArray(data.savings)) {
     data.savings.forEach((s, i) => {
@@ -444,12 +590,35 @@ function validatePatrimoineData(data) {
         return;
       }
       if (dd) {
-        if (dd.etfs != null && !Array.isArray(dd.etfs)) errors.push(`portfolios[${i}].data.etfs n'est pas un tableau`);
+        if (dd.etfs != null && !Array.isArray(dd.etfs)) {
+          errors.push(`portfolios[${i}].data.etfs n'est pas un tableau`);
+        } else {
+          (dd.etfs || []).forEach((e, j) => {
+            if (e && badAmount(e.target)) errors.push(`portfolios[${i}].data.etfs[${j}] : cible invalide "${e.target}"`);
+          });
+        }
         if (dd.operations != null && !Array.isArray(dd.operations)) {
           errors.push(`portfolios[${i}].data.operations n'est pas un tableau`);
         } else {
           (dd.operations || []).forEach((op, j) => {
             if (op && badAmount(op.amount)) errors.push(`portfolios[${i}].data.operations[${j}] : montant invalide "${op.amount}"`);
+            // La valeur de marché d'une réception, le prix de revient d'une vente.
+            ['marketValue', 'costBasis'].forEach((k) => {
+              if (op && badAmount(op[k])) errors.push(`portfolios[${i}].data.operations[${j}].${k} invalide "${op[k]}"`);
+            });
+          });
+        }
+        // 🔴 Les valorisations — le trou d'origine : AUCUNE forme n'était refusée.
+        if (dd.currentValues != null && (typeof dd.currentValues !== 'object' || Array.isArray(dd.currentValues))) {
+          errors.push(`portfolios[${i}].data.currentValues n'est pas un objet`);
+        } else {
+          Object.entries(dd.currentValues || {}).forEach(([k, v]) => {
+            if (badAmount(v)) errors.push(`portfolios[${i}].data.currentValues["${k}"] : valorisation invalide "${v}"`);
+          });
+        }
+        if (dd.dca != null && typeof dd.dca === 'object' && !Array.isArray(dd.dca)) {
+          ['min', 'max'].forEach((k) => {
+            if (badAmount(dd.dca[k])) errors.push(`portfolios[${i}].data.dca.${k} n'est pas un nombre`);
           });
         }
       }
@@ -475,6 +644,10 @@ function validatePatrimoineData(data) {
 // aux charges (doc partagé). `ctx` fournit user + updateProfile.
 async function restorePersonalData(ctx, data) {
   const { user, updateProfile } = ctx;
+  // 🔴 Les montants en texte sont convertis AVANT toute écriture — point unique de
+  // l'import, de la restauration et de la reprise après rechargement. Cf.
+  // `normaliserMontants`. Sans elle, une chaîne partait en base telle quelle.
+  data = normaliserMontants(data);
   // ATTENTION : on écrit le PROFIL en DERNIER (à la fin de cette fonction).
   // Sinon, l'updateProfile en premier change immédiatement modulesEnabled
   // (par ex multiCheckingAccounts), ce qui déclenche un remount de
@@ -1130,7 +1303,8 @@ function ReplaceConfirmModal({ ctx, backup, payload: payloadImport, label, mode 
   // Dépendance sur l'IDENTITÉ du payload et non plus sur `backup.id` : en mode
   // import il n'y a pas d'id, et l'objet est stable (gardé dans un état React
   // chez l'appelant) — donc même effet qu'avant côté restauration.
-  const snap = React.useMemo(() => computeRubriqueTotals(payload), [payload]);
+  // 🔴 Cf. `totauxDuFichier` : montants convertis, et jamais de calcul sur un fichier refusé.
+  const snap = React.useMemo(() => totauxDuFichier(payload), [payload]);
 
   const RUBRIQUES = [
     { key: 'checking', label: 'Compte courant' },
