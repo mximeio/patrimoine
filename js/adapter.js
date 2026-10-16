@@ -770,7 +770,13 @@ const Adapter = {
         // 🔴 cf. `vientDuCache` : tant que le serveur n'a pas confirmé
         // l'absence, on ne sème rien. On propage tout de même le profil par
         // défaut pour que l'app démarre (affichage), sans rien écrire.
-        if (vientDuCache(snap)) { onChange({ ...DEFAULT_PROFILE }); return; }
+        // 🔴 Et on le dit PROVISOIRE (second argument) : ce sont des défauts, pas
+        // le profil de l'utilisateur, donc les Paramètres refusent d'écrire tant
+        // que c'est le cas (`REFUS.reglagesNonCharges`). Le vrai profil, à son
+        // arrivée, est un changement de DONNÉES : il est livré et lève le drapeau.
+        // ⚠️ Jamais un champ du profil : `updateProfile` recopie l'objet entier
+        // dans `saveProfile`, le drapeau partirait en base.
+        if (vientDuCache(snap)) { onChange({ ...DEFAULT_PROFILE }, { provisoire: true }); return; }
         // 1er login CONFIRMÉ par le serveur : on initialise le profil par
         // défaut. Le set déclenchera un nouveau snapshot qui notifiera l'app.
         //
@@ -814,7 +820,7 @@ const Adapter = {
         ...DEFAULT_PROFILE,
         ...data,
         modulesEnabled: { ...DEFAULT_PROFILE.modulesEnabled, ...(data.modulesEnabled || {}) },
-      });
+      }, { provisoire: false });
     }, (err) => console.error('[subscribeProfile]', err));
   },
 

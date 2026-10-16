@@ -3,9 +3,16 @@
 // ============================================================
 
 function SettingsView({ ctx }) {
-  const { profile, updateProfile, checkingAccounts, renameCheckingAccount, showToast } = ctx;
+  const { profile, profilProvisoire, updateProfile, checkingAccounts, renameCheckingAccount, showToast } = ctx;
   const modules = profile.modulesEnabled;
   const setModule = (key, val) => updateProfile({ modulesEnabled: { ...modules, [key]: val } });
+  // 🔴 Profil PROVISOIRE (cf. `REFUS.reglagesNonCharges`) : les interrupteurs affichent
+  // des défauts, pas les réglages de l'utilisateur. Le refus passe AVANT toute autre
+  // garde et avant la confirmation — les autres gardes liraient elles aussi des défauts,
+  // et on ne fait pas confirmer un geste qui sera refusé. Posé sur les SIX interrupteurs :
+  // chacun réécrit la map `modulesEnabled` entière.
+  const garde = (onChange) => (v) =>
+    (profilProvisoire ? refuser(showToast, REFUS.reglagesNonCharges) : onChange(v));
   // Par défaut, le compte courant est activé (compatibilité avec l'ancien
   // profil qui n'avait pas cette clé).
   const checkingEnabled = modules.checking !== false;
@@ -61,10 +68,10 @@ function SettingsView({ ctx }) {
           Active ou désactive les modules selon tes besoins. Les données restent conservées en base et seront retrouvées lors d'une éventuelle réactivation.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          <ModuleToggleRow icon="creditCard" label="Compte courant" hint="Entrées, sorties, pointage, tickets resto" enabled={checkingEnabled} onChange={toggleChecking} />
-          <ModuleToggleRow icon="piggy" label="Épargne" hint="Livret A, LDDS, … (suivi manuel du solde)" enabled={modules.savings} onChange={(v) => { if (confirmToggle(v, 'Épargne')) setModule('savings', v); }} />
-          <ModuleToggleRow icon="chart" label="Investissements" hint="PEA, PEI, supports, opérations, valorisations" enabled={modules.investments} onChange={(v) => { if (confirmToggle(v, 'Investissements')) setModule('investments', v); }} />
-          <ModuleToggleRow icon="coin" label="Actifs physiques" hint="Pièces d'or, métaux précieux (suivi manuel du prix)" enabled={modules.physical} onChange={(v) => { if (confirmToggle(v, 'Actifs physiques')) setModule('physical', v); }} />
+          <ModuleToggleRow icon="creditCard" label="Compte courant" hint="Entrées, sorties, pointage, tickets resto" enabled={checkingEnabled} onChange={garde(toggleChecking)} />
+          <ModuleToggleRow icon="piggy" label="Épargne" hint="Livret A, LDDS, … (suivi manuel du solde)" enabled={modules.savings} onChange={garde((v) => { if (confirmToggle(v, 'Épargne')) setModule('savings', v); })} />
+          <ModuleToggleRow icon="chart" label="Investissements" hint="PEA, PEI, supports, opérations, valorisations" enabled={modules.investments} onChange={garde((v) => { if (confirmToggle(v, 'Investissements')) setModule('investments', v); })} />
+          <ModuleToggleRow icon="coin" label="Actifs physiques" hint="Pièces d'or, métaux précieux (suivi manuel du prix)" enabled={modules.physical} onChange={garde((v) => { if (confirmToggle(v, 'Actifs physiques')) setModule('physical', v); })} />
         </div>
       </div>
 
@@ -81,7 +88,7 @@ function SettingsView({ ctx }) {
               ? "Active la gestion de plusieurs comptes courants (Boursorama, BNP, …). Chaque compte a ses propres mois, récurrents et réglages TR."
               : "Disponible uniquement si le module Compte courant est activé."}
             enabled={!!modules.multiCheckingAccounts}
-            onChange={toggleMulti}
+            onChange={garde(toggleMulti)}
           />
           <ModuleToggleRow
             icon="calendar"
@@ -90,13 +97,13 @@ function SettingsView({ ctx }) {
               ? "Affiche un champ date sur les entrées, sorties, tickets resto et opérations récurrentes. Le glisser-déposer est désactivé tant que ce mode est actif. Les dates restent en base si tu désactives l'option ensuite."
               : "Disponible uniquement si le module Compte courant est activé."}
             enabled={!!modules.checkingDates}
-            onChange={(v) => {
+            onChange={garde((v) => {
               if (!checkingEnabled) {
                 return refuser(showToast, REFUS.compteCourantRequis);
               }
               if (!confirmToggle(v, 'Gestion des dates sur le compte courant')) return;
               setModule('checkingDates', v);
-            }}
+            })}
           />
         </div>
       </div>

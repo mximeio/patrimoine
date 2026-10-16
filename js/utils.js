@@ -378,6 +378,16 @@ const REFUS = {
   // d'origine avaient deux variantes ; les unifier a fait perdre cette nuance.
   plusieursComptes:   (n) => `${n} comptes courants existent. Il faut n'en garder qu'un seul d'abord.`,
   compteCourantRequis: "Le module Compte courant doit être activé d'abord.",
+  // 🔴 PROFIL PROVISOIRE — chantier « l'ambiguïté d'une collection vide » (`BACKLOG.md`),
+  // piste « 1 bis » du 16/10/2026. Un onglet sans cache et hors ligne n'a pas pu lire le
+  // profil : `subscribeProfile` propage `DEFAULT_PROFILE`, les interrupteurs affichent des
+  // défauts, et en basculer un écrirait la map `modulesEnabled` entière par-dessus les
+  // vrais réglages. ⚠️ « non chargés » et NON « hors ligne » — arbitrage de l'utilisateur :
+  // hors ligne AVEC un cache, les réglages se modifient normalement, et une première
+  // rédaction (« indisponibles hors ligne ») le laissait croire impossible.
+  // ⚠️ CONSTAT (toast neutre), et ≤ 78 caractères : le plafond que le bandeau de MàJ
+  // honore (`.toast.update`, styles.css).
+  reglagesNonCharges: "Réglages non chargés dans cet onglet : rien n'a été modifié.",
   // Nuance arbitrée (§10) : un simple « rien n'a changé » ferait croire qu'une
   // modification de support a été perdue, alors qu'elles persistent au fil de la saisie.
   nomEnveloppeInchange: 'Aucune modification du nom. Les supports sont enregistrés au fil de la saisie.',
@@ -439,7 +449,8 @@ const DUREE_REFUS = 4000;
 // qu'on corrige ; un `−` sur zéro est un appui qui touche le plancher, sans faute.
 // Si l'usage montre que les deux doivent s'aligner, c'est ici que ça se change.
 const REFUS_NEUTRES = new Set([REFUS.rienChange, REFUS.nomEnveloppeInchange, REFUS.valorisationsInchangees,
-  REFUS.aucuneQuantite, REFUS.valeursAValider, REFUS.partsNegatives, REFUS.partDePlusImpossible]);
+  REFUS.aucuneQuantite, REFUS.valeursAValider, REFUS.partsNegatives, REFUS.partDePlusImpossible,
+  REFUS.reglagesNonCharges]);
 
 // Le canal unique. À appeler en tête de submit : `if (…) return refuser(showToast,
 // REFUS.x);` — la valeur de retour n'a pas de sens pour un gestionnaire

@@ -38,6 +38,9 @@ function App() {
 
   const [user, setUser] = useState(undefined);
   const [profile, setProfile] = useState(null);
+  // Le profil affiché n'est-il que les DÉFAUTS ? (onglet sans cache, hors ligne —
+  // cf. `subscribeProfile`). Les Paramètres refusent alors d'écrire.
+  const [profilProvisoire, setProfilProvisoire] = useState(false);
   const [checkingAccounts, setCheckingAccounts] = useState([]);
   const [currentAccountId, setCurrentAccountId] = useState(null);
   const [savings, setSavings] = useState([]);
@@ -277,8 +280,9 @@ function App() {
       }
     };
 
-    abonner('profile', () => Adapter.subscribeProfile(user.uid, (p) => {
+    abonner('profile', () => Adapter.subscribeProfile(user.uid, (p, meta) => {
       setProfile(p);
+      setProfilProvisoire(!!(meta && meta.provisoire));
       markFirst('profile');
     }));
     abonner('accounts', () => Adapter.subscribeCheckingAccounts(user.uid, (ca) => {
@@ -602,7 +606,7 @@ function App() {
   const currentAccount = checkingAccounts.find(a => a.id === currentAccountId) || checkingAccounts[0];
 
   const ctx = {
-    user, profile,
+    user, profile, profilProvisoire,
     // Multi-comptes
     checkingAccounts, currentAccount, currentAccountId, setCurrentAccountId,
     updateCheckingAccount, createCheckingAccount, renameCheckingAccount, deleteCheckingAccount,
