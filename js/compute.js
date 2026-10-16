@@ -460,30 +460,16 @@ function computePortfolioStats(data) {
   // Affichage conditionnel de la carte / colonne Dividendes
   const hasDistributing = etfs.some(e => (e.kind || 'capitalizing') === 'distributing') || totalDividends > 0;
 
-  // Timelines (inchangées)
-  let cumulD = 0;
-  const depositsTimeline = deposits.map(d => { cumulD += d.amount; return { date: fmtDate(d.date), amount: d.amount, cumul: cumulD }; });
-  const datesPurchases = [...new Set(purchases.map(p => p.date))].sort();
-  const investmentTimeline = datesPurchases.map(date => {
-    const obj = { date: fmtDate(date) };
-    etfs.forEach(e => { obj[e.id] = 0; });
-    purchases.filter(p => p.date === date).forEach(p => { obj[p.etf] = (obj[p.etf] || 0) + p.amount; });
-    return obj;
-  });
-  const cumul = {}; etfs.forEach(e => { cumul[e.id] = 0; });
-  const cumulByEtf = investmentTimeline.map(row => {
-    const obj = { date: row.date };
-    etfs.forEach(e => { cumul[e.id] += row[e.id] || 0; obj[e.id] = +cumul[e.id].toFixed(2); });
-    return obj;
-  });
-
+  // ⚠️ Plus de courbes ici (`depositsTimeline`, `investmentTimeline`, `cumulByEtf`) :
+  // aucune vue ne les lisait, et la première sommait `d.amount` sans garde — une
+  // opération sans montant la mettait à `NaN`. Retirées le 16/10/2026 (CHANGELOG).
   return {
     totalDeposited, totalWithdrawn, totalInvested, totalPurchased,
     totalCurrent, totalValue,
     totalGain, totalGainPct, gainLatent, gainRealized,
     totalDividends, totalSoldAmount, totalSoldCost, totalFees,
     cashRemaining, hasDistributing,
-    positions, depositsTimeline, investmentTimeline, cumulByEtf,
+    positions,
     sortedOperations: sorted
   };
 }

@@ -169,11 +169,14 @@ function vientDuCache(snap) {
   return !snap || !snap.metadata || snap.metadata.fromCache !== false;
 }
 
+// ⚠️ Pas de `currentValuesDate` : ce champ dit « date de la dernière saisie réelle »
+// (CLAUDE.md §10), et une enveloppe neuve n'a rien de saisi — l'écran affiche alors
+// « Pas encore valorisé ». Jusqu'au 16/10/2026 elle naissait datée, et du jour où la
+// page avait été OUVERTE : ce modèle est évalué une seule fois, au chargement.
 const DEFAULT_PORTFOLIO_DATA = {
   etfs: [],
   operations: [],
   currentValues: {},
-  currentValuesDate: todayIso(),
   dca: { min: 800, max: 1200 },
 };
 

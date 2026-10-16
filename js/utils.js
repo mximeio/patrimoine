@@ -85,7 +85,16 @@ const opSignChar = (variant, amount) => {
 // décimales). Aligné sur l'affichage de l'Épargne / des Investissements.
 const fmtSigned = (variant, amount) => `${opSignChar(variant, amount)} ${fmt(Math.abs(amount || 0))}`;
 const uid = () => Math.random().toString(36).slice(2, 10);
-const todayIso = () => new Date().toISOString().split('T')[0];
+// La date du jour au format AAAA-MM-JJ, en heure LOCALE — comme `currentMonthKey`.
+// 🔴 Jamais `toISOString()` : il rend la date UTC, donc la VEILLE entre minuit et
+// 1 h ou 2 h en France. Un versement, une valorisation, une opération d'épargne
+// ou le bouton « Aujourd'hui » du calendrier tombaient alors un jour trop tôt.
+// ⚠️ Les horodatages des sauvegardes (`at`, `exportedAt`), eux, restent en UTC : ce
+// sont des instants, pas des jours.
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 // Nom d'affichage d'un support : ticker prioritaire, sinon libellé, sinon
 // l'id interne en dernier recours. `e` peut être un etf ou une position.
