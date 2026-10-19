@@ -32,6 +32,93 @@ function readModuleFromHash() {
   const h = (window.location.hash || '').replace(/^#/, '');
   return HASH_TO_MODULE[h] || 'overview';
 }
+// Instant (performance.now) de la dernière navigation venue du SYSTÈME —
+// retour ou avance du navigateur, glisser depuis le bord sur iPhone. Lu par
+// la barre d'onglets mobile pour poser sa bulle sans la faire glisser
+// (audit d'interface du 19/10/2026, constat 9). Jamais écrit ailleurs.
+let derniereNavSysteme = -Infinity;
+
+function urlDuModule(module) {
+  const hash = MODULE_TO_HASH[module] || '';
+  return `${window.location.pathname}${window.location.search}${hash ? '#' + hash : ''}`;
+}
+
+// ============================================================
+//  HISTORIQUE FAÇON iPHONE (DEV v1076, suite du constat 9 de l'audit du
+//  19/10/2026, décision de l'utilisateur).
+//
+//  🔴 La règle : CHANGER D'ONGLET N'EST PAS UNE NAVIGATION. Seule l'ouverture
+//  d'une SOUS-PAGE (un compte courant en multi, un livret, une enveloppe) crée
+//  une entrée d'historique ; le geste de retour — glisser depuis le bord, bouton
+//  Retour du navigateur — REMONTE donc de la sous-page à sa liste, comme dans
+//  une app iOS, et ne change jamais d'onglet.
+//  Avant : chaque onglet empilait une entrée (`pushState`), aucune sous-page.
+//  Deux défauts en sortaient, constatés sur l'iPhone de l'utilisateur :
+//   • depuis « Compte principal », le retour sautait la liste et ramenait à
+//     l'onglet d'avant ;
+//   • pendant le glisser, iOS montre une PHOTO de l'écran précédent prise au
+//     moment où on l'a quitté — par la barre, donc bulle en plein mouvement :
+//     la photo montrait la bulle entre deux onglets. Plus d'entrée par
+//     onglet, plus de photo de barre en mouvement.
+//
+//  ⚠️ Le point délicat, et la raison d'être de cet objet : TENIR L'HISTORIQUE
+//  À JOUR SUR LES QUATRE SORTIES d'une sous-page — chevron ‹, appui sur l'onglet
+//  actif, autre onglet, suppression de l'élément. Fermer la sous-page sans
+//  retirer son entrée laisserait un retour « mort » (il consommerait l'entrée
+//  sans rien changer à l'écran). D'où : une sortie interne fait `back()`, et
+//  le `popstate` qu'elle provoque est reconnu (`attente`) puis ignoré, après
+//  avoir rejoué ce que React a demandé entre-temps.
+//  ⚠️ Objet sans React ni DOM : l'historique est INJECTÉ (`h`), d'où des tests
+//  qui rejouent des séquences entières sur un faux historique (tests.js).
+//
+//  h : { push(state, url), replace(state, url), back(), url(module) }
+// ============================================================
+function creerNavigation(h) {
+  let reflet = null;     // { module, sp } : ce que l'historique reflète ; sp = sous-page au-dessus
+  let attente = null;    // { cible: { module, sp } } : un back() lancé par nous, popstate attendu
+  const SP = { sousPage: true };
+  const appliquer = (cible) => {
+    if (cible.module !== reflet.module) h.replace(null, h.url(cible.module));
+    if (cible.sp) h.push(SP, h.url(cible.module));
+    reflet = { module: cible.module, sp: cible.sp };
+  };
+  return {
+    // Appelée à chaque changement d'onglet ou d'ouverture de sous-page côté React.
+    synchroniser(module, sp) {
+      if (!reflet) {                       // montage : normalise l'entrée courante
+        h.replace(null, h.url(module));
+        reflet = { module, sp: false };
+        if (sp) appliquer({ module, sp: true });
+        return;
+      }
+      if (attente) { attente.cible = { module, sp }; return; }   // on rejouera au popstate
+      if (reflet.module === module && reflet.sp === sp) return;
+      if (reflet.sp) {                     // une sous-page est au-dessus : la retirer d'abord
+        attente = { cible: { module, sp } };
+        h.back();
+        return;
+      }
+      appliquer({ module, sp });
+    },
+    // Appelée sur `popstate`. null = retour interne, rien à faire côté React ;
+    // sinon { module, fermerSousPage } = navigation du SYSTÈME à répercuter.
+    surRetour(moduleLu, state) {
+      if (attente) {
+        const cible = attente.cible;
+        attente = null;
+        reflet = { module: reflet.module, sp: false };   // l'entrée de sous-page est retirée
+        appliquer(cible);
+        return null;
+      }
+      // Une AVANCE vers une sous-page qu'on ne sait pas rouvrir : l'entrée est
+      // neutralisée (elle devient une simple entrée d'onglet).
+      if (state && state.sousPage) h.replace(null, h.url(moduleLu));
+      const fermerSousPage = !!(reflet && reflet.sp);
+      reflet = { module: moduleLu, sp: false };
+      return { module: moduleLu, fermerSousPage };
+    },
+  };
+}
 
 function App() {
   if (window.CONFIG_NEEDED) return <ConfigError />;
@@ -188,37 +275,45 @@ function App() {
 
   // ============================================================
   //  Routing par hash — sync moduleName ↔ URL
-  //  - Première synchro au mount = replaceState (silencieux, pas
-  //    d'entrée d'historique), notamment pour normaliser un hash invalide
-  //  - Synchros suivantes = pushState (crée une entrée → back/forward du navigateur)
-  //  - Écoute popstate + hashchange pour récupérer une navigation externe
+  //  - L'URL porte l'onglet (#compte-courant…), mais changer d'onglet REMPLACE
+  //    l'entrée (replaceState) : depuis la DEV v1076, seule une SOUS-PAGE en crée
+  //    une — cf. `creerNavigation` en tête de fichier, qui porte toute la règle.
+  //  - Écoute popstate (retour/avance) et hashchange (adresse modifiée à la main)
   // ============================================================
-  const isFirstHashSync = useRef(true);
+  const navRef = useRef(null);
+  if (!navRef.current) {
+    navRef.current = creerNavigation({
+      push: (s, u) => history.pushState(s, '', u),
+      replace: (s, u) => history.replaceState(s, '', u),
+      back: () => history.back(),
+      url: urlDuModule,
+    });
+  }
+  // La sous-page COURANTE, lue par le gestionnaire de popstate (posé une fois).
+  const sousPageRef = useRef(sousPage);
+  sousPageRef.current = sousPage;
+  const sousPageOuverte = !!sousPage;
   useEffect(() => {
-    const hash = MODULE_TO_HASH[moduleName] || '';
-    const currentHash = (window.location.hash || '').replace(/^#/, '');
-    if (hash === currentHash) {
-      isFirstHashSync.current = false;
-      return;
-    }
-    const url = hash
-      ? `${window.location.pathname}${window.location.search}#${hash}`
-      : `${window.location.pathname}${window.location.search}`;
-    if (isFirstHashSync.current) {
-      history.replaceState(null, '', url);
-      isFirstHashSync.current = false;
-    } else {
-      history.pushState(null, '', url);
-    }
-  }, [moduleName]);
+    navRef.current.synchroniser(moduleName, sousPageOuverte);
+  }, [moduleName, sousPageOuverte]);
 
   useEffect(() => {
-    const onLocationChange = () => setModuleName(readModuleFromHash());
-    window.addEventListener('popstate', onLocationChange);
-    window.addEventListener('hashchange', onLocationChange);
+    const onPopState = (e) => {
+      const r = navRef.current.surRetour(readModuleFromHash(), e.state);
+      if (!r) return;                       // retour lancé par l'app elle-même
+      derniereNavSysteme = performance.now();
+      if (r.fermerSousPage && sousPageRef.current) sousPageRef.current.onBack();
+      setModuleName(r.module);
+    };
+    const onHashChange = () => {
+      derniereNavSysteme = performance.now();
+      setModuleName(readModuleFromHash());
+    };
+    window.addEventListener('popstate', onPopState);
+    window.addEventListener('hashchange', onHashChange);
     return () => {
-      window.removeEventListener('popstate', onLocationChange);
-      window.removeEventListener('hashchange', onLocationChange);
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('hashchange', onHashChange);
     };
   }, []);
 
@@ -929,8 +1024,34 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
 
     const followChanged = prevFollowKey.current !== followKey;
     prevFollowKey.current = followKey;
+    // Retour ou avance du SYSTÈME (glisser depuis le bord, boutons du
+    // navigateur) : la pastille se POSE au lieu de glisser. Audit d'interface
+    // du 19/10/2026, constat 9 — filmé sur iPhone : la bulle partait de
+    // l'onglet quitté et mettait ~0,6 s à arriver, et pendant ce temps l'icône
+    // d'arrivée (déjà blanche, sans la bulle dessous) et celle que la bulle
+    // recouvrait (encore sombre) disparaissaient toutes les deux. iOS a déjà
+    // animé la page entière : la barre doit être en place quand elle arrive.
+    // Une navigation par la BARRE n'est pas concernée : le doigt y a déjà amené
+    // la bulle sous l'onglet avant qu'il devienne actif.
+    // 🔴 La coupure se fait ICI, pas dans un effet à part : le nettoyage de cet
+    // effet (plus bas) remet `transition` à vide juste avant que celui-ci ne
+    // pose la nouvelle position. Une coupure posée ailleurs était annulée —
+    // mesuré au navigateur sur la première version (DEV v1072).
+    const systeme = performance.now() - derniereNavSysteme < 600;
     if (followChanged) follow(340);
-    else move();
+    else if (systeme && indicatorRef.current) {
+      const ind = indicatorRef.current;
+      // Les icônes aussi : `.tab-pill` fond sa couleur en 0,3 s, et pendant ce
+      // fondu l'icône d'arrivée restait sombre dans la bulle sombre (vidéo de
+      // l'utilisateur sur DEV v1074). Coupé le temps de poser la bulle.
+      const pills = containerRef.current ? [...containerRef.current.querySelectorAll('.tab-pill')] : [];
+      ind.style.transition = 'none';
+      pills.forEach((p) => { p.style.transition = 'none'; });
+      move();
+      void ind.offsetWidth;            // fige la nouvelle position sans transition
+      ind.style.transition = '';
+      pills.forEach((p) => { p.style.transition = ''; });
+    } else move();
 
     // Recalage quand la police web finit de charger (largeurs des libellés)
     // et en fin de transition par sécurité.
@@ -1101,6 +1222,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
   // v569 : idem barre desktop — les libellés (short) entrent dans les deps
   // pour re-mesurer la goutte quand un texte change de largeur (multi-comptes).
   useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.map(t => t.short || t.label).join('|'), mini], mini, true);
+
 
   // Rétractation au scroll (pattern tab bar de Music sur iOS 26/27).
   // Le scroll vient du scroller interne .main-container sur mobile
@@ -1394,19 +1516,22 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = 
   // ---- Poignée « physique » (drag-to-dismiss) ------------------------
   // La sheet suit le doigt : vers le BAS en 1:1 (le backdrop s'estompe
   // proportionnellement), vers le HAUT avec une résistance élastique
-  // (asymptote ~42 px). Au lâcher : fermeture si on a assez descendu
-  // (> 80 px) ou d'un geste vif (> 0,5 px/ms), sinon retour en place
-  // avec un léger rebond. La fermeture par drag n'utilise PAS la classe
-  // .closing (son animation CSS repart de translateY(0) → saut visuel) :
-  // on anime depuis la position courante en styles inline.
+  // (asymptote ~42 px). Au lâcher, `fermerLaFeuille` (utils.js) décide :
+  // le SENS du doigt d'abord — une remontée garde la feuille, même tirée
+  // loin —, puis le geste prolongé contre le seuil de 80 px (audit du
+  // 19/10/2026 : avant, la position seule décidait au-delà de 80 px).
+  // Sinon retour en place avec un léger rebond. La fermeture par drag
+  // n'utilise PAS la classe .closing (son animation CSS repart de
+  // translateY(0) → saut visuel) : on anime depuis la position courante
+  // en styles inline, À LA VITESSE DU DOIGT (`dureeFermetureFeuille`).
   const sheetRef = useRef(null);
   const backdropRef = useRef(null);
-  const dragRef = useRef(null); // { startY, dy, lastY, lastT, vel }
+  const dragRef = useRef(null); // { startY, dy, y, pts: [{ y, t }] }
 
   const onDragStart = (e) => {
     if (closing || dragClosing.current) return;
     if (e.target.closest('button')) return; // tap sur une action ≠ drag
-    dragRef.current = { startY: e.clientY, dy: 0, lastY: e.clientY, lastT: e.timeStamp, vel: 0 };
+    dragRef.current = { startY: e.clientY, dy: 0, y: 0, pts: [{ y: e.clientY, t: e.timeStamp }] };
     const sheet = sheetRef.current, bd = backdropRef.current;
     if (sheet) sheet.style.transition = 'none';
     if (bd) bd.style.transition = 'none';
@@ -1415,12 +1540,14 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = 
   const onDragMove = (e) => {
     const d = dragRef.current;
     if (!d || !sheetRef.current) return;
-    const dt = e.timeStamp - d.lastT;
-    if (dt > 0) d.vel = (e.clientY - d.lastY) / dt; // px/ms, > 0 = vers le bas
-    d.lastY = e.clientY; d.lastT = e.timeStamp;
+    // Historique court des positions : `vitesseRecente` lit les ~100
+    // dernières ms. On garde de la marge, sans laisser la liste grossir.
+    d.pts.push({ y: e.clientY, t: e.timeStamp });
+    if (d.pts.length > 24) d.pts.splice(0, d.pts.length - 24);
     d.dy = e.clientY - d.startY;
     // Vers le haut : élastique r(a) = a·c/(a+c) — asymptote à c px.
     const y = d.dy >= 0 ? d.dy : -((-d.dy * 42) / (-d.dy + 42));
+    d.y = y;
     sheetRef.current.style.transform = `translateY(${y}px)`;
     const bd = backdropRef.current;
     if (bd) bd.style.opacity = d.dy > 0
@@ -1433,19 +1560,28 @@ function MobileSheet({ user, onClose, onSearch, onSettings, onSignOut, online = 
     dragRef.current = null;
     const sheet = sheetRef.current, bd = backdropRef.current;
     if (!sheet) return;
-    const shouldClose = d.dy > 80 || (d.dy > 15 && d.vel > 0.5);
-    if (shouldClose) {
+    const vitesse = vitesseRecente(d.pts);
+    if (fermerLaFeuille(d.dy, vitesse)) {
       dragClosing.current = true;
       sheet.style.pointerEvents = 'none';
-      sheet.style.transition = 'transform 0.22s ease-in';
+      // Part à la vitesse du doigt puis ralentit (avant : `0.22s ease-in`,
+      // qui repartait de zéro — un à-coup au lâcher d'un geste vif).
+      const reste = sheet.offsetHeight * 1.15 - d.y;
+      const duree = dureeFermetureFeuille(reste, vitesse);
+      sheet.style.transition = `transform ${Math.round(duree)}ms cubic-bezier(0.25, 0.5, 0.5, 1)`;
       sheet.style.transform = 'translateY(115%)';
       // v525 : fondu du backdrop allongé (0,4 s) — même palliatif que
-      // closeWith, la sheet garde sa vivacité (0,22 s).
+      // closeWith, la sheet garde sa vivacité.
       if (bd) { bd.style.transition = 'opacity 0.4s ease'; bd.style.opacity = '0'; }
       setTimeout(onClose, 410);
     } else {
-      // Retour en place avec un léger REBOND (courbe à dépassement)
-      sheet.style.transition = 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      // Retour en place avec un léger REBOND (courbe à dépassement) — sauf si
+      // « Réduire les animations » est activé (audit du 19/10/2026, constat 5) :
+      // le CSS ne peut pas neutraliser une transition posée en style en ligne.
+      const reduit = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      sheet.style.transition = reduit
+        ? 'transform 0.2s ease-out'
+        : 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)';
       sheet.style.transform = 'translateY(0)';
       if (bd) { bd.style.transition = 'opacity 0.2s ease'; bd.style.opacity = ''; }
       setTimeout(() => {

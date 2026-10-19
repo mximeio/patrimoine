@@ -114,6 +114,11 @@ input[type="month"] {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+/* ⚠️ Ce flash retiré, c'est l'ÉTAT APPUYÉ (`:active`, fin de fichier) qui répond
+   sous le doigt. Et depuis le 19/10/2026, TOUT `:hover` vit sous
+   `@media (hover: hover)` : sur iPhone, Safari garde le survol sur le dernier
+   élément touché (constaté : une ligne dépointée restait plus claire que ses
+   voisines). Verrouillé par un test — un `:hover` nu fera rougir la suite. */
 .recharts-wrapper :focus,
 .recharts-surface :focus,
 .recharts-pie-sector,
@@ -151,15 +156,15 @@ input[type="month"] {
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
 .btn-primary { background: var(--text); color: white; border-color: var(--text); }
-.btn-primary:hover { background: #1e293b; }
+@media (hover: hover) { .btn-primary:hover { background: #1e293b; } }
 .btn-accent { background: var(--accent); color: white; border-color: var(--accent); }
-.btn-accent:hover { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(79,70,229,0.25); }
+@media (hover: hover) { .btn-accent:hover { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(79,70,229,0.25); } }
 .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
-.btn-secondary:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+@media (hover: hover) { .btn-secondary:hover { background: var(--surface-hover); border-color: var(--border-strong); } }
 .btn-ghost { background: transparent; color: var(--text-muted); }
-.btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
+@media (hover: hover) { .btn-ghost:hover { background: var(--surface-hover); color: var(--text); } }
 .btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
-.btn-danger:hover { background: #dc2626; }
+@media (hover: hover) { .btn-danger:hover { background: #dc2626; } }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn-lg { padding: 12px 22px; font-size: 14px; }
 /* Bouton « Supprimer » en bas des modales d'édition (remplace le × des lignes). */
@@ -170,7 +175,7 @@ input[type="month"] {
   color: var(--danger); font-family: inherit; font-size: 14px; font-weight: 600;
   border-radius: var(--radius-md); cursor: pointer; transition: background 0.15s;
 }
-.btn-delete-line:hover { background: #fee2e2; }
+@media (hover: hover) { .btn-delete-line:hover { background: #fee2e2; } }
 /* Boutons d'action d'un formulaire d'édition sur une seule ligne :
    le bouton principal (Enregistrer/Modifier) prend la place, « Supprimer » à
    droite à sa largeur de contenu. */
@@ -184,7 +189,7 @@ input[type="month"] {
    FOND en indigo 50 %, comme les cases de pointage en mois figé (v576). Elle
    gardait le libellé net ; celle-ci est retenue pour sa simplicité.* */
 .btn:disabled, .btn[disabled] { opacity: 0.45; cursor: default; box-shadow: none; }
-.btn:disabled:hover, .btn[disabled]:hover { box-shadow: none; }
+@media (hover: hover) { .btn:disabled:hover, .btn[disabled]:hover { box-shadow: none; } }
 .form-actions { display: flex; gap: 8px; align-items: stretch; }
 .form-actions > .btn { flex: 1; }
 .form-actions > .btn-delete-line { flex: 0 0 auto; width: auto; }
@@ -195,11 +200,13 @@ input[type="month"] {
   background: transparent; color: var(--text-muted);
   font-size: 16px; cursor: pointer; transition: all 0.15s;
 }
+@media (hover: hover) {
 .btn-icon:hover { background: var(--surface-hover); color: var(--text); border-color: var(--border); }
 .btn-icon.btn-icon-danger:hover {
   background: var(--danger-light);
   color: var(--danger);
   border-color: transparent;
+}
 }
 
 .card {
@@ -207,7 +214,7 @@ input[type="month"] {
   border-radius: var(--radius-lg); padding: 20px;
   transition: box-shadow 0.15s, border-color 0.15s;
 }
-.card-hover:hover { box-shadow: var(--shadow-md); }
+@media (hover: hover) { .card-hover:hover { box-shadow: var(--shadow-md); } }
 
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
@@ -216,11 +223,11 @@ input[type="month"] {
   color: var(--text-muted); font-size: 13px; font-weight: 500;
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
-.pill:hover { border-color: var(--border-strong); color: var(--text); }
+@media (hover: hover) { .pill:hover { border-color: var(--border-strong); color: var(--text); } }
 .pill-active { background: var(--text); color: white; border-color: var(--text); }
-.pill-active:hover { color: white; }
+@media (hover: hover) { .pill-active:hover { color: white; } }
 .pill-ghost { color: var(--text-muted); border-style: dashed; }
-.pill-ghost:hover { background: var(--surface-hover); color: var(--text); }
+@media (hover: hover) { .pill-ghost:hover { background: var(--surface-hover); color: var(--text); } }
 
 .num { font-variant-numeric: tabular-nums; }
 
@@ -290,9 +297,9 @@ input[type="month"] {
   color: var(--text); text-align: left; cursor: pointer;
   transition: background 0.1s; font-family: inherit;
 }
-.dropdown-item:hover { background: var(--surface-hover); }
+@media (hover: hover) { .dropdown-item:hover { background: var(--surface-hover); } }
 .dropdown-item-danger { color: var(--danger); }
-.dropdown-item-danger:hover { background: var(--danger-light); }
+@media (hover: hover) { .dropdown-item-danger:hover { background: var(--danger-light); } }
 .dropdown-separator { height: 1px; background: var(--border); margin: 6px -6px; }
 /* v584 : bloc identité (avatar + email) en haut du menu ⋯ desktop, aligné à
    gauche (motif menu de compte) — pendant desktop de .sheet-id (feuille mobile). */
@@ -348,7 +355,7 @@ input[type="month"] {
   border-bottom: 1.5px solid var(--border-strong);
   position: sticky; top: 0; background: var(--surface); z-index: 1;
 }
-.charges-table tbody tr:hover { background: var(--surface-alt); }
+@media (hover: hover) { .charges-table tbody tr:hover { background: var(--surface-alt); } }
 .charges-table tbody tr:last-child td { border-bottom: none; }
 /* (Les colonnes "personnes" n'ont volontairement pas de fond différent.) */
 /* ============================================================
@@ -395,9 +402,9 @@ input[type="month"] {
      ⇒ Ne pas retirer en croyant nettoyer une promesse de couche inutile. */
   transform: translateZ(0);
 }
-.seg-tab:hover { color: var(--text); }
+@media (hover: hover) { .seg-tab:hover { color: var(--text); } }
 .seg-tab-active { color: white; }
-.seg-tab-active:hover { color: white; }
+@media (hover: hover) { .seg-tab-active:hover { color: white; } }
 /* Le « + » est une ACTION → bouton fantôme carré hors du rail */
 .seg-add {
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -406,7 +413,7 @@ input[type="month"] {
   background: transparent; color: var(--text-muted);
   font-size: 16px; line-height: 1; cursor: pointer; transition: all 0.15s;
 }
-.seg-add:hover { color: var(--accent); border-color: var(--accent); }
+@media (hover: hover) { .seg-add:hover { color: var(--accent); border-color: var(--accent); } }
 /* Segment autonome ÉPINGLÉ hors du rail (ex. « Comparer ») : toujours
    visible même si le rail défile, icône + libellé complets, foncé quand
    la vue est active. */
@@ -418,9 +425,9 @@ input[type="month"] {
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
   margin-left: auto;
 }
-.seg-solo:hover { color: var(--text); }
+@media (hover: hover) { .seg-solo:hover { color: var(--text); } }
 .seg-solo.on { background: var(--text); color: white; }
-.seg-solo.on:hover { color: white; }
+@media (hover: hover) { .seg-solo.on:hover { color: white; } }
 
 /* Mise en évidence d'un résultat de recherche localisé (requestLocate) :
    flash violet + liseré accent qui s'estompent, puis retour à la normale. */
@@ -438,7 +445,7 @@ input[type="month"] {
   transition: background 0.1s;
 }
 .charge-row:last-child { border-bottom: none; }
-.charge-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .charge-row:hover { background: var(--surface-alt); } }
 .charge-badge {
   width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
@@ -451,7 +458,7 @@ input[type="month"] {
   border-radius: var(--radius-sm); padding: 5px 7px;
   font-size: 14px; font-weight: 600; font-family: inherit; color: var(--text);
 }
-.charge-label:hover { border-color: var(--border); }
+@media (hover: hover) { .charge-label:hover { border-color: var(--border); } }
 .charge-label:focus { outline: none; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-light); }
 .charge-sub { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); padding-left: 7px; }
 .charge-sub-item { display: inline-flex; align-items: center; gap: 5px; }
@@ -498,7 +505,7 @@ input[type="month"] {
 /* Étoile "référence" : icône seule (tient sur la ligne du nom même en mobile) */
 .star-btn { color: var(--text-subtle); font-size: 17px; line-height: 1; }
 .star-btn.on { color: var(--warning); border-color: var(--warning); background: var(--warning-light); }
-.star-btn:hover { color: var(--warning); }
+@media (hover: hover) { .star-btn:hover { color: var(--warning); } }
 .ref-btn {
   display: inline-flex; align-items: center; gap: 6px;
   border: 1px solid var(--warning); color: var(--warning); background: var(--warning-light);
@@ -516,7 +523,7 @@ input[type="month"] {
   border-radius: var(--radius-md); padding: 14px 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.inc-fld:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+@media (hover: hover) { .inc-fld:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); } }
 .inc-ava {
   position: absolute; top: 12px; right: 12px;
   width: 28px; height: 28px; border-radius: 8px;
@@ -535,7 +542,7 @@ input[type="month"] {
   font-size: 20px; font-weight: 600; letter-spacing: -0.02em; color: var(--text);
   text-align: left; padding: 2px 3px; border-radius: var(--radius-sm); min-width: 2ch;
 }
-.inc-amt-input:hover { border-color: var(--border); }
+@media (hover: hover) { .inc-amt-input:hover { border-color: var(--border); } }
 .inc-amt-input:focus { outline: none; border-color: var(--accent); background: var(--surface-alt); }
 .inc-amt .cur { color: var(--text-muted); font-weight: 600; font-size: 16px; }
 /* Symbole € atténué (cohérent avec .tx-currency de l'app) */
@@ -553,7 +560,7 @@ input[type="month"] {
   border-radius: var(--radius-md); padding: 14px 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.pcard:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+@media (hover: hover) { .pcard:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); } }
 .pc-ava {
   position: absolute; top: 12px; right: 12px;
   width: 28px; height: 28px; border-radius: 8px;
@@ -606,10 +613,12 @@ input[type="month"] {
 .cmpp-tab tr.ref td.cmpp-sc { background: var(--accent-light); color: var(--accent); }
 /* Survol des lignes (convention de l'app) ; la ligne de référence garde son
    fond indigo pour rester repérable. */
+@media (hover: hover) {
 .cmpp-tab tbody tr:hover td,
 .cmpp-tab tbody tr:hover td.cmpp-sc { background: var(--surface-alt); }
 .cmpp-tab tbody tr.ref:hover td,
 .cmpp-tab tbody tr.ref:hover td.cmpp-sc { background: var(--accent-light); }
+}
 .cmpp-tab td .v { display: block; font-weight: 500; color: var(--text); line-height: 1.2; }
 .cmp-delta { display: block; font-size: 11px; font-weight: 400; margin-top: 4px; }
 .cmp-delta.down { color: var(--danger); }
@@ -641,7 +650,7 @@ input[type="month"] {
   transition: all 0.12s;
 }
 .jtoggle.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent-light); }
-.jtoggle:hover { border-color: var(--accent); }
+@media (hover: hover) { .jtoggle:hover { border-color: var(--accent); } }
 
 /* Liste de charges en lecture seule (édition via la sous-modale), compacte */
 .charge-row--ro {
@@ -781,7 +790,7 @@ input[type="month"] {
   font-weight: 500; color: var(--text-muted); cursor: pointer;
   transition: all 0.15s; white-space: nowrap;
 }
-.tab:hover { color: var(--text); }
+@media (hover: hover) { .tab:hover { color: var(--text); } }
 .tab-active { color: var(--text); border-bottom-color: var(--accent); }
 
 .grid-hero, .grid-overview, .grid-2 { display: grid; gap: 16px; }
@@ -1023,7 +1032,7 @@ input[type="month"] {
   border-radius: var(--radius-md); padding: 14px 16px 16px;
   position: relative; transition: border-color 0.15s, box-shadow 0.15s;
 }
-.stat-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+@media (hover: hover) { .stat-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); } }
 /* Carte OUVRABLE (14/08/2026) — un seul appelant : la carte « Tickets resto »
    du compte courant, qui ouvre sa fenêtre.
    ⚠️ Le survol de `.stat-card` ci-dessus ne signale RIEN : les 12 cartes de
@@ -1043,7 +1052,7 @@ button.stat-card {
   -webkit-appearance: none; appearance: none;
 }
 .stat-card-clickable { cursor: pointer; }
-.stat-card-clickable:hover { background: var(--surface-alt); }
+@media (hover: hover) { .stat-card-clickable:hover { background: var(--surface-alt); } }
 /* Même traitement que `.portfolio-list-arrow`, dont il reprend le rôle. Placé
    en bas à droite : le haut-droite est occupé par `.stat-card-icon`. */
 .stat-card-arrow {
@@ -1100,7 +1109,7 @@ button.stat-card {
    ============================================================ */
 /* Ligne cliquable d'un livret dans la liste (curseur pointer + hover). */
 .asset-row.asset-row-clickable { cursor: pointer; }
-.asset-row.asset-row-clickable:hover { background: var(--surface-alt); }
+@media (hover: hover) { .asset-row.asset-row-clickable:hover { background: var(--surface-alt); } }
 
 /* Carte solde calculé en haut du détail d'un livret. */
 .savings-balance-card {
@@ -1179,9 +1188,9 @@ button.stat-card {
   position: relative;
 }
 .tx-row:last-child { border-bottom: none; }
-.tx-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .tx-row:hover { background: var(--surface-alt); } }
 .tx-row.unpointed { opacity: 0.65; }
-.tx-row.unpointed:hover { opacity: 0.85; }
+@media (hover: hover) { .tx-row.unpointed:hover { opacity: 0.85; } }
 
 /* Quand une ligne composite n'est pas pointée, ses composantes (affichées
    sous la ligne) doivent visuellement hériter du même état. On atténue
@@ -1191,7 +1200,7 @@ button.stat-card {
    qui ne contient QUE le bloc des composantes (puisque la ligne parente
    gère son opacité elle-même via .tx-row.unpointed). */
 .tx-composite-wrap.unpointed .composite-comps { opacity: 0.65; }
-.tx-composite-wrap.unpointed:hover .composite-comps { opacity: 0.85; }
+@media (hover: hover) { .tx-composite-wrap.unpointed:hover .composite-comps { opacity: 0.85; } }
 .tx-row.auto .tx-amount { color: var(--accent); }
 
 .tx-icon {
@@ -1406,8 +1415,10 @@ button.stat-card {
   display: inline-flex; align-items: center; justify-content: center;
   transition: all 0.15s;
 }
+@media (hover: hover) {
 .tx-edit:hover { background: var(--accent-light); color: var(--accent); }
 .tx-delete:hover { background: var(--danger-light); color: var(--danger); }
+}
 
 /* Composantes éditables dans les modales (OperationForm / RecurringForm) :
    layout flex et croix toujours visible (pas de hover dans une modale
@@ -1473,7 +1484,7 @@ button.stat-card {
   color: var(--text-muted); font-size: 12px; font-weight: 500;
   cursor: pointer; transition: all 0.15s;
 }
-.btn-add:hover { border-color: var(--text-light); color: var(--text); }
+@media (hover: hover) { .btn-add:hover { border-color: var(--text-light); color: var(--text); } }
 
 /* Composite row */
 .tx-composite-wrap {
@@ -1527,7 +1538,7 @@ button.stat-card {
 }
 .evo-chev.open { transform: rotate(180deg); }
 .evo-chev svg { stroke-width: 2.4; display: block; }
-.composite-chevron:hover { background: var(--surface-hover); color: var(--text); }
+@media (hover: hover) { .composite-chevron:hover { background: var(--surface-hover); color: var(--text); } }
 .tx-composite-wrap.expanded .composite-chevron { transform: rotate(180deg); }
 
 .composite-comps {
@@ -1645,7 +1656,7 @@ button.stat-card {
   color: var(--text); font-family: inherit;
   outline: none; transition: all 0.15s;
 }
-.portfolio-name-input:hover { border-color: var(--border); }
+@media (hover: hover) { .portfolio-name-input:hover { border-color: var(--border); } }
 .portfolio-name-input:focus {
   background: var(--surface-alt);
   border-color: var(--accent);
@@ -1724,7 +1735,7 @@ button.stat-card {
   transition: background 0.1s;
 }
 .support-edit-row:last-child { border-bottom: none; }
-.support-edit-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .support-edit-row:hover { background: var(--surface-alt); } }
 .support-edit-dot { width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0; }
 .support-edit-name { font-size: 14px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .support-edit-lbl { font-weight: 400; color: var(--text-muted); font-size: 11.5px; }
@@ -1794,7 +1805,7 @@ button.stat-card {
 .recurring-row.composite-row { grid-template-columns: 28px 1fr var(--amt-w, 130px); }
 .recurring-row.composite-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px; }
 .recurring-row:last-child { border-bottom: none; }
-.recurring-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .recurring-row:hover { background: var(--surface-alt); } }
 .recurring-row input {
   background: transparent; border: none; outline: none;
   font-family: inherit; font-size: 14px; padding: 4px 6px;
@@ -1870,7 +1881,7 @@ button.stat-card {
 /* Variante hero (translucide sur fond foncé) */
 .month-chip-hero { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.14); }
 .month-chip-hero .mc-chev { color: rgba(255,255,255,0.65); }
-.month-chip-hero .mc-chev:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: white; }
+@media (hover: hover) { .month-chip-hero .mc-chev:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: white; } }
 .month-chip-hero .mc-label { color: white; }
 .month-chip-hero .mc-dd { color: rgba(255,255,255,0.5); }
 /* Variante claire (ligne de titre mobile) */
@@ -1914,7 +1925,7 @@ button.stat-card {
   padding: 3px; white-space: nowrap;
 }
 .month-chip-light .mc-chev { color: var(--text-subtle); }
-.month-chip-light .mc-chev:hover:not(:disabled) { background: #e2e8f0; color: var(--text); }
+@media (hover: hover) { .month-chip-light .mc-chev:hover:not(:disabled) { background: #e2e8f0; color: var(--text); } }
 .month-chip-light .mc-label { color: var(--text); }
 .month-chip-light .mc-dd { color: var(--text-subtle); }
 .month-picker-popover,
@@ -1953,7 +1964,7 @@ button.stat-card {
   display: flex; align-items: center; justify-content: center;
   transition: background 0.1s, color 0.1s;
 }
-.date-cell:hover { background: var(--surface-hover); }
+@media (hover: hover) { .date-cell:hover { background: var(--surface-hover); } }
 .date-cell.outside { color: var(--text-subtle); }
 .date-cell.today {
   font-weight: 700; color: var(--accent);
@@ -1962,7 +1973,7 @@ button.stat-card {
 .date-cell.selected {
   background: var(--text); color: white;
 }
-.date-cell.selected:hover { background: var(--text); }
+@media (hover: hover) { .date-cell.selected:hover { background: var(--text); } }
 .date-cell.selected.today { background: var(--accent); color: white; }
 .date-picker-footer {
   border-top: 1px solid var(--border);
@@ -2003,15 +2014,17 @@ button.stat-card {
   transition: background-color 0.15s, border-color 0.15s, color 0.15s;
   position: relative;
 }
+@media (hover: hover) {
 .month-cell:hover {
   border-color: var(--text-light); color: var(--text);
   background: var(--bg); border-style: solid;
+}
 }
 .month-cell.created {
   background: var(--accent-light); border: 1px solid var(--accent);
   color: var(--accent);
 }
-.month-cell.created:hover { background: var(--accent); color: white; border-color: var(--accent); }
+@media (hover: hover) { .month-cell.created:hover { background: var(--accent); color: white; border-color: var(--accent); } }
 .month-cell.current {
   background: var(--text); color: white; border-color: var(--text);
   border-style: solid;
@@ -2027,9 +2040,11 @@ button.stat-card {
    illisible — constaté en prod, la maquette masquait le bug par un
    !important de confort). */
 .month-cell.plain:not(.current) { border: 1px solid var(--border); color: var(--text-light); }
+@media (hover: hover) {
 .month-cell.plain:not(.current):hover {
   border-color: var(--text-light); color: var(--text);
   background: var(--bg); border-style: solid;
+}
 }
 /* Double classe : bat la règle « + » (.month-cell:not(.created)::after),
    déclarée PLUS BAS avec la même spécificité — sans elle, le + gagnerait. */
@@ -2042,7 +2057,7 @@ button.stat-card {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent);
 }
-.month-cell.created:not(.current):hover::after { background: white; }
+@media (hover: hover) { .month-cell.created:not(.current):hover::after { background: white; } }
 /* Indice "+" au survol des mois non créés */
 .month-cell:not(.created)::after {
   content: '+';
@@ -2050,7 +2065,7 @@ button.stat-card {
   font-size: 13px; font-weight: 700; color: var(--text-subtle);
   opacity: 0; transition: opacity 0.15s;
 }
-.month-cell:not(.created):hover::after { opacity: 1; }
+@media (hover: hover) { .month-cell:not(.created):hover::after { opacity: 1; } }
 
 /* Légende du picker de mois */
 .picker-legend {
@@ -2088,9 +2103,9 @@ button.stat-card {
   cursor: pointer; transition: color 0.15s; white-space: nowrap;
   position: relative; z-index: 1;
 }
-.module-tab:hover { color: var(--text); }
+@media (hover: hover) { .module-tab:hover { color: var(--text); } }
 .module-tab-active { color: white; }
-.module-tab-active:hover { color: white; }
+@media (hover: hover) { .module-tab-active:hover { color: white; } }
 .module-tab-icon {
   width: 18px; height: 18px; display: inline-flex;
   align-items: center; justify-content: center;
@@ -2389,7 +2404,7 @@ button.stat-card {
 }
 .asset-row .tx-icon { width: 26px; height: 26px; font-size: 12px; }
 .asset-row:last-child { border-bottom: none; }
-.asset-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .asset-row:hover { background: var(--surface-alt); } }
 .asset-name { font-size: 14px; font-weight: 600; color: var(--text); }
 .asset-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .asset-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -2404,7 +2419,7 @@ button.stat-card {
   position: relative;
 }
 .op-row:last-child { border-bottom: none; }
-.op-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .op-row:hover { background: var(--surface-alt); } }
 .op-row .tx-icon { cursor: default; }
 .op-main { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
 .op-label { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2471,7 +2486,7 @@ button.stat-card {
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s;
 }
-.search-close:hover { background: var(--surface-hover); color: var(--text); }
+@media (hover: hover) { .search-close:hover { background: var(--surface-hover); color: var(--text); } }
 /* ---- Filtre par PÉRIODE de la recherche ----------------------------
    Replié par défaut : au repos, la fenêtre est celle d'avant, à une icône
    près. La pastille reste visible une fois la barre refermée — c'est ce qui
@@ -2490,7 +2505,7 @@ button.stat-card {
   position: relative;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.search-periode-btn:hover { background: var(--surface-hover); color: var(--text); }
+@media (hover: hover) { .search-periode-btn:hover { background: var(--surface-hover); color: var(--text); } }
 .search-periode-btn.on {
   background: var(--accent-light); color: var(--accent); border-color: var(--accent-pale);
 }
@@ -2535,7 +2550,7 @@ button.stat-card {
   cursor: pointer; min-width: 0; white-space: nowrap;
   transition: border-color 0.15s, background 0.15s;
 }
-.search-periode-sel:hover { border-color: var(--accent); background: var(--accent-soft); }
+@media (hover: hover) { .search-periode-sel:hover { border-color: var(--accent); background: var(--accent-soft); } }
 /* Une borne ouverte s'affiche en gris : « début » et « aujourd'hui » disent
    l'absence de borne mieux qu'un champ vide. */
 .search-periode-sel.vide { color: var(--text-subtle); }
@@ -2577,13 +2592,15 @@ button.stat-card {
   font-family: inherit; cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
+@media (hover: hover) {
 .search-more:hover {
   background: var(--accent-light);
   border-color: var(--accent);
   color: var(--accent);
 }
+}
 .search-more strong { color: var(--text-light); font-weight: 600; }
-.search-more:hover strong { color: var(--accent); }
+@media (hover: hover) { .search-more:hover strong { color: var(--accent); } }
 .search-more svg { flex: 0 0 auto; }
 /* v617 — Frontière entre les montants qui correspondent vraiment (exacts +
    "commence par") et le simple voisinage à ±1 %. */
@@ -2608,8 +2625,13 @@ button.stat-card {
   text-align: left; width: 100%;
   font-family: inherit; color: inherit;
 }
-.search-result:hover, .search-result.focused {
+.search-result.focused {
   background: var(--surface-alt);
+}
+@media (hover: hover) {
+.search-result:hover {
+  background: var(--surface-alt);
+}
 }
 .search-result-icon {
   width: 32px; height: 32px;
@@ -2759,7 +2781,7 @@ button.stat-card {
   background: rgba(255, 255, 255, 0.16); color: white;
   font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 7px;
 }
-.toast.update .act:hover { background: rgba(255, 255, 255, 0.26); }
+@media (hover: hover) { .toast.update .act:hover { background: rgba(255, 255, 255, 0.26); } }
 /* Tag « hors ligne » dans le menu ⋯ (v549, forme A) : pilule ambre discrète,
    affichée dans la sheet mobile (sous l'identité) et dans le dropdown desktop,
    pour expliquer le point ambre du « ⋯ ». Même code couleur que la pilule
@@ -2848,18 +2870,18 @@ button.stat-card {
   border-radius: 9px; padding: 7px 11px; font-family: inherit; font-size: 12px; font-weight: 700;
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0;
 }
-.backup-restore:hover { background: var(--accent-light); }
+@media (hover: hover) { .backup-restore:hover { background: var(--accent-light); } }
 .backup-del {
   border: 1px solid var(--border); background: var(--surface); color: var(--text-subtle);
   border-radius: 9px; padding: 7px 9px; display: inline-flex; align-items: center; cursor: pointer; flex-shrink: 0;
 }
-.backup-del:hover { color: var(--danger); border-color: #fecaca; background: var(--danger-light); }
+@media (hover: hover) { .backup-del:hover { color: var(--danger); border-color: #fecaca; background: var(--danger-light); } }
 .backup-showall {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
   font-family: inherit; font-size: 12px; font-weight: 700; color: var(--accent);
   background: none; border: none; padding: 4px 2px; cursor: pointer;
 }
-.backup-showall:hover { text-decoration: underline; }
+@media (hover: hover) { .backup-showall:hover { text-decoration: underline; } }
 .backup-showall .backup-chev { display: inline-flex; transition: transform 0.15s; }
 .backup-showall .backup-chev.up { transform: rotate(180deg); }
 
@@ -3074,7 +3096,7 @@ button.stat-card {
   font-family: inherit;
   transition: all 0.15s;
 }
-.period-toggle button:hover { color: var(--text); }
+@media (hover: hover) { .period-toggle button:hover { color: var(--text); } }
 .period-toggle button.active {
   background: white;
   color: var(--text);
@@ -3101,7 +3123,7 @@ button.stat-card {
   width: 32px; height: 32px;
   color: rgba(255,255,255,0.55);
 }
-.hero-kebab:hover { background: rgba(255,255,255,0.08); color: white; border-color: transparent; }
+@media (hover: hover) { .hero-kebab:hover { background: rgba(255,255,255,0.08); color: white; border-color: transparent; } }
 
 /* Liste des portefeuilles (vue consolidée) */
 .portfolio-list-row {
@@ -3118,7 +3140,7 @@ button.stat-card {
   transition: background 0.1s;
 }
 .portfolio-list-row:first-child { border-top: none; }
-.portfolio-list-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .portfolio-list-row:hover { background: var(--surface-alt); } }
 .portfolio-list-icon {
   width: 26px; height: 26px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
@@ -3140,7 +3162,7 @@ button.stat-card {
   transition: background 0.1s;
 }
 .support-row:first-child { border-top: none; }
-.support-row:hover { background: var(--surface-alt); }
+@media (hover: hover) { .support-row:hover { background: var(--surface-alt); } }
 .support-icon {
   width: 26px; height: 26px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
@@ -3156,7 +3178,8 @@ button.stat-card {
 /* v592 : pastille d'info (icône cible) + bulle survol/tap */
 .infotip { position: relative; display: inline-flex; align-items: center; cursor: pointer; vertical-align: -2px; }
 .infotip-ico { display: inline-flex; color: var(--text-subtle); }
-.infotip:hover .infotip-ico, .infotip:focus-visible .infotip-ico { color: var(--text-muted); }
+.infotip:focus-visible .infotip-ico { color: var(--text-muted); }
+@media (hover: hover) { .infotip:hover .infotip-ico { color: var(--text-muted); } }
 /* 07/08/2026 : déclencheur TEXTUEL (prop `children` d'InfoTip). Délibérément
    NU — `.infotip` juste au-dessus est calé pour une ICÔNE (`inline-flex`,
    `vertical-align: -2px`) et, sur du texte, son inline-flex avale l'espace qui
@@ -3847,7 +3870,7 @@ button.stat-card {
 .month-cell.created.frozen:not(.current)::after { content: none; }
 /* Item de menu désactivé (Supprimer un mois figé) */
 .dropdown-item:disabled { color: var(--text-subtle); cursor: not-allowed; }
-.dropdown-item:disabled:hover { background: transparent; }
+@media (hover: hover) { .dropdown-item:disabled:hover { background: transparent; } }
 
 /* ============================================================
    ŒIL DE POINTAGE (v509 — maquettes Mockup-Oeil-Pointage et
@@ -3867,9 +3890,9 @@ button.stat-card {
   font-family: inherit; font-size: 11.5px; font-weight: 800; line-height: 1;
   transition: background 0.15s, color 0.15s;
 }
-.ops-eye-pill:hover { background: var(--surface-hover); color: var(--text); }
+@media (hover: hover) { .ops-eye-pill:hover { background: var(--surface-hover); color: var(--text); } }
 .ops-eye-pill.on { background: var(--accent-light); color: var(--accent); }
-.ops-eye-pill.on:hover { background: #e0e7ff; }
+@media (hover: hover) { .ops-eye-pill.on:hover { background: #e0e7ff; } }
 /* v551 — œil « aperçu au survol ». Au repos l'icône .eye-ico-rest (état
    courant) est visible ; au survol on masque le repos et on montre
    .eye-ico-hover (le résultat du clic), pour que l'icône dise la même chose
@@ -4254,4 +4277,107 @@ button.cp-seg-item { cursor: pointer; }
   .cp-synthese { grid-template-columns: 1fr; gap: 7px; }
   .cp-synthese > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .cp-corps { gap: 12px; }
+}
+
+/* ============================================================
+   ÉTAT APPUYÉ — audit d'interface du 19/10/2026 (constat 2)
+   ============================================================
+   Le flash gris d'iOS est retiré sur tout (en tête de fichier) et rien ne le
+   remplaçait : sous le doigt, rien ne bougeait avant le relâcher. `:active`
+   fonctionne dans la PWA — vérifié sur iPhone le 19/10/2026 avec `.sheet-act`,
+   React écoutant le toucher à sa racine.
+   ⚠️ Effet IMMÉDIAT à l'appui (`transition: none`), retour en douceur au
+   relâcher (la transition de base de l'élément reprend). Chaque couleur
+   reprend celle du SURVOL du même élément : un seul langage, souris ou doigt.
+   ⚠️ En FIN de fichier à dessein : à spécificité égale, ces règles doivent
+   passer après les variantes (`.month-chip-hero .mc-chev`…).
+   ⚠️ Les éléments à fond PLEIN quand ils sont actifs (jour choisi, œil allumé)
+   sont exclus : un fond clair y clignoterait.
+   ⚠️ À vérifier sur iPhone : qu'une ligne ne s'allume pas au simple passage du
+   doigt pendant un défilement. Si c'est le cas, retarder l'effet (~80 ms).
+   ============================================================ */
+.btn:not(:disabled):active { transform: scale(0.97); filter: brightness(0.94); transition: none; }
+.portfolio-list-row:active,
+.stat-card-clickable:active,
+.dropdown-item:not(:disabled):active,
+.search-result:active,
+.maj-env-head:active,
+.date-cell:not(.selected):not(.today):active,
+.btn-icon:active,
+.composite-chevron:active,
+.ops-eye-pill:not(.on):active,
+.btn-add:active { background: var(--surface-hover); transition: none; }
+.month-cell:active { background: var(--bg); border-style: solid; border-color: var(--text-light); transition: none; }
+.tx-edit:active { background: var(--accent-light); color: var(--accent); transition: none; }
+.tx-delete:active,
+.btn-delete-line:active,
+.btn-icon.btn-icon-danger:active { background: var(--danger-light); color: var(--danger); transition: none; }
+.hero-kebab:active,
+.month-chip-hero .mc-chev:not(:disabled):active { background: rgba(255,255,255,0.12); color: white; transition: none; }
+.month-chip-light .mc-chev:not(:disabled):active { background: #e2e8f0; color: var(--text); transition: none; }
+.mc-label:active,
+.proj-value:active { opacity: 0.6; transition: none; }
+.tx-check-hit:active .tx-check { transform: scale(0.85); transition: none; }
+
+/* ============================================================
+   SÉLECTION DE TEXTE SUR ÉCRAN TACTILE — audit du 19/10/2026 (constat 7)
+   ============================================================
+   Un appui long sélectionnait le texte des boutons (constaté sur iPhone, sur
+   « Paramètres » de la feuille), ce qu'aucun bouton iOS ne fait.
+   🔴 Décision de l'utilisateur, 19/10/2026 : sur écran TACTILE, la sélection
+   est interdite PARTOUT sauf dans les champs — « il est possible de rentrer en
+   édition pour copier ». Sur ordinateur elle reste : copier un montant à la
+   souris y garde son usage.
+   ⚠️ Les champs sont RÉTABLIS explicitement : certaines versions de WebKit
+   empêchaient le curseur ou la loupe dans un champ dont un ancêtre portait
+   `user-select: none`. Verrouillé par un test.
+   ============================================================ */
+@media (hover: none) and (pointer: coarse) {
+  body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input:not([readonly]), textarea:not([readonly]), select, [contenteditable="true"] {
+    -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+  }
+  /* Un champ en LECTURE SEULE n'est que de l'affichage — montant d'une ligne du
+     compte courant ou d'un récurrent, montant TR calculé : on le modifie par le
+     crayon. Il reste donc insélectionnable, et ne prend plus le doigt
+     (`pointer-events`) : sans ça, iOS y posait quand même sa sélection.
+     Constaté par l'utilisateur sur DEV v1074, appui long sur un montant. */
+  input[readonly], textarea[readonly] {
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: none;
+  }
+}
+
+/* ============================================================
+   RÉDUIRE LES ANIMATIONS — audit d'interface du 19/10/2026 (constat 5)
+   ============================================================
+   Réglages iOS → Accessibilité → Mouvement → « Réduire les animations ».
+   L'app l'ignorait : la bulle de la barre glissait et rebondissait quand même.
+   Ici, plus de glissement ni de rebond : les éléments se POSENT, et ceux qui
+   apparaissent le font en fondu court. Les changements de COULEUR restent (le
+   flash d'une ligne retrouvée par la recherche aide à comprendre).
+   ⚠️ Sans effet pour qui n'a pas activé le réglage : les ressorts de la barre,
+   choisis par l'utilisateur (v504), sont intacts.
+   ⚠️ La feuille « ⋯ » pose deux transitions en JS au lâcher : `onDragEnd`
+   (app.js) lit ce réglage lui-même. Verrouillé par un test.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .tab-slide-ind,
+  .seg-indicator { transition: none; }
+  .tab-slide-ind::before { transition: box-shadow 0.2s ease; }
+  .tabbar-capsule { transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+  .modal { animation: fadeIn 0.15s ease; }
+  .bottom-sheet { animation: sheetFade 0.2s ease; }
+  .bottom-sheet.closing { animation: sheetFadeOut 0.2s ease forwards; }
+  .toast { animation: fadeIn 0.15s ease; }
+  .net-pill { animation: fadeIn 0.2s ease; }
+  .swap-pane.hidden-left,
+  .swap-pane.hidden-right { transform: none; }
+}
+
+/* Réglages iOS → Accessibilité → Affichage et taille du texte → « Réduire la
+   transparence » : la barre de verre devient opaque. ⚠️ Prise en charge de
+   cette requête par Safari NON VÉRIFIÉE au 19/10/2026 — sans elle, la règle
+   est simplement ignorée. */
+@media (prefers-reduced-transparency: reduce) {
+  .glassbar { background: rgba(252, 252, 254, 0.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }

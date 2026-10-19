@@ -598,3 +598,52 @@ function placerPopover({ ancre, taille, viewport, marge = 8, ancrage = 'centre' 
 
   return { top, left, maxHeight, place };
 }
+
+// ============================================================
+//  Feuille « ⋯ » : la décision au LÂCHER — fonctions PURES, testées.
+//
+//  🔴 Pourquoi elles existent (audit d'interface du 19/10/2026, constat 1).
+//  La feuille décidait `dy > 80 || (dy > 15 && vitesse > 0.5)` : au-delà de
+//  80 px, la POSITION décidait seule. Tirée de 160 px puis remontée vite et
+//  lâchée à 95 px, elle se fermait quand même — mesuré dans la pane. Le
+//  geste disait « je me ravise », l'app entendait « ferme ».
+//  ⇒ Le SENS du doigt décide d'abord : une remontée garde la feuille. Sinon
+//  on prolonge le geste (projection d'Apple, celle du défilement) et on ne
+//  ferme que si le point projeté dépasse le seuil d'avant, 80 px.
+//  ⚠️ La vitesse se lit sur les ~100 dernières ms, pas sur les deux derniers
+//  `pointermove` : un seul écart d'horodatage suffisait à la fausser.
+//  ⚠️ Sorties de `app.js` à dessein (§10) : « si une condition décide quelque
+//  chose, elle sort de la vue ». Les vitesses sont en px/ms, > 0 vers le bas.
+// ============================================================
+const FEUILLE_SEUIL_PX = 80;
+
+// points : [{ y, t }] dans l'ordre chronologique (t en ms).
+function vitesseRecente(points, fenetreMs = 100) {
+  if (!points || points.length < 2) return 0;
+  const fin = points[points.length - 1];
+  let debut = points.find((p) => fin.t - p.t <= fenetreMs);
+  if (!debut || debut === fin) debut = points[points.length - 2];
+  const dt = fin.t - debut.t;
+  return dt > 0 ? (fin.y - debut.y) / dt : 0;
+}
+
+// Distance que le geste parcourrait encore s'il ralentissait comme un
+// défilement iOS : (v px/s ÷ 1000) × taux ÷ (1 − taux), soit v px/ms × 99
+// au taux de 0,99. C'est la formule publiée par Apple (Designing Fluid
+// Interfaces), pas le v²/2a des manuels.
+function projeterGeste(vitesse, taux = 0.99) {
+  return vitesse * taux / (1 - taux);
+}
+
+function fermerLaFeuille(dy, vitesse) {
+  if (vitesse < -0.1) return false;   // le doigt remonte : on garde la feuille
+  return dy + projeterGeste(vitesse) > FEUILLE_SEUIL_PX;
+}
+
+// Durée de la fermeture, pour qu'elle PARTE à la vitesse du doigt. La courbe
+// employée, cubic-bezier(0.25, 0.5, 0.5, 1), démarre avec une pente de 2 :
+// la vitesse initiale vaut donc 2 × reste ÷ durée. Bornée entre 150 et 320 ms
+// (un lâcher lent ne doit pas traîner, un lancer ne doit pas claquer).
+function dureeFermetureFeuille(reste, vitesse) {
+  return Math.min(320, Math.max(150, 2 * reste / Math.max(vitesse, 0.6)));
+}
