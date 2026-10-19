@@ -96,7 +96,11 @@ function ConsolidatedView({ ctx, onNavigate }) {
                 <Pie data={pieData} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius="62%" outerRadius="90%" paddingAngle={3} stroke="none">
                   {pieData.map(p => <Cell key={p.id} fill={p.color} />)}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
+                {/* `zIndex` : l'étiquette « TOTAL » du centre est posée APRÈS le graphique
+                    dans la page, donc dessinée par-dessus la bulle quand celle-ci tombe au
+                    centre — d'où l'effet de bulle « transparente » signalé sur iPhone et sur
+                    ordinateur (19/10/2026). La bulle doit passer devant. */}
+                <Tooltip content={<CustomTooltip />} wrapperStyle={{ zIndex: 2 }} />
               </PieChart>
             </ResponsiveContainer>
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>

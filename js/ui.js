@@ -634,7 +634,10 @@ function CustomTooltip({ active, payload, label, suffix = '€' }) {
       {payload.map((e, i) => (
         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: COLORS.text }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: e.color }} />
+            {/* Sur un anneau (Pie), Recharts ne fournit pas `e.color` : la couleur est
+                dans la donnée de la part. Sans ce repli, la pastille était vide (mesuré,
+                19/10/2026) et la bulle ne disait pas à quelle part elle répondait. */}
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: e.color || (e.payload && (e.payload.fill || e.payload.color)) }} />
             {e.name}
           </span>
           <span className="num" style={{ fontWeight: 600 }}>{fmt(e.value)} {suffix}</span>
