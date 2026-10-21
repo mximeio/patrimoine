@@ -30,6 +30,34 @@
 //  chargement, on affiche quand même — ça couvre la page blanche SANS erreur
 //  levée (React qui démonte l'arbre, rendu qui n'arrive jamais).
 // ============================================================
+
+// Deux décisions du filet, sorties de l'IIFE en fonctions PURES pour que
+// tests.js puisse les atteindre (le 21/10/2026).
+
+// Une erreur MASQUÉE par le navigateur : « Script error. », sans fichier ni
+// objet d'erreur. C'est tout ce qu'il livre quand le script fautif vient d'une
+// AUTRE origine et ne s'est pas chargé en CORS.
+// ⚠️ Elle ne peut pas venir de l'app : ses js/ sont servis par le même site, et
+// les bibliothèques des CDN portent crossorigin="anonymous" — leurs erreurs
+// arrivent toujours en clair. Vécu le 21/10/2026 : le bouton Partager de Safari
+// fait tourner dans la page les scripts des extensions de partage, et l'un
+// d'eux levait à chaque fois — y compris en ajoutant l'app à l'écran d'accueil.
+function erreurMasquee(ev) {
+  return !!ev && !ev.error && !ev.filename && /^Script error\.?$/.test(String(ev.message || ''));
+}
+
+// La pastille ⚠︎ ne se montre que HORS PROD — décision de l'utilisateur du
+// 21/10/2026. En un mois elle avait sonné deux fois, deux fausses alertes (veille
+// iOS, bouton Partager), et jamais pour une vraie panne : chez la famille, un ⚠︎
+// inexpliqué inquiète sans rien apprendre. DEV est le laboratoire, là une erreur
+// doit se voir. Les erreurs restent ENREGISTRÉES en PROD : l'écran bloquant les
+// montre si l'app finit par mourir, et lui s'affiche partout.
+// ⚠️ Environnement inconnu ⇒ on MONTRE : un filet qui se tait par défaut ne
+// signalerait plus rien le jour où sa configuration casse.
+function pastilleVisible(env) {
+  return env !== 'prod';
+}
+
 (function () {
   var erreurs = [];
   var affichee = false;
@@ -251,6 +279,9 @@
   }
 
   function pastille() {
+    // `window.FIREBASE_ENV` est posé PLUS BAS dans ce fichier : il est lu ici, à
+    // l'appel, jamais au chargement de l'IIFE.
+    if (!pastilleVisible(window.FIREBASE_ENV)) return;
     if (affichee || document.getElementById('patrimoine-pastille') || !document.body) return;
     var b = document.createElement('button');
     b.id = 'patrimoine-pastille';
@@ -452,6 +483,13 @@
       echecs[url] = true;   // gardé pour « Scripts externes », même si bénin
       if (benigne(url)) return;
       window.__patrimoineErreur(new Error('Ressource non chargée'), 'ressource', url);
+      return;
+    }
+    // Comptée dans le rapport, comme les promesses bénignes, mais jamais signalée.
+    if (erreurMasquee(ev)) {
+      var lib = 'Script error. (script d\'une autre origine)';
+      ignorees[lib] = (ignorees[lib] || 0) + 1;
+      rafraichir();
       return;
     }
     window.__patrimoineErreur(

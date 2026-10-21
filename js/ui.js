@@ -423,7 +423,14 @@ function Icon({ name, size = 16, color }) {
     // ⚠️ Il REMPLACE `arrowLeft`, qui ne servait qu'aux trois fils d'Ariane et
     // part avec eux — ne pas réintroduire une seconde façon de dire « retour ».
     chevronLeft: <polyline points="15 18 9 12 15 6"/>,
-    chart: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
+    // Les quatre icônes de rubrique ont été uniformisées le 21/10/2026, mesurées sur la grille de 24 : l'encre
+    // allait de 12,8 % (barres) à 33,6 % (pièce), elle va de 21,8 à 30,1 %, tout est centré. Barres posées sur
+    // un axe (14 × 18 → 20 × 20), pièce réduite d'un cran (rayon 10 → 9), tirelire recentrée (décalée de 1,2
+    // vers la droite et de 1 vers le bas). Maquette : _maquettes/Mockup-Nouveau-Logo-Endroits.html, section 1.
+    chart: <><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></>,
+    // La bascule de la carte « Répartition » (21/10/2026) : l'anneau et la courbe.
+    repartition: <><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></>,
+    evolution: <><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m7 15 4-4 3 3 6-6"/></>,
     target: <><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>,
     download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
     upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>,
@@ -431,8 +438,14 @@ function Icon({ name, size = 16, color }) {
     logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
     settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
     wallet: <><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></>,
-    piggy: <><path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-7.5-1-10 1-3 2.5-3 7.5 0 10 .5.5 1 1 1 2v1h3v-1c0-.5 0-1 .5-1.5l.5-.5h5l.5.5c.5.5.5 1 .5 1.5v1h3v-1c0-1 .5-1.5 1-2 1.5-1 2-3 1.5-5"/><circle cx="14" cy="11" r="1"/></>,
-    coin: <><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="6" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="18"/></>,
+    // Le logo au trait (21/10/2026) : le CONTOUR du P — fût épais et boucle percée —, comme le portefeuille
+    // qu'il remplace était le contour d'un portefeuille. Mesuré sur la grille de 24 : 17 × 21, centré,
+    // 26,8 % d'encre, dans la fourchette des voisines de la barre (21,8 à 30,1 %). Un squelette (un trait
+    // et un rond) plafonnait à 17,6 % et paraissait plus petit et plus maigre. Sans les découpes du logo :
+    // à 15-22 px, elles faisaient un P cassé. Maquette : _maquettes/Mockup-Nouveau-Logo-Endroits.html.
+    patrimoine: <><path d="M4.5 10A7.5 7.5 0 1 1 8.8 16.78V19.35A2.15 2.15 0 0 1 4.5 19.35Z"/><circle cx="12" cy="10" r="3.2"/></>,
+    piggy: <g transform="translate(-1.2 -1)"><path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-7.5-1-10 1-3 2.5-3 7.5 0 10 .5.5 1 1 1 2v1h3v-1c0-.5 0-1 .5-1.5l.5-.5h5l.5.5c.5.5.5 1 .5 1.5v1h3v-1c0-1 .5-1.5 1-2 1.5-1 2-3 1.5-5"/><circle cx="14" cy="11" r="1"/></g>,
+    coin: <><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5h-5.25a1.75 1.75 0 1 0 0 3.5h3.5a1.75 1.75 0 1 1 0 3.5H8.5"/><line x1="12" y1="6.5" x2="12" y2="8.5"/><line x1="12" y1="15.5" x2="12" y2="17.5"/></>,
     arrowDown: <><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></>,
     arrowUp: <><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></>,
     arrowLeftRight: <><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="15" y1="17" x2="3" y2="17"/></>,
@@ -647,6 +660,20 @@ function CustomTooltip({ active, payload, label, suffix = '€' }) {
   );
 }
 
+// Le logo de l'app (21/10/2026) : le P en quatre parts, une par rubrique, blanc sur la tuile bleu nuit —
+// mêmes tracés que les icônes PNG de l'écran d'accueil (proposition 3, coupes v5). Les quatre écarts font
+// 9 unités : la dernière coupe est verticale, parallèle au fût (en v4, une coupe radiale s'y pinçait à 2).
+// Le fût mesure 40 et la boucle 40 d'épaisseur : à 48 px, les découpes se lisent encore.
+function LogoPatrimoine({ size = 48 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 256 256" aria-hidden="true" style={{ display: 'block' }}>
+      <rect width="256" height="256" rx="64" fill={COLORS.text} />
+      <path fill="white" transform="translate(43.52 43.52) scale(0.66)"
+        d="M52 108.5L92 108.5L92 208A20 20 0 0 1 52 208Z M52.13 99.5A76 76 0 0 1 123.5 28.13L123.5 68.28A36 36 0 0 0 92.28 99.5Z M132.5 28.13A76 76 0 0 1 195.95 138.04L161.18 117.96A36 36 0 0 0 132.5 68.28Z M191.45 145.83A76 76 0 0 1 101 175.04L101 127.81A36 36 0 0 0 156.68 125.76Z" />
+    </svg>
+  );
+}
+
 function ConfigError() {
   return (
     <div style={{ maxWidth: 600, margin: '60px auto', padding: 32, background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: 14 }}>
@@ -665,15 +692,38 @@ const MODULE_ICONS = {
   physical: 'coin',
 };
 
+// La pastille des cartes de tête (fond sombre) — UNE recette pour les cinq vues depuis le 21/10/2026 : fond de la
+// couleur du module à 22 % (`'38'`), icône dans la TEINTE CLAIRE du module (la 300). Avant, la vue d'ensemble avait
+// sa propre pastille (indigo clair, 7,0:1) et les modules l'icône dans leur couleur PLEINE (fond à 15 %) : 5 à 6:1,
+// sauf le compte courant, dont l'indigo ne faisait que 2,3:1 sur ce fond — sous le minimum de 3:1 pour une icône.
+// Désormais 7,0 à 7,6:1 partout. ⚠️ Ces teintes claires ne valent QUE sur fond sombre : ne pas poser ModuleBadge
+// sur une carte blanche. La vue d'ensemble n'est pas un module : pastille NEUTRE (blanc à 10 %, icône #e2e8f0, 9,9:1).
+const MODULE_TEINTES = {
+  checking: '#a5b4fc',
+  savings: '#67e8f9',
+  investments: '#6ee7b7',
+  physical: '#fcd34d',
+};
+// Le pendant pour fond CLAIR (21/10/2026) : la nuance FONCÉE (la 700) de chaque module, pour une icône posée sur
+// une tuile de sa couleur à 15 % — 4,5 à 6,3:1. La couleur pleine n'y faisait que 1,9 à 2,2:1 (sauf l'indigo).
+// Sur fond clair une teinte foncée, sur fond sombre une teinte claire : la couleur marque, le texte reste noir.
+const MODULE_FONCES = {
+  checking: '#4338ca',
+  savings: '#0e7490',
+  investments: '#047857',
+  physical: '#b45309',
+};
+
 function ModuleBadge({ module, size = 32, iconSize = 16 }) {
-  const color = MODULE_COLORS[module];
-  const icon = MODULE_ICONS[module];
-  if (!color || !icon) return null;
+  const neutre = module === 'overview';
+  const color = neutre ? null : MODULE_COLORS[module];
+  const icon = neutre ? 'patrimoine' : MODULE_ICONS[module];
+  if (!neutre && (!color || !icon)) return null;
   return (
     <div style={{
       width: size, height: size, borderRadius: 8,
-      background: color + '26',
-      color: color,
+      background: neutre ? 'rgba(255,255,255,0.10)' : color + '38',
+      color: neutre ? '#e2e8f0' : MODULE_TEINTES[module],
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       flexShrink: 0,
     }}>

@@ -793,10 +793,40 @@ input[type="month"] {
 @media (hover: hover) { .tab:hover { color: var(--text); } }
 .tab-active { color: var(--text); border-bottom-color: var(--accent); }
 
-.grid-hero, .grid-overview, .grid-2 { display: grid; gap: 16px; }
+.grid-hero, .grid-2 { display: grid; gap: 16px; }
 .grid-hero { grid-template-columns: 1.4fr 1fr; }
-.grid-overview { grid-template-columns: 1.2fr 1fr; }
 .grid-2 { grid-template-columns: 1fr 1fr; }
+
+/* La répartition de la vue d'ensemble (21/10/2026) : l'anneau — ou l'évolution, par la bascule — et la liste des
+   rubriques dans UNE carte, la liste servant de légende. L'en-tête court sur toute la largeur ; dessous, deux
+   colonnes de MÊME HAUTEUR sur grand écran (graphique | liste), le graphique centré dans la sienne : un seul axe.
+   Empilées sous 768 px. La carte n'a pas de marge intérieure : la liste va bord à bord comme les autres listes.
+   ⚠️ `.card.repartition-card` et `!important` : le bloc mobile pose `.card { padding: 18px !important }`. */
+.card.repartition-card { padding: 0 !important; overflow: hidden; }
+.repartition-tete {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 20px 20px 0;
+}
+.repartition-corps {
+  display: grid; grid-template-columns: 1fr 1fr; align-items: stretch;
+  margin-top: 12px; border-top: 1px solid var(--border);
+}
+/* 316 px = la hauteur de la vue ÉVOLUTION, mesurée au navigateur : 16 + période 35 + 8 + graphique 240 + 16.
+   L'anneau (240) s'y centre, et la carte garde la même hauteur dans les deux vues — rien ne saute à la bascule.
+   ⚠️ Avec 276, la carte grandissait de 39 px en passant à l'évolution (mesuré). */
+.repartition-graphe {
+  padding: 16px 20px; min-height: 316px; min-width: 0;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.repartition-liste {
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; justify-content: center; min-width: 0;
+}
+/* La bascule : le style du sélecteur de période, avec deux icônes. Cible au doigt portée à ~44 px par un
+   pseudo-élément, sans grossir le dessin (même motif que .btn-retour). */
+.period-toggle.bascule-vue { flex: none; }
+.period-toggle.bascule-vue button { display: flex; align-items: center; justify-content: center; padding: 6px 9px; position: relative; }
+.period-toggle.bascule-vue button::after { content: ""; position: absolute; inset: -8px -2px; }
 
 .main-container { max-width: 1240px; margin: 0 auto; padding: 12px 20px 24px; }
 
@@ -804,7 +834,6 @@ input[type="month"] {
   max-width: 1240px; margin: 0 auto; padding: 12px 20px;
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 }
-.header-logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
 
 /* ============================================================
@@ -1528,16 +1557,6 @@ button.stat-card {
    la chip et la projection (v528). La rotation reste portée par le
    BOUTON (.expanded), rien ne change. */
 .composite-chevron svg { stroke-width: 2.4; display: block; }
-/* v530 : bouton « Afficher/Masquer l'évolution » (onglet Patrimoine) —
-   dernier glyphe flèche remplacé. Chevron rotatif à 7 px du libellé
-   (gap), règle commune v528. */
-.evo-toggle { display: inline-flex; align-items: center; gap: 7px; }
-.evo-chev {
-  display: inline-flex; align-items: center;
-  transition: transform 0.2s ease;
-}
-.evo-chev.open { transform: rotate(180deg); }
-.evo-chev svg { stroke-width: 2.4; display: block; }
 @media (hover: hover) { .composite-chevron:hover { background: var(--surface-hover); color: var(--text); } }
 .tx-composite-wrap.expanded .composite-chevron { transform: rotate(180deg); }
 
@@ -3226,7 +3245,9 @@ button.stat-card {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .grid-hero, .grid-overview, .grid-2 { grid-template-columns: 1fr !important; }
+  .grid-hero, .grid-2 { grid-template-columns: 1fr !important; }
+  .repartition-corps { grid-template-columns: 1fr; }
+  .repartition-liste { border-left: none; border-top: 1px solid var(--border); }
   /* Mobile : on force 2 colonnes même si .cols-3 est appliqué (TR désactivé),
      pour éviter que les libellés "RESTE MOIS PRÉC.", "ENTRÉES POINTÉES", etc. se
      coupent sur 3 lignes dans des cartes trop étroites. */
@@ -3678,8 +3699,9 @@ button.stat-card {
 .maj-env-montant .maj-delta { margin-left: 0; }
 /* Chevron VECTORIEL, pas un caractère texte : les glyphes « ⌄ » et « › »
    s'asseyaient bas dans leur ligne et paraissaient décentrés (relevé par
-   l'utilisateur le 09/08/2026). Même motif que .evo-chev (v530) — rotation
-   portée par la classe, trait 2.4, display:block sur le svg. */
+   l'utilisateur le 09/08/2026). Même motif que l'ancien chevron du bouton
+   « Afficher l'évolution » (v530, retiré le 21/10/2026) — rotation portée
+   par la classe, trait 2.4, display:block sur le svg. */
 .maj-chev {
   display: inline-flex; align-items: center; color: var(--text-subtle); flex: none;
   transition: transform 0.2s ease;

@@ -36,7 +36,7 @@ function AuthScreen() {
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 420, width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ width: 48, height: 48, background: COLORS.text, borderRadius: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 22, marginBottom: 16 }}>P</div>
+          <div style={{ width: 48, height: 48, margin: '0 auto 16px' }}><LogoPatrimoine size={48} /></div>
           <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>Patrimoine</h1>
           <p style={{ color: COLORS.muted, fontSize: 14, margin: '6px 0 0' }}>{t.title}</p>
         </div>

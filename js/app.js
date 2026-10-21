@@ -723,7 +723,7 @@ function App() {
   const modulesEnabled = profile.modulesEnabled;
   // `short` = libellé court pour la barre de navigation basse (mobile).
   const tabs = [
-    { id: 'overview', label: 'Patrimoine', short: 'Patrimoine', icon: 'wallet' },
+    { id: 'overview', label: 'Patrimoine', short: 'Patrimoine', icon: 'patrimoine' },
     checkingEnabled && {
       id: 'checking', label: checkingModuleLabel(profile),
       short: profile?.modulesEnabled?.multiCheckingAccounts ? 'Comptes' : 'Compte',
