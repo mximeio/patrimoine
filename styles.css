@@ -3257,11 +3257,21 @@ button.stat-card {
      coupent sur 3 lignes dans des cartes trop étroites. */
   .stats-grid,
   .stats-grid.cols-3 { grid-template-columns: repeat(2, 1fr); }
-  /* padding-bottom = hauteur de la barre basse (+ safe-area) pour que le
-     contenu et les boutons "+ Ajouter" en fin de liste ne passent pas
-     dessous. 88 → 102px : la barre est remontée de ~14px par le
-     placement « Instagram » (bottom safe-area − 4 au lieu de − 18). */
-  .main-container { padding: 4px 14px calc(102px + env(safe-area-inset-bottom, 0px)); }
+  /* Réserve du bas = position de la barre basse (la MÊME expression que son
+     `bottom`, .tabbar-wrap) + sa hauteur (52 px : capsule 3 + goutte 12 + icône
+     22 + 12 + 3) + 16 px d'écart. Le contenu et les « + Ajouter » de fin de liste
+     s'arrêtent ainsi 16 px au-dessus de la barre, dans Safari comme en PWA.
+     DEV v1091 : l'ancienne réserve (102 px + safe-area) laissait ~35 pt dans
+     Safari et ~54 pt en PWA (mesuré sur les captures de l'utilisateur), parce
+     qu'elle ajoutait toute la safe-area alors que la barre n'en remonte que
+     de safe-area − 4. ⚠️ Changer la position ou la hauteur de la barre oblige
+     à changer cette ligne. */
+  .main-container { padding: 4px 14px calc(max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px)) + 52px + 16px); }
+  /* La réserve porte TOUT l'écart : la marge basse du dernier bloc (16 px sur
+     la carte « Répartition » de l'accueil) s'y ajoutait. `!important` : elle
+     peut être posée en style en ligne. */
+  .main-inner > :last-child,
+  .main-inner > :last-child > :last-child { margin-bottom: 0 !important; }
   .header-inner { padding: 10px 14px; gap: 8px; }
   .hero-value-big { font-size: 32px; }
   .hero-card { padding: 18px; min-height: 0; }
@@ -3628,16 +3638,20 @@ button.stat-card {
     left: calc(12px + env(safe-area-inset-left, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
   }
-  /* Le contenu ne passe pas sous la barre (capsule compacte ≈ 48px),
-     et scroller interne comme en portrait (page verrouillée). */
+  /* Le contenu ne passe pas sous la barre, et scroller interne comme en
+     portrait (page verrouillée). Réserve du bas calculée comme en portrait
+     (DEV v1091) : position de la barre (son `bottom` ci-dessus) + sa hauteur
+     compacte (42 px : capsule 2 + goutte 8 + icône 22 + 8 + 2) + 16 px d'écart. */
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   .main-container {
     height: 100dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
-    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(max(8px, calc(env(safe-area-inset-bottom, 0px) - 10px)) + 42px + 16px);
   }
+  .main-inner > :last-child,
+  .main-inner > :last-child > :last-child { margin-bottom: 0 !important; }
   /* Overflow garanti (cf. portrait) : le geste reste dans le scroller */
   .main-inner { min-height: calc(100% + 1px); }
   /* Bottom sheet : recadrée en largeur (pleine largeur = absurde en paysage) */
