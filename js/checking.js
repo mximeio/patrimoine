@@ -65,7 +65,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
   return (
     <div>
       {/* HERO consolidé — même structure que le hero Épargne pour cohérence visuelle */}
-      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.checking}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.checking)), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
             Solde total
@@ -599,7 +599,7 @@ function CheckingView({ ctx, onBack }) {
         titleSlot
       )}
 
-      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.checking}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.checking)), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             {/* Pas de nom du compte dans la hero card : en multi-mode c'est la

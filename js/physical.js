@@ -46,7 +46,7 @@ function PhysicalView({ ctx }) {
 
   return (
     <div>
-      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.physical}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.physical)), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           {/* « Valeur totale » et non « actuelle » (15/08/2026) : cette hero card
               affiche exactement le même trio que celle des investissements —

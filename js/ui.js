@@ -692,6 +692,17 @@ const MODULE_ICONS = {
   physical: 'coin',
 };
 
+// Le fond des cartes de tête (DEV v1092) : le dégradé sombre, plus un liseré de 4 px peint DANS le fond, au bord gauche.
+// Posé en bordure gauche d'une carte arrondie, le liseré était courbé par le navigateur en parenthèse, aminci jusqu'à zéro
+// sur les 14 px du haut et du bas ; peint dans le fond, il est droit sur les cinq cartes. La bordure reste à 4 px, mais
+// transparente : la géométrie de la carte ne change pas. Maquette : _maquettes/Mockup-Lisere-Cartes-De-Tete.html (A).
+// `lisere` est une image CSS : `lisereUni(couleur)` pour une rubrique, les quatre segments pour l'accueil (consolidated.js).
+const HERO_DEGRADE = 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%) border-box';
+const lisereUni = (couleur) => `linear-gradient(${couleur}, ${couleur})`;
+const styleCarteDeTete = (lisere) => ({
+  borderLeft: '4px solid transparent',
+  background: `${lisere} 0 0 / 4px 100% no-repeat border-box, ${HERO_DEGRADE}`,
+});
 // La pastille des cartes de tête (fond sombre) — UNE recette pour les cinq vues depuis le 21/10/2026 : fond de la
 // couleur du module à 22 % (`'38'`), icône dans la TEINTE CLAIRE du module (la 300). Avant, la vue d'ensemble avait
 // sa propre pastille (indigo clair, 7,0:1) et les modules l'icône dans leur couleur PLEINE (fond à 15 %) : 5 à 6:1,

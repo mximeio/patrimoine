@@ -148,7 +148,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
   return (
     <div>
       {/* HERO */}
-      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.investments}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.investments)), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
             Valeur totale
@@ -472,7 +472,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
           composant). Ne pas le réintroduire. */}
 
       {/* HERO */}
-      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.investments}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.investments)), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           {/* Un LIBELLÉ qui dit ce qu'est le montant, comme toutes les hero cards
               de l'app. Le NOM de l'enveloppe était affiché ici jusqu'au

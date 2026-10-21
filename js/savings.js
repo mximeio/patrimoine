@@ -99,7 +99,7 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
   return (
     <div>
       {/* HERO */}
-      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.savings)), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
             Solde total
@@ -338,7 +338,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
           ⚠️ Ce commentaire annonçait un « nom éditable in-place » : c'était FAUX
           depuis longtemps — la classe posée était `hero-name-static`, et le
           renommage passe par Réglages. Corrigé le 15/08/2026 en retirant le nom. */}
-      <div className="card hero-card" style={{ borderLeft: `4px solid ${MODULE_COLORS.savings}`, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.savings)), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           {/* Libellé du montant, comme les autres hero cards — cf. le commentaire
               détaillé dans `investments.js`. Le nom du livret vit dans la ligne

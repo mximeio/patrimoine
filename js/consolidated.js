@@ -7,15 +7,14 @@
 // somme des parties. Il était indigo, la couleur du compte courant : deux pages différentes se ressemblaient.
 // ⚠️ Toujours les quatre, même si l'utilisateur n'a pas activé toutes les rubriques (décision de
 // l'utilisateur) : c'est une marque, pas une donnée — les montants réels sont dans le graphique en dessous.
-// Les écarts sont TRANSPARENTS et laissent voir le fond de la carte. Le liseré est peint sous la bordure
-// gauche, gardée à 4 px mais transparente : la géométrie de la carte ne change pas.
+// Les écarts sont TRANSPARENTS et laissent voir le fond de la carte. Peint dans le fond par `styleCarteDeTete`
+// (ui.js), comme le liseré uni des quatre rubriques depuis la DEV v1092.
 // ⚠️ Le gris clair a été écarté : 1,4:1 avec le fond de page, il s'y fondait. Maquette : section 2.
-const HERO_PATRIMOINE_FOND = (() => {
+const LISERE_PATRIMOINE = (() => {
   const c = [MODULE_COLORS.checking, MODULE_COLORS.savings, MODULE_COLORS.investments, MODULE_COLORS.physical];
-  const liseré = `linear-gradient(to bottom, ${c[0]} 0 calc(25% - 1.5px), transparent 0 calc(25% + 1.5px), `
+  return `linear-gradient(to bottom, ${c[0]} 0 calc(25% - 1.5px), transparent 0 calc(25% + 1.5px), `
     + `${c[1]} 0 calc(50% - 1.5px), transparent 0 calc(50% + 1.5px), `
     + `${c[2]} 0 calc(75% - 1.5px), transparent 0 calc(75% + 1.5px), ${c[3]} 0 100%)`;
-  return `${liseré} 0 0 / 4px 100% no-repeat border-box, linear-gradient(135deg, #0f172a 0%, #1e293b 100%) border-box`;
 })();
 
 function ConsolidatedView({ ctx, onNavigate }) {
@@ -78,7 +77,7 @@ function ConsolidatedView({ ctx, onNavigate }) {
   const totalGainPositive = totalGain >= 0;
   return (
     <div>
-      <div className="card hero-card" style={{ borderLeft: '4px solid transparent', background: HERO_PATRIMOINE_FOND, marginBottom: 16 }}>
+      <div className="card hero-card" style={{ ...styleCarteDeTete(LISERE_PATRIMOINE), marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>Patrimoine total</div>
           <ModuleBadge module="overview" />
