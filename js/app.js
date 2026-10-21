@@ -161,7 +161,36 @@ function App() {
   useEffect(() => {
     const onSwUpdate = (e) => setSwWaiting(e.detail);
     window.addEventListener('patrimoine:sw-update', onSwUpdate);
-    return () => window.removeEventListener('patrimoine:sw-update', onSwUpdate);
+    // Rattrapage (DEV v1093) : la notification n'apparaît qu'à la FIN du téléchargement de la nouvelle version,
+    // signalé par un `statechange` qu'index.html écoute. Si l'app est quittée ou suspendue pendant ce temps, le
+    // signal semble se perdre : la version attend, mais rien ne s'affiche avant de tuer et rouvrir l'app (constaté
+    // par l'utilisateur le 21/10/2026). Au retour dans l'app, puis toutes les 10 s tant qu'elle est visible, on
+    // regarde donc l'état réel : une version qui attend → la notification ; une version en cours de téléchargement
+    // → on suit sa fin. Lecture seule, et même condition qu'index.html (une page déjà contrôlée par le SW).
+    // ⚠️ Pas dans le script d'index.html : il est autorisé par son empreinte sha256 (CSP, CLAUDE.md §2).
+    const sw = navigator.serviceWorker;
+    const suivis = new WeakSet();
+    const rattraper = () => {
+      if (!sw || !sw.controller || document.visibilityState !== 'visible') return;
+      sw.getRegistration().then((reg) => {
+        if (!reg) return;
+        if (reg.waiting) { setSwWaiting(reg.waiting); return; }
+        const w = reg.installing;
+        if (w && !suivis.has(w)) {
+          suivis.add(w);
+          w.addEventListener('statechange', () => { if (w.state === 'installed' && sw.controller) setSwWaiting(w); });
+        }
+      }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', rattraper);
+    window.addEventListener('pageshow', rattraper);
+    const minuteur = setInterval(rattraper, 10000);
+    return () => {
+      window.removeEventListener('patrimoine:sw-update', onSwUpdate);
+      document.removeEventListener('visibilitychange', rattraper);
+      window.removeEventListener('pageshow', rattraper);
+      clearInterval(minuteur);
+    };
   }, []);
 
   // 3ᵉ argument `duree` ajouté le 10/08/2026 pour le chantier « refuser par un

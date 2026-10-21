@@ -3,18 +3,19 @@
 // ============================================================
 
 // Le fond de la carte de tête de la vue d'ensemble (21/10/2026) : son liseré prend les QUATRE couleurs des
-// rubriques, dans l'ordre de la barre, séparées par 3 px comme les quatre coupes du logo — le tout est la
-// somme des parties. Il était indigo, la couleur du compte courant : deux pages différentes se ressemblaient.
+// rubriques, dans l'ordre de la barre — le tout est la somme des parties. Il était indigo, la couleur du compte
+// courant : deux pages différentes se ressemblaient.
 // ⚠️ Toujours les quatre, même si l'utilisateur n'a pas activé toutes les rubriques (décision de
 // l'utilisateur) : c'est une marque, pas une donnée — les montants réels sont dans le graphique en dessous.
-// Les écarts sont TRANSPARENTS et laissent voir le fond de la carte. Peint dans le fond par `styleCarteDeTete`
-// (ui.js), comme le liseré uni des quatre rubriques depuis la DEV v1092.
-// ⚠️ Le gris clair a été écarté : 1,4:1 avec le fond de page, il s'y fondait. Maquette : section 2.
+// SEGMENTS FONDUS depuis la DEV v1094 (choix de l'utilisateur, _maquettes/Mockup-Lisere-Accueil-Degrade.html, 4) :
+// chaque couleur tient son quart, puis se fond dans la suivante sur ~14 % de la hauteur. Ils étaient séparés par
+// 3 px transparents. ✖ Écarté : un dégradé continu, qui passait par un vert olive entre le vert et l'ambre et ne
+// laissait chaque couleur pure qu'en un point. Mélange en OKLCH ; un navigateur qui ne le connaît pas rejette la
+// déclaration et garde le fond de `.hero-card`, sans liseré. Peint dans le fond par `styleCarteDeTete` (ui.js).
+// ⚠️ Le gris clair a été écarté : 1,4:1 avec le fond de page, il s'y fondait.
 const LISERE_PATRIMOINE = (() => {
   const c = [MODULE_COLORS.checking, MODULE_COLORS.savings, MODULE_COLORS.investments, MODULE_COLORS.physical];
-  return `linear-gradient(to bottom, ${c[0]} 0 calc(25% - 1.5px), transparent 0 calc(25% + 1.5px), `
-    + `${c[1]} 0 calc(50% - 1.5px), transparent 0 calc(50% + 1.5px), `
-    + `${c[2]} 0 calc(75% - 1.5px), transparent 0 calc(75% + 1.5px), ${c[3]} 0 100%)`;
+  return `linear-gradient(to bottom in oklch, ${c[0]} 0 18%, ${c[1]} 32% 43%, ${c[2]} 57% 68%, ${c[3]} 82% 100%)`;
 })();
 
 function ConsolidatedView({ ctx, onNavigate }) {
