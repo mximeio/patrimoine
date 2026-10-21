@@ -374,6 +374,9 @@ input[type="month"] {
   flex: 0 1 auto; min-width: 0;
 }
 .seg-rail::-webkit-scrollbar { display: none; }
+/* La forme standard, en plus : un `scrollbar-color` (posé sur écran tactile et
+   hérité, DEV v1088) peut faire ignorer `::-webkit-scrollbar` au navigateur. */
+.seg-rail { scrollbar-width: none; }
 .seg-tab {
   display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
   padding: 7px 13px; background: transparent;
@@ -863,6 +866,7 @@ input[type="month"] {
   max-width: 100%;
 }
 .app-bar-nav::-webkit-scrollbar { display: none; }
+.app-bar-nav { scrollbar-width: none; } /* cf. .seg-rail */
 .seg-indicator {
   position: absolute; left: 0;
   background: var(--text); border-radius: 8px;
@@ -3558,8 +3562,15 @@ button.stat-card {
   html.pwa-standalone:has(.modal-overlay, .search-overlay, .sheet-backdrop) .ios-top-edge-probe {
     display: none;
   }
+  /* La zone qui défile commence SOUS la bande (DEV v1088) : posée par-dessus,
+     la bande opaque coupait le haut de la barre de défilement d'iOS (constaté
+     par l'utilisateur sur iPhone). La bordure a la couleur du fond et la même
+     hauteur que la bande, donc rien ne bouge à l'écran ; le titre rend ces 6 px
+     dans sa marge (10 → 4) pour rester exactement à sa place.
+     ⚠️ Changer la hauteur de la bande oblige à changer ces deux valeurs. */
+  html.pwa-standalone .main-container { border-top: 6px solid var(--bg); }
   html.pwa-standalone .title-row {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
   }
 }
 
@@ -4367,6 +4378,28 @@ button.cp-seg-item { cursor: pointer; }
   input[readonly], textarea[readonly] {
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: none;
   }
+}
+
+/* ============================================================
+   BARRE DE DÉFILEMENT SUR ÉCRAN TACTILE — DEV v1088 (21/10/2026)
+   ============================================================
+   Sur iPhone en MODE SOMBRE, iOS dessinait la barre de défilement de Patrimoine
+   en BLANC, donc invisible sur le fond clair — page comme fenêtres, PWA comme
+   Safari. Mosaïque, au même réglage, l'a sombre. Établi au banc sur l'iPhone de
+   l'utilisateur (DEV v1086-v1087) : un fond sombre la révélait blanche ;
+   `color-scheme: light`, même dès l'ouverture, et le défilement par la page n'y
+   changeaient rien ; cette déclaration la rend sombre et visible. La cause
+   exacte n'est pas connue.
+   ⚠️ `scrollbar-color` s'HÉRITE : posée sur `html`, elle vaut pour toutes les
+   zones qui défilent. Réservée au tactile pour ne pas changer les barres de
+   défilement de l'ordinateur. Verrouillé par un test.
+   ⚠️ iOS ne semble la prendre qu'à la CRÉATION d'une zone qui défile : après
+   un aller-retour hors de l'app, il remettait la sienne. Au retour, app.js
+   recrée les zones qui défilent (DEV v1090) ; changer la couleur ne suffisait
+   pas (DEV v1089).
+   ============================================================ */
+@media (hover: none) and (pointer: coarse) {
+  html { scrollbar-color: rgba(0, 0, 0, 0.45) transparent; }
 }
 
 /* ============================================================
