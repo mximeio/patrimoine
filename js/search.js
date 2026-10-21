@@ -1053,7 +1053,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
                         onMouseEnter={() => setFocused(flatIdx)}
                       >
                         <div className={`search-result-icon ${g.module}`}>
-                          <Icon name={MODULE_ICONS_NAMES[g.module]} size={14} />
+                          <Icon name={MODULE_ICONS_NAMES[g.module]} size={16} />
                         </div>
                         <div className="search-result-main">
                           <div className="search-result-title">

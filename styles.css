@@ -28,6 +28,11 @@
   --warning-light: #fffbeb;
   --info: #06b6d4;
   --info-light: #ecfeff;
+  /* L'icône posée sur une pastille claire de sa couleur : la nuance 600 (DEV v1095, cf. `couleurIcone`, utils.js). */
+  --success-icone: #059669;
+  --danger-icone: #dc2626;
+  --warning-icone: #c96a07; /* un cran au-dessus de la 600 : elle restait sous 3:1 sur pastille à 15 % */
+  --info-icone: #0891b2;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -1114,10 +1119,10 @@ button.stat-card {
   display: flex; align-items: center; justify-content: center;
   background: var(--surface-hover); color: var(--text-muted);
 }
-.stat-card-icon.income { background: var(--success-light); color: var(--success); }
-.stat-card-icon.expense { background: var(--danger-light); color: var(--danger); }
+.stat-card-icon.income { background: var(--success-light); color: var(--success-icone); }
+.stat-card-icon.expense { background: var(--danger-light); color: var(--danger-icone); }
 .stat-card-icon.tr { background: var(--accent-light); color: var(--accent); }
-.stat-card-icon.tr-utensils { background: var(--warning-light); color: var(--warning); }
+.stat-card-icon.tr-utensils { background: var(--warning-light); color: var(--warning-icone); }
 .stat-card-label {
   font-size: 11px; color: var(--text-muted);
   font-weight: 500; text-transform: uppercase;
@@ -1173,9 +1178,9 @@ button.stat-card {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 10px; margin-bottom: 14px;
 }
-.stat-card-icon.savings-in { background: var(--success-light); color: var(--success); }
-.stat-card-icon.savings-out { background: var(--danger-light); color: var(--danger); }
-.stat-card-icon.savings-itr { background: var(--info-light); color: var(--info); }
+.stat-card-icon.savings-in { background: var(--success-light); color: var(--success-icone); }
+.stat-card-icon.savings-out { background: var(--danger-light); color: var(--danger-icone); }
+.stat-card-icon.savings-itr { background: var(--info-light); color: var(--info-icone); }
 
 /* Mobile : grille resserrée pour les stats de la vue détail d'un livret. */
 @media (max-width: 640px) {
@@ -1196,18 +1201,20 @@ button.stat-card {
   display: flex; align-items: center; gap: 10px;
   font-size: 15px; font-weight: 600;
 }
+/* Palier MOYEN, comme les cartes chiffrées : 26 / 14 (DEV v1095). En 22, l'icône de 14 y était plus chargée que dans les
+   lignes (22 / 12). Paliers : grand 32 / 16 (carte de tête, recherche), moyen 26 / 14, petit 22 / 12 (lignes). */
 .section-icon {
-  width: 22px; height: 22px; border-radius: 6px;
+  width: 26px; height: 26px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
 }
-.section-icon.income { background: var(--success-light); color: var(--success); }
-.section-icon.expense { background: var(--danger-light); color: var(--danger); }
+.section-icon.income { background: var(--success-light); color: var(--success-icone); }
+.section-icon.expense { background: var(--danger-light); color: var(--danger-icone); }
 .section-icon.tr { background: var(--accent-light); color: var(--accent); }
-.section-icon.tr-utensils { background: var(--warning-light); color: var(--warning); }
+.section-icon.tr-utensils { background: var(--warning-light); color: var(--warning-icone); }
 .section-icon.checking { background: var(--accent-light); color: var(--accent); }
-.section-icon.savings { background: var(--info-light); color: var(--info); }
-.section-icon.invest { background: var(--success-light); color: var(--success); }
-.section-icon.physical { background: var(--warning-light); color: var(--warning); }
+.section-icon.savings { background: var(--info-light); color: var(--info-icone); }
+.section-icon.invest { background: var(--success-light); color: var(--success-icone); }
+.section-icon.physical { background: var(--warning-light); color: var(--warning-icone); }
 .section-total { font-size: 12px; color: var(--text-muted); }
 .section-total strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
@@ -1286,12 +1293,12 @@ button.stat-card {
    donc le cursor:grab pour ne pas suggérer une interaction qui n'existe plus. */
 .tx-icon.no-drag,
 .tx-icon.no-drag:active { cursor: default; }
-.tx-icon.income { background: var(--success-light); color: var(--success); }
-.tx-icon.expense { background: var(--danger-light); color: var(--danger); }
+.tx-icon.income { background: var(--success-light); color: var(--success-icone); }
+.tx-icon.expense { background: var(--danger-light); color: var(--danger-icone); }
 .tx-icon.composite { background: var(--accent-light); color: var(--accent); }
-.tx-icon.tr { background: var(--warning-light); color: var(--warning); }
-.tx-icon.pat { background: var(--warning-light); color: var(--warning); }
-.tx-icon.savings-mini { background: var(--info-light); color: var(--info); }
+.tx-icon.tr { background: var(--warning-light); color: var(--warning-icone); }
+.tx-icon.pat { background: var(--warning-light); color: var(--warning-icone); }
+.tx-icon.savings-mini { background: var(--info-light); color: var(--info-icone); }
 .tx-icon.mini {
   width: 18px; height: 18px;
   font-size: 10px;
@@ -1433,7 +1440,7 @@ button.stat-card {
 .tx-delete {
   width: 24px; height: 24px; padding: 0;
   border: none; background: transparent;
-  color: var(--text-subtle); font-size: 16px;
+  color: var(--text-muted); font-size: 16px; /* cf. .tx-edit (DEV v1095) */
   border-radius: 4px; cursor: pointer; opacity: 1;
   transition: all 0.15s;
 }
@@ -1443,7 +1450,8 @@ button.stat-card {
 .tx-edit {
   width: 24px; height: 24px; padding: 0;
   border: none; background: transparent;
-  color: var(--text-subtle);
+  /* Gris des textes secondaires, 4,8:1 : le gris clair (2,6:1) s'effaçait sur iPhone (DEV v1095). */
+  color: var(--text-muted);
   border-radius: 4px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   transition: all 0.15s;
@@ -1580,6 +1588,18 @@ button.stat-card {
 .composite-comp-row.with-edit {
   grid-template-columns: 22px 1fr var(--amt-w, 130px) 24px;
 }
+/* Composantes d'une ligne d'OPÉRATION (DEV v1098, demandé par l'utilisateur) : l'icône est centrée sous la case à cocher
+   des lignes, et le libellé démarre au même endroit que le leur. Sur ordinateur, l'icône l'était déjà ; le libellé
+   était 4 px trop à gauche — la colonne de l'icône passe de 22 à 26 (l'icône, calée à gauche, ne bouge pas).
+   Ciblé par `.tx-row.composite-row +` : les composantes des récurrents (pas de case à cocher) ne bougent pas. */
+.tx-row.composite-row + .composite-comps .composite-comp-row { grid-template-columns: 26px 1fr var(--amt-w, 130px); }
+.tx-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: 26px 1fr var(--amt-w, 130px) 24px; }
+/* Composantes d'un RÉCURRENT (DEV v1098) : pas de case à cocher, donc mêmes colonnes que la ligne parente — l'icône
+   sous son icône, le libellé sous son libellé (elles étaient en retrait de 36 px). La ligne porte un retrait de 14 px
+   en style en ligne (settings.js) : les composantes le reprennent. */
+.recurring-row.composite-row + .composite-comps { padding-left: 14px; }
+.recurring-row.composite-row + .composite-comps .composite-comp-row { grid-template-columns: 28px 1fr var(--amt-w, 130px); }
+.recurring-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px) 24px; }
 .composite-comp-row:last-child { border-bottom: none; }
 .composite-comp-row input {
   background: transparent; border: none; outline: none;
@@ -2419,13 +2439,14 @@ button.stat-card {
 
 /* Assets rows */
 .asset-row {
-  display: grid; grid-template-columns: 26px 1fr auto auto;
+  display: grid; grid-template-columns: 26px 1fr auto auto; /* colonne = pastille (ligne d'entité, palier moyen — DEV v1097) */
   gap: 12px; align-items: center;
   min-height: 60px; /* hauteur cohérente avec .portfolio-list-row */
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
 }
-.asset-row .tx-icon { width: 26px; height: 26px; font-size: 12px; }
+/* Ligne d'ENTITÉ (actif physique) : palier moyen 26 / 14, sur ordinateur comme sur téléphone (DEV v1097). */
+.asset-row .tx-icon { width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
 .asset-row:last-child { border-bottom: none; }
 @media (hover: hover) { .asset-row:hover { background: var(--surface-alt); } }
 .asset-name { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -2663,9 +2684,9 @@ button.stat-card {
   flex-shrink: 0;
 }
 .search-result-icon.checking { background: var(--accent-light); color: var(--accent); }
-.search-result-icon.savings { background: var(--info-light); color: var(--info); }
-.search-result-icon.investments { background: var(--success-light); color: var(--success); }
-.search-result-icon.physical { background: var(--warning-light); color: var(--warning); }
+.search-result-icon.savings { background: var(--info-light); color: var(--info-icone); }
+.search-result-icon.investments { background: var(--success-light); color: var(--success-icone); }
+.search-result-icon.physical { background: var(--warning-light); color: var(--warning-icone); }
 .search-result-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .search-result-title {
   font-size: 14px; font-weight: 500; color: var(--text);
@@ -3060,7 +3081,7 @@ button.stat-card {
   width: 48px; height: 48px; margin: 0 auto 12px;
   border-radius: 12px; background: var(--surface-hover);
   display: flex; align-items: center; justify-content: center;
-  color: var(--text-subtle); font-size: 22px;
+  color: var(--text-muted); font-size: 22px; /* 4,3:1 — le gris clair ne faisait que 2,3:1 (DEV v1095) */
 }
 
 /* Drag and drop */
@@ -3151,7 +3172,7 @@ button.stat-card {
 /* Liste des portefeuilles (vue consolidée) */
 .portfolio-list-row {
   display: grid;
-  grid-template-columns: 26px 1fr auto 14px;
+  grid-template-columns: 26px 1fr auto 14px; /* colonne = pastille (ligne d'entité — DEV v1097) */
   align-items: center; gap: 12px;
   width: 100%;
   min-height: 60px; /* hauteur cohérente avec .asset-row */
@@ -3164,6 +3185,9 @@ button.stat-card {
 }
 .portfolio-list-row:first-child { border-top: none; }
 @media (hover: hover) { .portfolio-list-row:hover { background: var(--surface-alt); } }
+/* Ligne d'ENTITÉ (rubriques de l'accueil, comptes, livrets, enveloppes) : palier MOYEN 26 / 14, sur ordinateur comme
+   sur téléphone (DEV v1097, décision de l'utilisateur). Ces lignes font 60 px sur deux lignes de texte : une pastille
+   de 20 y paraissait perdue. Les lignes d'OPÉRATION, affinées, gardent le palier petit (22 / 12, 20 sur téléphone). */
 .portfolio-list-icon {
   width: 26px; height: 26px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
@@ -3178,7 +3202,7 @@ button.stat-card {
 /* Liste compacte des supports détenus (sous-page) */
 .support-row {
   display: grid;
-  grid-template-columns: 26px 1fr auto;
+  grid-template-columns: 26px 1fr auto; /* colonne = pastille (ligne d'entité — DEV v1097) */
   align-items: center; gap: 12px;
   padding: 10px 16px;
   border-top: 1px solid var(--border);
@@ -3186,6 +3210,7 @@ button.stat-card {
 }
 .support-row:first-child { border-top: none; }
 @media (hover: hover) { .support-row:hover { background: var(--surface-alt); } }
+/* Ligne d'ENTITÉ : palier moyen 26, sur ordinateur comme sur téléphone (DEV v1097). */
 .support-icon {
   width: 26px; height: 26px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
@@ -3315,6 +3340,8 @@ button.stat-card {
   .tx-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px) 22px; }
   .tx-row.tr-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; } /* v577 : TR sans colonne de pointage (mobile) */
   .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px) 22px; }
+  /* Palier PETIT sur téléphone : 20 px pour les lignes d'OPÉRATION (leur colonne fait 20). Les lignes d'entité gardent
+     leurs 26 px (`.asset-row .tx-icon`, plus spécifique, l'emporte) — DEV v1097. */
   .tx-icon { width: 20px; height: 20px; }
   /* Récurrents (modales Entrées/Sorties dans le menu ⋯) : mêmes colonnes et paddings que tx-row */
   .recurring-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); gap: 6px; padding: 8px 10px; }
@@ -3328,11 +3355,17 @@ button.stat-card {
   /* Variante with-edit mobile : colonne fantôme 22px (matche le crayon parent) */
   .composite-comp-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; }
   .composite-comps { padding: 0 10px 0 28px; }
+  /* Lignes d'opération (DEV v1098) : sur téléphone, l'icône des composantes était 7 px à gauche du centre de la case
+     à cocher, et leur libellé 8 px à gauche de celui des lignes. Mesuré au navigateur : retrait 35 px, colonne 21. */
+  .tx-row.composite-row + .composite-comps { padding-left: 35px; }
+  .tx-row.composite-row + .composite-comps .composite-comp-row { grid-template-columns: 21px 1fr var(--amt-w, 112px); }
+  .tx-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: 21px 1fr var(--amt-w, 112px) 22px; }
+  .recurring-row.composite-row + .composite-comps .composite-comp-row { grid-template-columns: 20px 1fr var(--amt-w, 112px); }
+  .recurring-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px) 22px; }
   .composite-amount-wrap { gap: 2px; }
   .composite-chevron { width: 20px; height: 20px; }
   /* Épargne, Actifs physiques : Famille A légèrement plus aérée que tx-row */
   .asset-row { padding: 10px 12px; gap: 8px; }
-  .asset-row .tx-icon { width: 22px; height: 22px; font-size: 11px; }
   /* Configurer supports : alignée aussi */
   .etf-row { padding: 8px 10px; gap: 6px; }
   /* Boutons × et crayon resserrés pour tenir dans les cellules 22px en mobile */
@@ -3481,7 +3514,6 @@ button.stat-card {
      stretch ni le voile blanc, sinon le paysage est cassé. */
   .month-picker-popover { width: 300px; }
   .portfolio-list-row { gap: 8px; padding: 10px 12px; }
-  .portfolio-list-icon { width: 22px; height: 22px; }
   /* Famille A sur mobile : noms et sub-infos sur 1 ligne max avec ellipsis
      pour éviter le wrap. Les parties à droite (valeur + gain en couleur)
      restent prioritaires en place. */
@@ -3499,7 +3531,6 @@ button.stat-card {
   }
   /* Supports détenus : Famille A (entité du portefeuille, comme un compte d'épargne) */
   .support-row { padding: 10px 12px; gap: 8px; }
-  .support-icon { width: 22px; height: 22px; font-size: 11px; }
   /* Opérations : Famille B (transaction) */
   .op-row { padding: 8px 10px; gap: 6px; }
   /* (le support-gain reste affiché sur mobile pour cohérence avec asset-row et portfolio-list-row) */
@@ -3860,15 +3891,21 @@ button.stat-card {
 .frozen-month .tx-row.tr-row.with-edit { grid-template-columns: 28px 1fr var(--amt-w, 130px); } /* v577 : TR figé sans pointage ni crayon */
 .frozen-month .composite-comp-row.with-edit { grid-template-columns: 22px 1fr var(--amt-w, 130px); }
 .frozen-month .composite-comp-row.with-edit > span[aria-hidden] { display: none; }
+/* … et la règle d'alignement des composantes (DEV v1098), plus spécifique, doit suivre : sans elle, la composante
+   gardait sa colonne fantôme et son montant restait 34 px à gauche de celui des lignes. */
+.frozen-month .tx-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: 26px 1fr var(--amt-w, 130px); }
 /* Déclinaison MOBILE : mêmes gabarits compacts que les lignes sans crayon
    du media ≤ 640px (112/96px de montant, icônes 20px) — sans cette
    déclinaison, les règles ci-dessus (gabarits desktop 130px) écraseraient
-   les colonnes compactes par spécificité. */
-@media (max-width: 640px) {
+   les colonnes compactes par spécificité.
+   ⚠️ 768 et non plus 640 (DEV v1098) : les gabarits compacts des lignes vivent dans le bloc ≤ 768 px ; entre 641 et
+   768, un mois figé gardait les gabarits de l'ordinateur et ne s'alignait plus sur un mois non figé. */
+@media (max-width: 768px) {
   .frozen-month .tx-row.with-edit,
   .frozen-month .tx-row.composite-row.with-edit { grid-template-columns: 20px 20px 1fr var(--amt-w, 112px); }
   .frozen-month .tx-row.tr-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px); } /* v577 : TR figé (mobile) */
   .frozen-month .composite-comp-row.with-edit { grid-template-columns: 20px 1fr var(--amt-w, 112px); }
+  .frozen-month .tx-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: 21px 1fr var(--amt-w, 112px); }
 }
 /* Cases de pointage ATTÉNUÉES en mois figé (v576) : même coche que l'active
    (carré plein indigo + coche blanche), mais l'indigo est passé à 50 %
@@ -3932,7 +3969,7 @@ button.stat-card {
 .ops-eye-pill {
   border: none; cursor: pointer; flex-shrink: 0;
   display: inline-flex; align-items: center; gap: 5px;
-  background: transparent; color: var(--text-subtle);
+  background: transparent; color: var(--text-muted); /* cf. .tx-edit (DEV v1095) */
   border-radius: var(--radius-full); padding: 6px 9px; margin: -6px 0;
   font-family: inherit; font-size: 11.5px; font-weight: 800; line-height: 1;
   transition: background 0.15s, color 0.15s;

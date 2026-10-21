@@ -105,8 +105,8 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
                 onClick={() => onOpenAccount(acc.id)}
                 aria-label={`Ouvrir ${acc.name || 'compte sans nom'}`}
               >
-                <div className="portfolio-list-icon" style={{ background: color + '22', color }}>
-                  <Icon name="creditCard" size={12} />
+                <div className="portfolio-list-icon" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
+                  <Icon name="creditCard" size={14} />
                 </div>
                 <div className="portfolio-list-main">
                   <div className="portfolio-list-name">
@@ -1638,13 +1638,13 @@ function MonthInputPicker({ value, onChange, placeholder = 'Choisir un mois', cl
 // ============================================================
 function getCheckingOpDisplay(op) {
   if (op.isTRRefund) {
-    return { iconName: 'utensils', bg: 'var(--warning-light)', color: 'var(--warning)', amountColor: 'var(--warning)', variant: 'tr' };
+    return { iconName: 'utensils', bg: 'var(--warning-light)', color: 'var(--warning-icone)', amountColor: 'var(--warning)', variant: 'tr' };
   }
   if (op.type === 'in') {
-    return { iconName: 'arrowDown', bg: 'var(--success-light)', color: COLORS.success, amountColor: COLORS.success, variant: 'income' };
+    return { iconName: 'arrowDown', bg: 'var(--success-light)', color: couleurIcone(COLORS.success), amountColor: COLORS.success, variant: 'income' };
   }
   // 'out' par défaut
-  return { iconName: 'arrowUp', bg: 'var(--danger-light)', color: COLORS.danger, amountColor: COLORS.danger, variant: 'expense' };
+  return { iconName: 'arrowUp', bg: 'var(--danger-light)', color: couleurIcone(COLORS.danger), amountColor: COLORS.danger, variant: 'expense' };
 }
 
 // ============================================================

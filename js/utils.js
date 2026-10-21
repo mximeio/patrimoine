@@ -33,6 +33,30 @@ const DEFAULT_ETFS = [
 
 const PORTFOLIO_PALETTE = ['#4f46e5', '#f59e0b', '#06b6d4', '#ec4899', '#10b981', '#8b5cf6'];
 
+// La couleur d'une ICÔNE posée sur une pastille claire de sa propre couleur (DEV v1095, choix de l'utilisateur sur
+// _maquettes/Mockup-Icones-Pastilles.html) : la nuance 600, et non la couleur pleine (500). Sur sa pastille, la 500 ne
+// faisait que 2,1 à 2,4:1 pour le vert, le cyan et l'ambre — sous le minimum de 3:1 d'une icône qui porte un sens
+// (WCAG 2.1, 1.4.11). La 600 donne 3,1 à 5,6:1 en restant douce ; la 700 (4,8 à 7,1:1) a été écartée, jugée plus
+// agressive. ⚠️ L'ambre est un cran plus sombre que sa 600 (#d97706) : sur une pastille teintée à 15 %, celle-ci
+// tombait à 2,8:1 (attrapé par le test) ; #c96a07 donne 3,4 à 3,7:1. L'indigo et le gris passaient déjà : inchangés. Une couleur hors de cette table (choisie
+// librement pour un compte ou une enveloppe) est assombrie d'un quart vers le bleu nuit.
+// Le pendant CSS : les variables `--*-icone` de styles.css.
+const NUANCE_ICONE = {
+  '#10b981': '#059669', '#ef4444': '#dc2626', '#f59e0b': '#c96a07', '#06b6d4': '#0891b2',
+  '#ec4899': '#db2777', '#8b5cf6': '#7c3aed', '#4f46e5': '#4f46e5', '#64748b': '#64748b',
+};
+const couleurIcone = (couleur) => NUANCE_ICONE[String(couleur).toLowerCase()] || `color-mix(in srgb, ${couleur} 75%, #0f172a)`;
+
+// Le fond PÂLE d'une pastille posée en JS (DEV v1096) : le même que les pastilles du CSS (`--success-light`…, les
+// nuances 50), et non la couleur à 13-15 % — deux fois plus colorée, elle rendait les listes de l'accueil, d'épargne,
+// d'actifs et les supports plus ternes que la carte « Tickets resto » (relevé par l'utilisateur). Une couleur hors
+// table (choisie librement) est éclaircie à 8 %. Avec `couleurIcone`, l'icône y reste à 3:1 au moins (test).
+const FOND_PASTILLE = {
+  '#10b981': '#ecfdf5', '#ef4444': '#fef2f2', '#f59e0b': '#fffbeb', '#06b6d4': '#ecfeff',
+  '#ec4899': '#fdf2f8', '#8b5cf6': '#f5f3ff', '#4f46e5': '#eef2ff', '#64748b': '#f1f5f9',
+};
+const fondPastille = (couleur) => FOND_PASTILLE[String(couleur).toLowerCase()] || `color-mix(in srgb, ${couleur} 8%, #ffffff)`;
+
 // Format hybride : séparateur de milliers à la française (espace fine),
 // mais point décimal à l'anglo-saxonne — cohérent avec la saisie qui produit
 // toujours du `12.5` (AmountInput → String(n)).

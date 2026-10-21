@@ -101,7 +101,7 @@ function ConsolidatedView({ ctx, onNavigate }) {
           316 px pour quatre) avec sa couleur répétée quatre fois — liseré, tuile, titre, montant — et un texte coloré
           illisible pour le cyan, le vert et l'ambre (2,1 à 2,5:1). Désormais les lignes de 60 px du reste de l'app
           (`.portfolio-list-row`, comme « Mes comptes d'épargne », chevron compris) : texte noir, la couleur ne
-          marque plus que la tuile, avec la nuance foncée du module (`MODULE_FONCES`).
+          marque plus que la tuile, avec la nuance d'icône du module (`couleurIcone`, utils.js — la 600 depuis la DEV v1095).
           La même carte montre aussi l'ÉVOLUTION (21/10/2026, maquette Mockup-Vue-Ensemble-Evolution) : une bascule à
           deux icônes, au coin, fait passer de l'anneau aux aires empilées, à la même hauteur (240 px) — la liste reste
           la légende des deux vues. Elle remplace le bouton « Afficher l'évolution » et le second graphique déplié.
@@ -163,8 +163,8 @@ function ConsolidatedView({ ctx, onNavigate }) {
           <div className="repartition-liste">
             {categories.map(c => (
               <button key={c.id} className="portfolio-list-row" onClick={() => onNavigate(c.id)} aria-label={`Ouvrir ${c.label}`}>
-                <div className="portfolio-list-icon" style={{ background: c.color + '26', color: MODULE_FONCES[c.id] }}>
-                  <Icon name={c.icon} size={12} />
+                <div className="portfolio-list-icon" style={{ background: fondPastille(c.color), color: couleurIcone(c.color) }}>
+                  <Icon name={c.icon} size={14} />
                 </div>
                 <div className="portfolio-list-main">
                   <div className="portfolio-list-name">{c.label}</div>

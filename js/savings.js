@@ -171,8 +171,8 @@ function SavingsListRow({ saving, colorIndex, onClick }) {
     .reduce((latest, o) => (!latest || o.date > latest.date) ? o : latest, null);
   return (
     <button className="portfolio-list-row" data-locate={`saving-${saving.id}`} onClick={onClick} aria-label={`Ouvrir ${saving.name}`}>
-      <div className="portfolio-list-icon" style={{ background: color + '22', color }}>
-        <Icon name="piggy" size={12} />
+      <div className="portfolio-list-icon" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
+        <Icon name="piggy" size={14} />
       </div>
       <div className="portfolio-list-main">
         <div className="portfolio-list-name">{saving.name}</div>
@@ -543,25 +543,25 @@ function getSavingsOpDisplay(op) {
   switch (op.type) {
     case 'in':
       return {
-        iconName: 'arrowDown', bg: 'var(--success-light)', color: COLORS.success,
+        iconName: 'arrowDown', bg: 'var(--success-light)', color: couleurIcone(COLORS.success),
         label: op.label?.trim() || 'Versement',
         amount: op.amount || 0, sign: '+', amountColor: COLORS.success,
       };
     case 'out':
       return {
-        iconName: 'arrowUp', bg: 'var(--danger-light)', color: COLORS.danger,
+        iconName: 'arrowUp', bg: 'var(--danger-light)', color: couleurIcone(COLORS.danger),
         label: op.label?.trim() || 'Retrait',
         amount: op.amount || 0, sign: '−', amountColor: COLORS.danger,
       };
     case 'interest':
       return {
-        iconName: 'percent', bg: 'var(--info-light)', color: COLORS.info,
+        iconName: 'percent', bg: 'var(--info-light)', color: couleurIcone(COLORS.info),
         label: op.label?.trim() || 'Intérêts',
         amount: op.amount || 0, sign: '+', amountColor: COLORS.info,
       };
     default:
       return {
-        iconName: 'list', bg: 'var(--surface-alt)', color: COLORS.muted,
+        iconName: 'list', bg: 'var(--surface-alt)', color: couleurIcone(COLORS.muted),
         label: '?', amount: 0, sign: '', amountColor: COLORS.muted,
       };
   }
