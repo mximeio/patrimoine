@@ -1382,14 +1382,18 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, onT
                   droite : indigo sur cellule claire, blanc sur le mois
                   affiché et au survol. */}
               {isFrozen && <span className="month-cell-lock" aria-hidden="true"><Icon name="lock" size={10} /></span>}
+              {/* « + » des mois à créer : la même icône que la légende, sur le modèle du cadenas (22/10/2026). */}
+              {!simple && !isCreated && <span className="month-cell-plus" aria-hidden="true"><Icon name="plus" size={10} /></span>}
             </button>
           );
         })}
       </div>
       {!simple && (
         <div className="picker-legend">
+          {/* Dans l'ordre de la vie d'un mois (22/10/2026, choix de l'utilisateur) : à créer → créé → figé ; « Mois en
+              cours », qui n'est pas une étape mais un repère, vient en dernier. */}
+          <span className="picker-legend-item"><span className="picker-legend-plus"><Icon name="plus" size={10} /></span> Mois à créer</span>
           <span className="picker-legend-item"><span className="picker-legend-created" /> Mois créé</span>
-          <span className="picker-legend-item"><span className="picker-legend-box">+</span> Mois à créer</span>
           {/* v531 : le cadenas n'apparaît en légende que si au moins un
               mois est figé — inutile d'expliquer un symbole absent. */}
           {Object.values(months).some(m => m && m.frozen) && (
