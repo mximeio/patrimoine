@@ -966,6 +966,7 @@ function DayPickerPopover({ selectedDay, onPick, onClose, anchorRect = null }) {
     setTimeout(() => document.addEventListener('mousedown', handler), 0);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+  usePopoverExclusif(true, onClose); // monté = ouvert (cf. ui.js)
 
   const MARGIN = 8;
   // 🔴 PLUS AUCUNE HAUTEUR DEVINÉE (07/08/2026) : ce bloc estimait

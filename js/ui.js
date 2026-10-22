@@ -219,6 +219,38 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
   );
 }
 
+// UN SEUL MENU, CALENDRIER OU BULLE OUVERT À LA FOIS (22/10/2026). Chacun se ferme
+// sur un `mousedown` extérieur, mais quatre déclencheurs arrêtent cet appui — la
+// puce de mois et les champs de date, de mois et de jour, pour que le re-clic
+// referme (cf. MonthChip). Ouvrir l'un d'eux laissait donc ouvert le menu « ⋯ »
+// ou la bulle d'à côté. Désormais chaque popover ANNONCE son ouverture, et tout
+// autre déjà ouvert se ferme en l'entendant : ça ne dépend plus de l'appui.
+// ⚠️ On annonce AVANT d'écouter — `dispatchEvent` est synchrone, donc un popover
+// ne s'entend pas lui-même. Aucun identifiant n'est nécessaire : c'est l'ordre
+// qui le garantit (une garde d'identité, essayée, ne rougissait aucun test).
+// `annoncer = false` : s'ouvrir sans fermer les autres — la bulle ouverte au
+// SURVOL, qui ne doit pas fermer un menu au simple passage de la souris. Elle,
+// en revanche, se ferme quand un autre s'ouvre.
+// Les fenêtres (`Modal`) ne sont pas concernées : leur garde « modifications non
+// enregistrées » reste seule juge de leur fermeture.
+const EVT_POPOVER_OUVERT = 'patrimoine:popover-ouvert';
+function ouvrirPopoverExclusif(fermer, annoncer = true, cible = window) {
+  if (annoncer) cible.dispatchEvent(new CustomEvent(EVT_POPOVER_OUVERT));
+  const surAutre = () => fermer();
+  cible.addEventListener(EVT_POPOVER_OUVERT, surAutre);
+  return () => cible.removeEventListener(EVT_POPOVER_OUVERT, surAutre);
+}
+// `fermer` est une flèche neuve à chaque rendu de l'appelant : on appelle la
+// dernière, sans réabonner.
+function usePopoverExclusif(ouvert, fermer, annoncer = true) {
+  const fermerRef = useRef(fermer);
+  fermerRef.current = fermer;
+  useEffect(() => {
+    if (!ouvert) return;
+    return ouvrirPopoverExclusif(() => fermerRef.current(), annoncer);
+  }, [ouvert]);
+}
+
 // `portal` : rend le menu dans <body> en position:fixed (coordonnées calculées
 // depuis le trigger). À utiliser quand un ancêtre coupe le menu — typiquement
 // une barre en overflow + backdrop-filter (cf. nav mobile). Par défaut (false),
@@ -238,6 +270,7 @@ function Dropdown({ trigger, children, align = 'right', portal = false }) {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
+  usePopoverExclusif(open, () => setOpen(false));
 
   const toggle = (e) => {
     if (portal && !open) {
@@ -307,12 +340,15 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
   // rogné par un parent en overflow:hidden (ex. .support-sub qui tronque le
   // texte en portrait mobile). On mémorise la position de l'icône à l'ouverture.
   const openedAt = useRef(0); // v611 : instant d'ouverture, pour ignorer le resize dû au clavier mobile
-  const openTip = () => {
+  const ouverteAuSurvol = useRef(false); // ouverte au survol : n'annonce pas (cf. usePopoverExclusif)
+  const openTip = (auSurvol = false) => {
     const el = ref.current;
     if (el) { const r = el.getBoundingClientRect(); setPos({ left: r.left, top: r.top, bottom: r.bottom }); }
     openedAt.current = Date.now();
+    ouverteAuSurvol.current = auSurvol;
     setOpen(true);
   };
+  usePopoverExclusif(open, () => setOpen(false), !ouverteAuSurvol.current);
   useEffect(() => {
     if (!open) return;
     // v601 : on ne ferme PAS si l'événement vient de l'icône ou de l'INTÉRIEUR
@@ -350,7 +386,7 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
       tabIndex={0}
       aria-label={label}
       title="" /* v599 : neutralise l'info-bulle système héritée du parent (ex. le title du libellé d'opération) — la bulle blanche suffit */
-      onMouseEnter={() => { if (hoverable()) { cancelClose(); openTip(); } }}
+      onMouseEnter={() => { if (hoverable()) { cancelClose(); openTip(true); } }}
       onMouseLeave={() => { if (hoverable()) scheduleClose(); }}
       onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openTip(); }}
     >

@@ -1323,6 +1323,7 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, onT
     setTimeout(() => document.addEventListener('mousedown', handler), 0);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+  usePopoverExclusif(true, onClose); // monté = ouvert (cf. ui.js)
   // Si anchorRect est fourni (depuis un MonthInputPicker dans une modale par exemple),
   // on bascule en position fixed pour ne pas être clippé par les overflow ancestors.
   // En modale (anchorRect fourni) : position fixe recalée pour rester dans
@@ -1470,6 +1471,7 @@ function DatePickerPopover({ year, month, setYear, setMonth, selectedDate, onPic
     setTimeout(() => document.addEventListener('mousedown', handler), 0);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+  usePopoverExclusif(true, onClose); // monté = ouvert (cf. ui.js)
   // Positionnement du popover :
   //  1. On tente de l'ouvrir SOUS le bouton (cas par défaut).
   //  2. S'il déborde en bas du viewport ET qu'il y a la place au-dessus,
