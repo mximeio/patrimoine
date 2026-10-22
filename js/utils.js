@@ -207,6 +207,23 @@ const nextMonthKey = (key) => { const { year, monthIdx } = parseMonth(key); retu
 const currentMonthKey = () => { const d = new Date(); return monthKey(d.getFullYear(), d.getMonth()); };
 const isoToMonthKey = (iso) => iso ? iso.slice(0, 7) : '';
 
+// Le mois où mène le bouton « Aujourd'hui » du calendrier des mois (22/10/2026, maquette Mockup-Calendrier-Aujourdhui.html) :
+// le mois en cours s'il est créé ; sinon le mois créé le plus PROCHE, avant comme après (un mois futur peut exister) ; à
+// égalité, celui d'AVANT ; aucun mois → null. Une NAVIGATION : l'appelant ne crée jamais le mois (pas de `createMonth`).
+const moisCibleAujourdhui = (months, aujourdhui) => {
+  const cles = Object.keys(months || {});
+  if (cles.includes(aujourdhui)) return aujourdhui;
+  const rang = (k) => { const { year, monthIdx } = parseMonth(k); return year * 12 + monthIdx; };
+  const ref = rang(aujourdhui);
+  let cible = null;
+  for (const k of cles) {
+    const d = Math.abs(rang(k) - ref);
+    const dc = cible === null ? Infinity : Math.abs(rang(cible) - ref);
+    if (d < dc || (d === dc && rang(k) < rang(cible))) cible = k;
+  }
+  return cible;
+};
+
 // Tri alphabétique français (accents-insensible, casse-insensible).
 // Retourne une nouvelle liste — ne mute pas l'original.
 function sortByLabel(arr, getLabel = (x) => x.name || '') {

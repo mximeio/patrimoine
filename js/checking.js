@@ -399,13 +399,27 @@ function CheckingView({ ctx, onBack }) {
   // rendu QUE dans la chip qui l'a ouvert. Deux popovers simultanés (dont
   // un caché par le CSS responsive) se fermeraient mutuellement via leurs
   // handlers de clic extérieur.
-  const togglePicker = (id) => setPickerOpen(o => (o === id ? false : id));
+  // À l'OUVERTURE, l'année du calendrier se recale sur le mois affiché (22/10/2026) : elle n'était posée qu'au montage, donc
+  // après un passage d'année aux chevrons, un saut par la recherche ou un changement de compte, le calendrier s'ouvrait sur
+  // la mauvaise année, sans cellule en surbrillance (mesuré : décembre 2025 affiché, calendrier ouvert sur 2026).
+  const togglePicker = (id) => {
+    if (pickerOpen !== id) setPickerYear(parseMonth(curKey).year);
+    setPickerOpen(o => (o === id ? false : id));
+  };
+  // « Aujourd'hui » : vers le mois en cours, ou le mois créé le plus proche (`moisCibleAujourdhui`, utils.js). Jamais
+  // `createMonth` — un contrôle de navigation ne mute pas (§10) ; créer le mois en cours reste le geste de sa cellule.
+  const allerAujourdhui = () => {
+    const cible = moisCibleAujourdhui(checking.months, currentMonthKey());
+    if (cible && cible !== curKey) setCurrentMonth(cible);
+    setPickerOpen(false);
+  };
   const monthPopover = (
     <MonthPicker
       year={pickerYear} setYear={setPickerYear}
       months={checking.months} currentMonth={curKey}
       onPick={(k) => { createMonth(k); setPickerOpen(false); }}
       onClose={() => setPickerOpen(false)}
+      onToday={allerAujourdhui}
     />
   );
   const chipProps = {
@@ -1302,7 +1316,7 @@ function MonthChip({ id, variant, label, labelShort, onPrev, onNext, prevDisable
 // au-dessus d'une modale ordinaire (1000). La fenêtre de RECHERCHE est à 3000
 // (cf. §7) : elle doit donc passer une valeur supérieure, sinon le popover
 // s'ouvre DERRIÈRE elle et paraît ne pas s'ouvrir du tout.
-function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, simple = false, anchorRect = null, zIndex = 2000 }) {
+function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, onToday = null, simple = false, anchorRect = null, zIndex = 2000 }) {
   const ref = useRef(null);
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
@@ -1341,6 +1355,9 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
       <div className="month-grid">
         {Array.from({ length: 12 }, (_, m) => {
           const k = monthKey(year, m);
+          // Le mois CALENDAIRE en cours (22/10/2026) : un trait sous le nom, en bas de la cellule — loin du cadenas, qui vit
+          // en haut à droite. Pas en mode simple : un formulaire n'a pas de « mois en cours ».
+          const isToday = !simple && k === currentMonthKey();
           // Mode simple (v533) : plus AUCUN costume « créé » — la notion
           // n'existe pas dans les formulaires (réglages, création de
           // compte). Cellules neutres (classe .plain), seule la sélection
@@ -1354,16 +1371,16 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
             <button
               key={k}
               type="button"
-              className={`month-cell ${simple ? 'plain' : ''} ${isCreated ? 'created' : ''} ${isCurrent ? 'current' : ''} ${isFrozen ? 'frozen' : ''}`}
+              className={`month-cell ${simple ? 'plain' : ''} ${isCreated ? 'created' : ''} ${isCurrent ? 'current' : ''} ${isFrozen ? 'frozen' : ''} ${isToday ? 'today' : ''}`}
               onClick={() => onPick(k)}
               title={simple
                 ? `${FRENCH_MONTHS[m]} ${year}`
                 : `${FRENCH_MONTHS[m]} ${year}${isCreated ? (isFrozen ? ' — figé (consultation)' : '') : ' — Cliquer pour créer'}`}
             >
               {FRENCH_MONTHS[m].slice(0, 4)}
-              {/* Cadenas VECTORIEL (icône du set, currentColor) à la place
-                  de la pastille « créé » (masquée via .frozen) : indigo sur
-                  cellule claire, blanc sur le mois courant et au survol. */}
+              {/* Cadenas VECTORIEL (icône du set, currentColor), en haut à
+                  droite : indigo sur cellule claire, blanc sur le mois
+                  affiché et au survol. */}
               {isFrozen && <span className="month-cell-lock" aria-hidden="true"><Icon name="lock" size={10} /></span>}
             </button>
           );
@@ -1371,13 +1388,21 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, sim
       </div>
       {!simple && (
         <div className="picker-legend">
-          <span className="picker-legend-item"><span className="picker-legend-dot" /> Mois créé</span>
+          <span className="picker-legend-item"><span className="picker-legend-created" /> Mois créé</span>
           <span className="picker-legend-item"><span className="picker-legend-box" /> Cliquer pour créer</span>
           {/* v531 : le cadenas n'apparaît en légende que si au moins un
               mois est figé — inutile d'expliquer un symbole absent. */}
           {Object.values(months).some(m => m && m.frozen) && (
             <span className="picker-legend-item"><span className="picker-legend-lock"><Icon name="lock" size={10} /></span> Mois figé</span>
           )}
+          <span className="picker-legend-item"><span className="picker-legend-trait" /> Mois en cours</span>
+        </div>
+      )}
+      {/* « Aujourd'hui » (22/10/2026) : le pied du calendrier de date, même motif. Une NAVIGATION — l'appelant ne crée jamais
+          le mois ; déjà sur la cible, il ferme seulement. Toujours visible : un bouton qui apparaît fait bouger la fenêtre. */}
+      {!simple && onToday && (
+        <div className="date-picker-footer">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onToday}>Aujourd'hui</button>
         </div>
       )}
     </div>
