@@ -18,11 +18,53 @@ const LISERE_PATRIMOINE = (() => {
   return `linear-gradient(to bottom in oklch, ${c[0]} 0 18%, ${c[1]} 32% 43%, ${c[2]} 57% 68%, ${c[3]} 82% 100%)`;
 })();
 
+// L'ACCUEIL SE COMPORTE COMME UN ONGLET D'APP iPHONE : il garde son état et ne rejoue pas son entrée (décision de
+// l'utilisateur, 22/10/2026). ⚠️ La vue est DÉMONTÉE quand on quitte l'onglet (`app.js` ne la rend que sur le sien) :
+// un `useState` repartirait de zéro au retour — l'anneau, en 12M. Ce qui doit durer vit donc au niveau du FICHIER :
+// ça survit au démontage et disparaît au rechargement, exactement la durée d'une session.
+// ⚠️ Pas de `localStorage` : c'est un réglage de LECTURE, pas un endroit où l'on travaille (le mois du compte courant,
+// lui, est retenu sur l'appareil). À la relance, on repart de l'anneau en 12M.
+const SESSION_ACCUEIL = { vue: 'repartition', periode: '12', dejaAffiche: false };
+
+// L'ANIMATION DES DEUX GRAPHIQUES. Recharts anime l'entrée en 1,5 s par défaut — après 400 ms d'attente pour
+// l'anneau —, et la rejouait à chaque bascule et à chaque retour sur l'onglet : ce n'était pas un calcul.
+// Règle : entrée en 300 ms au PREMIER affichage de la session, puis plus aucune entrée animée (elle n'apprend rien et
+// retarde la lecture) ; un changement de données affiché garde sa transition courte, qui montre ce qui a bougé ; rien
+// du tout avec « Réduire les animations », que le bloc `prefers-reduced-motion` de styles.css n'atteint pas —
+// l'animation est en JavaScript.
+const DUREE_ANIMATION_GRAPHIQUE = 300;
+function dureeAnimationGraphique(reduit, entree, dejaAffiche) {
+  if (reduit) return 0;
+  if (entree && dejaAffiche) return 0;
+  return DUREE_ANIMATION_GRAPHIQUE;
+}
+
+// La durée à passer à UN graphique — par instance : l'anneau et la courbe se montent et se démontent à chaque bascule.
+// 🔴 Une DURÉE NULLE, jamais `isAnimationActive` qu'on basculerait : dans Recharts 2.12.7, passer `isAnimationActive`
+//  de faux à vrai remet à vide les secteurs précédents de l'anneau (`prevSectors: []`), donc REJOUE l'entrée entière.
+//  Une durée nulle fait poser l'état final dès la construction de l'animation (react-smooth, `duration <= 0`).
+// 🔴 Le hook s'appelle DANS le composant que rend `ResponsiveContainer` (`AnneauRepartitionChart`,
+//  `EvolutionAiresChart`), jamais au-dessus. `ResponsiveContainer` ne monte le graphique qu'au rendu SUIVANT, une fois
+//  sa taille mesurée dans son effet, en clonant ses enfants DU MOMENT. Appelé dans le parent (DEV v1099), le hook
+//  décidait au premier rendu de la carte : qu'un état d'`App` soit posé dans la même vague d'effets, et la carte se
+//  redessinait en « mise à jour » (300 ms) avant la naissance du graphique — l'entrée s'animait au retour sur l'onglet
+//  (reproduit sur banc le 22/10/2026). Ici, le premier rendu du composant EST la naissance du graphique, quel que soit
+//  le minutage ; `entree` passe à faux dans son effet, après.
+function useDureeAnimationGraphique() {
+  const entree = useRef(true);
+  const dejaAffiche = useRef(SESSION_ACCUEIL.dejaAffiche);
+  useEffect(() => { entree.current = false; SESSION_ACCUEIL.dejaAffiche = true; }, []);
+  const reduit = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  return dureeAnimationGraphique(reduit, entree.current, dejaAffiche.current);
+}
+
 function ConsolidatedView({ ctx, onNavigate }) {
   const { profile, checkingAccounts, savings, portfolios, physical, snapshots } = ctx;
   const enabled = profile.modulesEnabled;
-  // La vue du graphique de la carte « Répartition » : l'anneau ou l'évolution. On ouvre toujours sur l'anneau.
-  const [vue, setVue] = useState('repartition');
+  // La vue du graphique de la carte « Répartition » : l'anneau ou l'évolution. On rouvre sur la dernière vue de la
+  // session (cf. `SESSION_ACCUEIL`) — l'anneau, la première fois.
+  const [vue, setVueEtat] = useState(SESSION_ACCUEIL.vue);
+  const setVue = (v) => { SESSION_ACCUEIL.vue = v; setVueEtat(v); };
 
   // Référence = mois calendaire courant (on ignore les mois futurs créés pour planifier).
   // À défaut, le mois créé le plus récent qui n'est pas dans le futur.
@@ -139,24 +181,7 @@ function ConsolidatedView({ ctx, onNavigate }) {
                 profile={profile}
               />
             ) : (
-              <div style={{ position: 'relative', height: 240 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius="62%" outerRadius="90%" paddingAngle={3} stroke="none">
-                      {pieData.map(p => <Cell key={p.id} fill={p.color} />)}
-                    </Pie>
-                    {/* `zIndex` : l'étiquette « TOTAL » du centre est posée APRÈS le graphique
-                        dans la page, donc dessinée par-dessus la bulle quand celle-ci tombe au
-                        centre — d'où l'effet de bulle « transparente » signalé sur iPhone et sur
-                        ordinateur (19/10/2026). La bulle doit passer devant. */}
-                    <Tooltip content={<CustomTooltip />} wrapperStyle={{ zIndex: 2 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-                  <div style={{ fontSize: 11, color: COLORS.muted }}>TOTAL</div>
-                  <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{fmtNoDec(totalPatrimoine)} €</div>
-                </div>
-              </div>
+              <AnneauRepartition pieData={pieData} totalPatrimoine={totalPatrimoine} />
             )}
           </div>
 
@@ -187,10 +212,52 @@ function ConsolidatedView({ ctx, onNavigate }) {
 }
 
 // ============================================================
+//  ANNEAU DE RÉPARTITION
+// ============================================================
+// Un composant à part (22/10/2026) pour avoir SA PROPRE entrée : rendu en ligne dans `ConsolidatedView`, qui reste
+// montée pendant les bascules, il aurait repris l'animation de 300 ms à chaque retour sur l'anneau.
+function AnneauRepartition({ pieData, totalPatrimoine }) {
+  return (
+    <div style={{ position: 'relative', height: 240 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AnneauRepartitionChart pieData={pieData} />
+      </ResponsiveContainer>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
+        <div style={{ fontSize: 11, color: COLORS.muted }}>TOTAL</div>
+        <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{fmtNoDec(totalPatrimoine)} €</div>
+      </div>
+    </div>
+  );
+}
+
+// Le graphique lui-même, rendu PAR `ResponsiveContainer` : c'est là que se décide la durée (cf.
+// `useDureeAnimationGraphique`). ⚠️ Son nom finit par `Chart` À DESSEIN : `ResponsiveContainer` (Recharts 2.12.7) ne
+// passe son `style` — largeur et hauteur 100 %, plafonnées à la taille mesurée — qu'à un enfant dont le nom finit
+// ainsi. Renommé autrement, il perdrait ce style en silence. Même règle pour `EvolutionAiresChart`.
+function AnneauRepartitionChart({ pieData, width, height, style }) {
+  const duree = useDureeAnimationGraphique();
+  return (
+    <PieChart width={width} height={height} style={style}>
+      <Pie data={pieData} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius="62%" outerRadius="90%" paddingAngle={3} stroke="none"
+        animationBegin={0} animationDuration={duree}>
+        {pieData.map(p => <Cell key={p.id} fill={p.color} />)}
+      </Pie>
+      {/* `zIndex` : l'étiquette « TOTAL » du centre est posée APRÈS le graphique
+          dans la page, donc dessinée par-dessus la bulle quand celle-ci tombe au
+          centre — d'où l'effet de bulle « transparente » signalé sur iPhone et sur
+          ordinateur (19/10/2026). La bulle doit passer devant. */}
+      <Tooltip content={<CustomTooltip />} wrapperStyle={{ zIndex: 2 }} />
+    </PieChart>
+  );
+}
+
+// ============================================================
 //  GRAPHIQUE D'ÉVOLUTION (aires empilées par catégorie)
 // ============================================================
 function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile }) {
-  const [period, setPeriod] = useState('12');
+  // La période est retenue pour la session (cf. `SESSION_ACCUEIL`), comme la vue.
+  const [period, setPeriodEtat] = useState(SESSION_ACCUEIL.periode);
+  const setPeriod = (p) => { SESSION_ACCUEIL.periode = p; setPeriodEtat(p); };
 
   // On reconstruit la série en intégrant le mois courant à la volée
   // (au cas où le snapshot du mois courant n'aurait pas encore été écrit).
@@ -277,33 +344,45 @@ function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile
         </div>
       </div>
       <ResponsiveContainer width="100%" height={240}>
-        <AreaChart data={data} margin={{ top: 6, right: 8, left: -10, bottom: 0 }}>
-          <CartesianGrid stroke={COLORS.border} strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={{ stroke: COLORS.border }} />
-          <YAxis
-            tick={{ fontSize: 11, fill: COLORS.muted }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`}
-            width={50}
-          />
-          <Tooltip content={<EvolutionTooltip categories={sortedCategories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
-          {/* Premier <Area> rendu = bande du BAS de l'empilement */}
-          {sortedCategories.map(c => (
-            <Area
-              key={c.key}
-              type="monotone"
-              dataKey={c.key}
-              stackId="1"
-              stroke={c.color}
-              strokeWidth={1}
-              fill={c.color}
-              fillOpacity={0.85}
-            />
-          ))}
-        </AreaChart>
+        <EvolutionAiresChart data={data} categories={sortedCategories} />
       </ResponsiveContainer>
     </div>
+  );
+}
+
+// Les aires, rendues PAR `ResponsiveContainer` : la durée s'y décide, et le nom finit par `Chart` pour recevoir son
+// `style` (cf. `AnneauRepartitionChart`). Un changement de période les redessine sans les remonter : la transition
+// courte montre ce qui a bougé.
+function EvolutionAiresChart({ data, categories, width, height, style }) {
+  const duree = useDureeAnimationGraphique();
+  return (
+    <AreaChart width={width} height={height} style={style} data={data} margin={{ top: 6, right: 8, left: -10, bottom: 0 }}>
+      <CartesianGrid stroke={COLORS.border} strokeDasharray="3 3" vertical={false} />
+      <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={{ stroke: COLORS.border }} />
+      <YAxis
+        tick={{ fontSize: 11, fill: COLORS.muted }}
+        tickLine={false}
+        axisLine={false}
+        tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`}
+        width={50}
+      />
+      <Tooltip content={<EvolutionTooltip categories={categories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
+      {/* Premier <Area> rendu = bande du BAS de l'empilement */}
+      {categories.map(c => (
+        <Area
+          key={c.key}
+          type="monotone"
+          dataKey={c.key}
+          stackId="1"
+          stroke={c.color}
+          strokeWidth={1}
+          fill={c.color}
+          fillOpacity={0.85}
+          animationBegin={0}
+          animationDuration={duree}
+        />
+      ))}
+    </AreaChart>
   );
 }
 
