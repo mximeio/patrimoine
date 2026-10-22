@@ -2103,14 +2103,14 @@ button.stat-card {
 /* ✖ Plus de pastille « créé » en haut à droite des mois existants (retirée le 22/10/2026, décision de l'utilisateur) : elle
    redisait ce que portent déjà le fond indigo pâle, la bordure pleine et le texte indigo — et le cadenas la remplaçait
    depuis la v490 sur tous les mois figés, soit presque tous. La légende montre la cellule elle-même. */
-/* Indice "+" au survol des mois non créés */
+/* « + » PERMANENT sur les mois à créer (22/10/2026, décision de l'utilisateur) : il dit l'ACTION — toucher la cellule crée le
+   mois —, ce que rien d'autre ne dit sur un téléphone. Il n'apparaissait qu'au survol, donc jamais sur iPhone. En gris moyen
+   (4,8:1) et non plus en gris clair (2,6:1). Même coin que le cadenas, qui ne vit que sur un mois créé : jamais les deux. */
 .month-cell:not(.created)::after {
   content: '+';
   position: absolute; top: 3px; right: 6px;
-  font-size: 13px; font-weight: 700; color: var(--text-subtle);
-  opacity: 0; transition: opacity 0.15s;
+  font-size: 13px; font-weight: 700; color: var(--text-muted);
 }
-@media (hover: hover) { .month-cell:not(.created):hover::after { opacity: 1; } }
 
 /* Légende du picker de mois */
 .picker-legend {
@@ -2127,8 +2127,10 @@ button.stat-card {
   border: 1px solid var(--accent); background: var(--accent-light);
 }
 .picker-legend-box {
-  width: 10px; height: 10px; border-radius: 3px;
+  width: 12px; height: 12px; border-radius: 3px;
   border: 1px dashed var(--border-strong); background: white;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; line-height: 1; color: var(--text-muted);
 }
 /* v531 : cadenas en légende — même dessin que dans les cellules
    (Icon lock 10px, trait 2.4, indigo comme les mois créés). */

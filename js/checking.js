@@ -1389,7 +1389,7 @@ function MonthPicker({ year, setYear, months, currentMonth, onPick, onClose, onT
       {!simple && (
         <div className="picker-legend">
           <span className="picker-legend-item"><span className="picker-legend-created" /> Mois créé</span>
-          <span className="picker-legend-item"><span className="picker-legend-box" /> Cliquer pour créer</span>
+          <span className="picker-legend-item"><span className="picker-legend-box">+</span> Mois à créer</span>
           {/* v531 : le cadenas n'apparaît en légende que si au moins un
               mois est figé — inutile d'expliquer un symbole absent. */}
           {Object.values(months).some(m => m && m.frozen) && (
