@@ -41,8 +41,8 @@ function AuthScreen() {
           <p style={{ color: COLORS.muted, fontSize: 14, margin: '6px 0 0' }}>{t.title}</p>
         </div>
         <div style={{ background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 28, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
-          {error && <div style={{ padding: 10, marginBottom: 16, background: 'var(--danger-light)', color: COLORS.danger, fontSize: 13, borderRadius: 8 }}>{error}</div>}
-          {info && <div style={{ padding: 10, marginBottom: 16, background: 'var(--success-light)', color: COLORS.success, fontSize: 13, borderRadius: 8 }}>{info}</div>}
+          {error && <div style={{ padding: 10, marginBottom: 16, background: 'var(--danger-light)', color: 'var(--danger-fonce)', fontSize: 13, borderRadius: 8 }}>{error}</div>}
+          {info && <div style={{ padding: 10, marginBottom: 16, background: 'var(--success-light)', color: 'var(--success-fonce)', fontSize: 13, borderRadius: 8 }}>{info}</div>}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label className="label">Email</label>

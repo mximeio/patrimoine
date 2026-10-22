@@ -687,7 +687,7 @@ function LogoPatrimoine({ size = 48 }) {
 function ConfigError() {
   return (
     <div style={{ maxWidth: 600, margin: '60px auto', padding: 32, background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: 14 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginTop: 0, color: COLORS.danger }}>Configuration Firebase manquante</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 700, marginTop: 0, color: 'var(--danger-fonce)' }}>Configuration Firebase manquante</h1>
       <p style={{ color: COLORS.muted, lineHeight: 1.6 }}>
         Renseigne ta configuration Firebase dans <code>js/config.js</code> (constante <code>FIREBASE_CONFIG</code>).
       </p>
@@ -922,7 +922,7 @@ function SignedAmountField({ value, onChange, naturalExpense = true, isTR = fals
   const signClass = isTR ? 'sgn-tr' : (isCredit ? 'sgn-in' : 'sgn-out');
   // Couleur du montant pilotée par le BOUTON (l'intention), pas par le signe de
   // la valeur → bascule rouge↔vert immédiate, même champ vide ou à 0.
-  const fieldColor = isTR ? 'var(--warning)' : (isCredit ? 'var(--success)' : 'var(--danger)');
+  const fieldColor = isTR ? 'var(--warning-fonce)' : (isCredit ? 'var(--success-fonce)' : 'var(--danger-fonce)');
 
   const handleAmountChange = (n, hadMinus) => {
     if (hadMinus) { setNeg(true); emit(n, true); }

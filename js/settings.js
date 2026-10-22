@@ -166,7 +166,7 @@ function PasswordChangeCard({ ctx }) {
       <h2>Mot de passe</h2>
       <p className="muted">Modifie ton mot de passe de connexion.</p>
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 380 }}>
-        {error && <div style={{ padding: 10, background: 'var(--danger-light)', color: COLORS.danger, fontSize: 13, borderRadius: 8 }}>{error}</div>}
+        {error && <div style={{ padding: 10, background: 'var(--danger-light)', color: 'var(--danger-fonce)', fontSize: 13, borderRadius: 8 }}>{error}</div>}
         <div>
           <label className="label">Mot de passe actuel</label>
           <input type="password" className="input" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" required />
@@ -686,8 +686,8 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
   };
 
   const types = [
-    { id: 'in',  label: 'Entrée d\'argent', icon: 'arrowDown', color: COLORS.success, bg: 'var(--success-light)', desc: 'Cash entrant' },
-    { id: 'out', label: 'Sortie d\'argent', icon: 'arrowUp',   color: COLORS.danger,  bg: 'var(--danger-light)',  desc: 'Cash sortant' },
+    { id: 'in',  label: 'Entrée d\'argent', icon: 'arrowDown', color: 'var(--success-fonce)', bg: 'var(--success-light)', desc: 'Cash entrant' },
+    { id: 'out', label: 'Sortie d\'argent', icon: 'arrowUp',   color: 'var(--danger-fonce)', bg: 'var(--danger-light)',  desc: 'Cash sortant' },
   ];
 
   return (

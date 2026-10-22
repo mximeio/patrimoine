@@ -238,7 +238,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
         <div className="stat-card">
           <div className={`stat-card-icon ${staleWarn ? 'tr-utensils' : 'stale-neutral'}`}><Icon name="calendar" size={14} /></div>
           <div className="stat-card-label">{allSameDate ? 'Valorisations' : 'À rafraîchir'}</div>
-          <div className="stat-card-value num" style={staleWarn ? { color: '#b45309' } : undefined}>
+          <div className="stat-card-value num" style={staleWarn ? { color: 'var(--warning-fonce)' } : undefined}>
             {oldestUpdate ? fmtDateNumeric(oldestUpdate.d) : '—'}
             {staleWarn && <span className="stale-tag">{staleDays} j</span>}
           </div>
@@ -312,7 +312,7 @@ function PortfolioListRow({ portfolio, colorIndex, total, onClick }) {
       <div className="portfolio-list-right">
         <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{fmt(stats.totalValue)}<span className="currency-muted"> €</span></div>
         {stats.totalPurchased > 0 || stats.totalGain !== 0 ? (
-          <div className="num" style={{ fontSize: 12, color: positive ? COLORS.success : COLORS.danger, marginTop: 2 }}>
+          <div className="num" style={{ fontSize: 12, color: positive ? 'var(--success-fonce)' : 'var(--danger-fonce)', marginTop: 2 }}>
             {positive ? '+' : ''}{fmt(stats.totalGain)} €
             {stats.totalPurchased > 0 && (
               <> · {positive ? '+' : ''}{stats.totalGainPct.toFixed(2)} %</>
@@ -845,8 +845,8 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
       <div style={{ height: 1, background: COLORS.border, margin: '6px 0 0' }} />
       <div style={{ marginTop: 6, padding: 12, background: 'var(--danger-light)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.danger }}>Supprimer cette enveloppe</div>
-          <div style={{ fontSize: 12, color: COLORS.danger, opacity: 0.85, marginTop: 2 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger-fonce)' }}>Supprimer cette enveloppe</div>
+          <div style={{ fontSize: 12, color: 'var(--danger-fonce)', opacity: 0.85, marginTop: 2 }}>
             Toutes les opérations seront perdues à jamais. Action irréversible.
           </div>
         </div>
@@ -854,7 +854,7 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
           type="button"
           className="btn"
           onClick={onDelete}
-          style={{ background: COLORS.danger, color: 'white', borderColor: COLORS.danger, flexShrink: 0 }}
+          style={{ background: 'var(--danger-fonce)', color: 'white', borderColor: 'var(--danger-fonce)', flexShrink: 0 }}
         >
           <Icon name="trash" size={14} /> Supprimer
         </button>
@@ -910,13 +910,13 @@ function SupportRow({ position, lastDate }) {
           {hasTarget && <>{' '}<InfoTip iconName="target" label={targetTip} /></>}
           {lastDate ? ` · ${fmtDateNumeric(lastDate)}` : ''}
           {isDist && position.dividendsReceived > 0 && (
-            <span style={{ color: COLORS.info, marginLeft: 6 }}>· +{fmt(position.dividendsReceived)} € de div.</span>
+            <span style={{ color: 'var(--info-fonce)', marginLeft: 6 }}>· +{fmt(position.dividendsReceived)} € de div.</span>
           )}
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>
         <div className="support-value num">{fmt(position.current)}<span className="currency-muted"> €</span></div>
-        <div className="support-gain num" style={{ color: isUp ? COLORS.success : COLORS.danger }}>
+        <div className="support-gain num" style={{ color: isUp ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}>
           {isUp ? '+' : ''}{fmt(position.gain)} €
           {position.purchased > 0 && (
             <> · {isUp ? '+' : ''}{position.gainPct.toFixed(2)} %</>
@@ -1003,7 +1003,7 @@ function OperationsJournal({ stats, onShowAll, onAdd, onEdit, onDelete }) {
                 {d.sign} {fmt(d.amount)}<span className="currency-muted"> €</span>{d.amountSuffix || ''}
               </div>
               {isTransfer ? (
-                <span style={{ fontSize: 11, color: COLORS.info, textAlign: 'center' }} title="Virement interne">⇄</span>
+                <span style={{ fontSize: 11, color: 'var(--info-fonce)', textAlign: 'center' }} title="Virement interne">⇄</span>
               ) : (
                 <button className="tx-edit" onClick={() => onEdit(op)} title="Modifier">
                   <Icon name="pencil" size={12} />
@@ -1139,12 +1139,12 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
   //  - Réception : ROSE (cadeau/parrainage)   — propre aux investissements
   //  - Dividende : CYAN (gain passif)         — équiv. "Intérêts" épargne
   const types = [
-    { id: 'deposit',    label: 'Versement',  icon: 'arrowDown', color: COLORS.success, bg: 'var(--success-light)', desc: 'Cash entrant' },
-    { id: 'withdrawal', label: 'Retrait',    icon: 'arrowUp',   color: COLORS.danger,  bg: 'var(--danger-light)',  desc: 'Cash sortant' },
+    { id: 'deposit',    label: 'Versement',  icon: 'arrowDown', color: 'var(--success-fonce)', bg: 'var(--success-light)', desc: 'Cash entrant' },
+    { id: 'withdrawal', label: 'Retrait',    icon: 'arrowUp',   color: 'var(--danger-fonce)', bg: 'var(--danger-light)',  desc: 'Cash sortant' },
     { id: 'purchase',   label: 'Achat',      icon: 'trendUp',   color: COLORS.accent,  bg: 'var(--accent-light)',  desc: 'Acheter un support' },
-    { id: 'sale',       label: 'Vente',      icon: 'arrowLeftRight', color: COLORS.warning, bg: 'var(--warning-light)', desc: 'Revendre un support' },
-    { id: 'gift',       label: 'Réception',  icon: 'gift',      color: '#ec4899',      bg: '#fdf2f8',              desc: 'Cadeau, parrainage' },
-    { id: 'dividend',   label: 'Dividende',  icon: 'coin',      color: COLORS.info,    bg: 'var(--info-light)',    desc: 'Cash perçu' },
+    { id: 'sale',       label: 'Vente',      icon: 'arrowLeftRight', color: 'var(--warning-fonce)', bg: 'var(--warning-light)', desc: 'Revendre un support' },
+    { id: 'gift',       label: 'Réception',  icon: 'gift',      color: 'var(--rose-fonce)', bg: '#fdf2f8',              desc: 'Cadeau, parrainage' },
+    { id: 'dividend',   label: 'Dividende',  icon: 'coin',      color: 'var(--info-fonce)',    bg: 'var(--info-light)',    desc: 'Cash perçu' },
     { id: 'fee',        label: 'Frais',      icon: 'receipt',   color: COLORS.muted,   bg: '#f1f5f9',              desc: 'Frais de tenue de compte' },
     // ⚠️ Le filtre est posé ICI, sur la liste, et non par un `display: none` dans le
     // rendu : une cellule masquée en CSS occuperait quand même sa place dans la
@@ -1718,13 +1718,13 @@ function getOpDisplay(op, nameOf) {
       return {
         iconName: 'arrowDown', bg: 'var(--success-light)', color: couleurIcone(COLORS.success),
         label: op.isTransfer ? `Virement depuis ${op.sourceLabel}` : 'Versement',
-        amount: op.amount || 0, sign: '+', amountColor: COLORS.success,
+        amount: op.amount || 0, sign: '+', amountColor: 'var(--success-fonce)',
       };
     case 'withdrawal':
       return {
         iconName: 'arrowUp', bg: 'var(--danger-light)', color: couleurIcone(COLORS.danger),
         label: 'Retrait',
-        amount: op.amount || 0, sign: '−', amountColor: COLORS.danger,
+        amount: op.amount || 0, sign: '−', amountColor: 'var(--danger-fonce)',
       };
     case 'purchase':
       return {
@@ -1736,20 +1736,20 @@ function getOpDisplay(op, nameOf) {
       return {
         iconName: 'gift', bg: '#fdf2f8', color: couleurIcone('#ec4899'),
         label: `Réception gratuite ${etfLbl}`,
-        amount: op.marketValue || 0, sign: '', amountColor: '#ec4899',
+        amount: op.marketValue || 0, sign: '', amountColor: 'var(--rose-fonce)',
         amountSuffix: ' (valeur)', isInformative: true,
       };
     case 'dividend':
       return {
         iconName: 'coin', bg: 'var(--info-light)', color: couleurIcone(COLORS.info),
         label: `Dividende ${etfLbl}`,
-        amount: op.amount || 0, sign: '+', amountColor: COLORS.info,
+        amount: op.amount || 0, sign: '+', amountColor: 'var(--info-fonce)',
       };
     case 'sale':
       return {
         iconName: 'arrowLeftRight', bg: 'var(--warning-light)', color: couleurIcone(COLORS.warning),
         label: `Vente ${etfLbl}`,
-        amount: op.amount || 0, sign: '+', amountColor: COLORS.warning,
+        amount: op.amount || 0, sign: '+', amountColor: 'var(--warning-fonce)',
       };
     case 'fee':
       // Frais informatifs (déjà nets dans la valorisation) → rendu gris/neutre
@@ -1787,7 +1787,7 @@ function HistoryOpsTable({ stats, data, onEdit, onDelete }) {
             {/* Action : crayon pour modifier (la suppression est dans la modale) ;
                 ⇄ pour les virements internes auto (non éditables). */}
             {isTransfer ? (
-              <span style={{ fontSize: 11, color: COLORS.info, textAlign: 'center' }} title="Virement interne">⇄</span>
+              <span style={{ fontSize: 11, color: 'var(--info-fonce)', textAlign: 'center' }} title="Virement interne">⇄</span>
             ) : (
               <button className="tx-edit" onClick={() => onEdit(op)} title="Modifier">
                 <Icon name="pencil" size={12} />

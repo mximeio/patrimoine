@@ -508,8 +508,8 @@ function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyCh
       <div style={{ height: 1, background: COLORS.border, margin: '6px 0 0' }} />
       <div style={{ marginTop: 6, padding: 12, background: 'var(--danger-light)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.danger }}>Supprimer ce compte d'épargne</div>
-          <div style={{ fontSize: 12, color: COLORS.danger, opacity: 0.85, marginTop: 2 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger-fonce)' }}>Supprimer ce compte d'épargne</div>
+          <div style={{ fontSize: 12, color: 'var(--danger-fonce)', opacity: 0.85, marginTop: 2 }}>
             Toutes les opérations seront perdues à jamais. Action irréversible.
           </div>
         </div>
@@ -517,7 +517,7 @@ function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyCh
           type="button"
           className="btn"
           onClick={onDelete}
-          style={{ background: COLORS.danger, color: 'white', borderColor: COLORS.danger, flexShrink: 0 }}
+          style={{ background: 'var(--danger-fonce)', color: 'white', borderColor: 'var(--danger-fonce)', flexShrink: 0 }}
         >
           <Icon name="trash" size={14} /> Supprimer
         </button>
@@ -545,19 +545,19 @@ function getSavingsOpDisplay(op) {
       return {
         iconName: 'arrowDown', bg: 'var(--success-light)', color: couleurIcone(COLORS.success),
         label: op.label?.trim() || 'Versement',
-        amount: op.amount || 0, sign: '+', amountColor: COLORS.success,
+        amount: op.amount || 0, sign: '+', amountColor: 'var(--success-fonce)',
       };
     case 'out':
       return {
         iconName: 'arrowUp', bg: 'var(--danger-light)', color: couleurIcone(COLORS.danger),
         label: op.label?.trim() || 'Retrait',
-        amount: op.amount || 0, sign: '−', amountColor: COLORS.danger,
+        amount: op.amount || 0, sign: '−', amountColor: 'var(--danger-fonce)',
       };
     case 'interest':
       return {
         iconName: 'percent', bg: 'var(--info-light)', color: couleurIcone(COLORS.info),
         label: op.label?.trim() || 'Intérêts',
-        amount: op.amount || 0, sign: '+', amountColor: COLORS.info,
+        amount: op.amount || 0, sign: '+', amountColor: 'var(--info-fonce)',
       };
     default:
       return {
@@ -635,9 +635,9 @@ function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete, showTo
   const videDePorteur = !(label || '').trim() && (parseFloat(amount) || 0) === 0;
 
   const types = [
-    { id: 'in',       label: 'Versement', icon: 'arrowDown', color: COLORS.success, bg: 'var(--success-light)', desc: 'Cash entrant' },
-    { id: 'out',      label: 'Retrait',   icon: 'arrowUp',   color: COLORS.danger,  bg: 'var(--danger-light)',  desc: 'Cash sortant' },
-    { id: 'interest', label: 'Intérêts',  icon: 'percent',   color: COLORS.info,    bg: 'var(--info-light)',    desc: 'Cash perçu' },
+    { id: 'in',       label: 'Versement', icon: 'arrowDown', color: 'var(--success-fonce)', bg: 'var(--success-light)', desc: 'Cash entrant' },
+    { id: 'out',      label: 'Retrait',   icon: 'arrowUp',   color: 'var(--danger-fonce)', bg: 'var(--danger-light)',  desc: 'Cash sortant' },
+    { id: 'interest', label: 'Intérêts',  icon: 'percent',   color: 'var(--info-fonce)', bg: 'var(--info-light)',    desc: 'Cash perçu' },
   ];
 
   const submit = (e) => {

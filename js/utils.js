@@ -40,7 +40,7 @@ const PORTFOLIO_PALETTE = ['#4f46e5', '#f59e0b', '#06b6d4', '#ec4899', '#10b981'
 // agressive. ⚠️ L'ambre est un cran plus sombre que sa 600 (#d97706) : sur une pastille teintée à 15 %, celle-ci
 // tombait à 2,8:1 (attrapé par le test) ; #c96a07 donne 3,4 à 3,7:1. L'indigo et le gris passaient déjà : inchangés. Une couleur hors de cette table (choisie
 // librement pour un compte ou une enveloppe) est assombrie d'un quart vers le bleu nuit.
-// Le pendant CSS : les variables `--*-icone` de styles.css.
+// Le pendant CSS : les variables `--*-fonce` de styles.css — la même nuance sert aussi au TEXTE depuis le 22/10/2026.
 const NUANCE_ICONE = {
   '#10b981': '#059669', '#ef4444': '#dc2626', '#f59e0b': '#c96a07', '#06b6d4': '#0891b2',
   '#ec4899': '#db2777', '#8b5cf6': '#7c3aed', '#4f46e5': '#4f46e5', '#64748b': '#64748b',

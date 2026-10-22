@@ -221,7 +221,7 @@ function NewCheckingAccountForm({ onSubmit, existingNames = [], showToast }) {
         {/* Avertissement de CHAMP, conservé : il paraît pendant la frappe, à côté
             du champ concerné — ce n'est pas le refus du bouton, qui passe par un toast. */}
         {isDuplicate && (
-          <div className="field-hint" style={{ color: COLORS.danger, marginTop: 4 }}>
+          <div className="field-hint" style={{ color: 'var(--danger-fonce)', marginTop: 4 }}>
             {`Le nom "${trimmed}" est déjà utilisé.`}
           </div>
         )}
@@ -662,13 +662,13 @@ function CheckingView({ ctx, onBack }) {
                 disabled={frozen}
                 title={frozen ? 'Mois figé — défige-le d’abord' : undefined}
               >
-                <span style={{ color: frozen ? COLORS.subtle : COLORS.danger, display: 'inline-flex' }}><Icon name="trash" size={14} /></span>
+                <span style={{ color: frozen ? COLORS.subtle : 'var(--danger-fonce)', display: 'inline-flex' }}><Icon name="trash" size={14} /></span>
                 Supprimer ce mois
               </button>
             </Dropdown>
           </div>
         </div>
-        <div className="num hero-value-big" style={{ marginTop: 6, color: stats.balancePointed >= 0 ? '#6ee7a8' : '#fca5a5' }}>
+        <div className="num hero-value-big" style={{ marginTop: 6, color: stats.balancePointed >= 0 ? '#86efac' : '#fca5a5' }}>
           {eur(stats.balancePointed)}
         </div>
         <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
@@ -777,7 +777,7 @@ function CheckingView({ ctx, onBack }) {
           >
             <div className="stat-card-icon tr-utensils"><Icon name="utensils" size={14} /></div>
             <div className="stat-card-label">Tickets resto</div>
-            <div className="stat-card-value" style={{ color: 'var(--warning)' }}>{eur(stats.trTotal)}</div>
+            <div className="stat-card-value" style={{ color: 'var(--warning-fonce)' }}>{eur(stats.trTotal)}</div>
             <div className="stat-card-sub">
               {eur(stats.trUserShare)} de ma poche
             </div>
@@ -839,8 +839,8 @@ function CheckingView({ ctx, onBack }) {
           >
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <div style={{ flex: 1, background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 10, padding: '9px 12px' }}>
-                <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#b45309', fontWeight: 600 }}>Total du mois</div>
-                <div className="num" style={{ fontSize: 17, fontWeight: 600, color: '#b45309', marginTop: 2 }}>{eur(stats.trTotal)}</div>
+                <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--warning-fonce)', fontWeight: 600 }}>Total du mois</div>
+                <div className="num" style={{ fontSize: 17, fontWeight: 600, color: 'var(--warning-fonce)', marginTop: 2 }}>{eur(stats.trTotal)}</div>
               </div>
               <div style={{ flex: 1, background: 'var(--surface-alt, #f8fafc)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px' }}>
                 <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', fontWeight: 600 }}>De ma poche</div>
@@ -1086,7 +1086,7 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
           placeholder={isMultiMode ? 'ex: Compte joint, Boursorama, …' : 'Compte principal'}
         />
         {isDuplicateName && (
-          <div className="field-hint" style={{ color: COLORS.danger }}>
+          <div className="field-hint" style={{ color: 'var(--danger-fonce)' }}>
             Le nom "{trimmedNameNow}" est déjà utilisé par un autre compte.
           </div>
         )}
@@ -1167,8 +1167,8 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
           <div style={{ height: 1, background: COLORS.border, margin: '8px 0 4px' }} />
           <div style={{ marginTop: 4, padding: 12, background: 'var(--danger-light)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.danger }}>Supprimer ce compte</div>
-              <div style={{ fontSize: 12, color: COLORS.danger, opacity: 0.85, marginTop: 2 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger-fonce)' }}>Supprimer ce compte</div>
+              <div style={{ fontSize: 12, color: 'var(--danger-fonce)', opacity: 0.85, marginTop: 2 }}>
                 Tous ses mois, entrées/sorties et TR seront effacés. Action irréversible.
               </div>
             </div>
@@ -1176,7 +1176,7 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
               type="button"
               className="btn"
               onClick={onDelete}
-              style={{ background: COLORS.danger, color: 'white', borderColor: COLORS.danger, flexShrink: 0 }}
+              style={{ background: 'var(--danger-fonce)', color: 'white', borderColor: 'var(--danger-fonce)', flexShrink: 0 }}
             >
               <Icon name="trash" size={14} /> Supprimer
             </button>
@@ -1638,13 +1638,13 @@ function MonthInputPicker({ value, onChange, placeholder = 'Choisir un mois', cl
 // ============================================================
 function getCheckingOpDisplay(op) {
   if (op.isTRRefund) {
-    return { iconName: 'utensils', bg: 'var(--warning-light)', color: 'var(--warning-icone)', amountColor: 'var(--warning)', variant: 'tr' };
+    return { iconName: 'utensils', bg: 'var(--warning-light)', color: 'var(--warning-fonce)', amountColor: 'var(--warning-fonce)', variant: 'tr' };
   }
   if (op.type === 'in') {
-    return { iconName: 'arrowDown', bg: 'var(--success-light)', color: couleurIcone(COLORS.success), amountColor: COLORS.success, variant: 'income' };
+    return { iconName: 'arrowDown', bg: 'var(--success-light)', color: couleurIcone(COLORS.success), amountColor: 'var(--success-fonce)', variant: 'income' };
   }
   // 'out' par défaut
-  return { iconName: 'arrowUp', bg: 'var(--danger-light)', color: couleurIcone(COLORS.danger), amountColor: COLORS.danger, variant: 'expense' };
+  return { iconName: 'arrowUp', bg: 'var(--danger-light)', color: couleurIcone(COLORS.danger), amountColor: 'var(--danger-fonce)', variant: 'expense' };
 }
 
 // ============================================================
@@ -2162,13 +2162,13 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
   };
 
   const types = [
-    { id: 'in',  label: 'Entrée', icon: 'arrowDown', color: COLORS.success, bg: 'var(--success-light)', desc: 'Cash entrant' },
-    { id: 'out', label: 'Sortie', icon: 'arrowUp',   color: COLORS.danger,  bg: 'var(--danger-light)',  desc: 'Cash sortant' },
+    { id: 'in',  label: 'Entrée', icon: 'arrowDown', color: 'var(--success-fonce)', bg: 'var(--success-light)', desc: 'Cash entrant' },
+    { id: 'out', label: 'Sortie', icon: 'arrowUp',   color: 'var(--danger-fonce)', bg: 'var(--danger-light)',  desc: 'Cash sortant' },
   ];
   // 3e type "Paiement TR" : seulement si les tickets resto sont activés ET que
   // le contexte l'autorise (création, pas édition d'une opération existante).
   if (trEnabled && allowTr) {
-    types.push({ id: 'tr', label: 'Paiement TR', icon: 'utensils', color: '#b45309', bg: 'var(--warning-light)', desc: 'Ticket resto payé' });
+    types.push({ id: 'tr', label: 'Paiement TR', icon: 'utensils', color: 'var(--warning-fonce)', bg: 'var(--warning-light)', desc: 'Ticket resto payé' });
   }
 
   return (
@@ -2221,7 +2221,7 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
           </label>
         </div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#b45309', background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 10, padding: '9px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--warning-fonce)', background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 10, padding: '9px 12px' }}>
           <Icon name="utensils" size={14} /> Comptabilisé dans les tickets resto du mois.
         </div>
       )}

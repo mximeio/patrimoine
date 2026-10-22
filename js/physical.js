@@ -131,7 +131,7 @@ function PhysicalRow({ item, onEdit, onDelete }) {
       </div>
       <div style={{ textAlign: 'right' }}>
         <div className="asset-value num">{fmt(current)}<span className="currency-muted"> €</span></div>
-        <div className="asset-gain num" style={{ color: gain >= 0 ? COLORS.success : COLORS.danger }}>
+        <div className="asset-gain num" style={{ color: gain >= 0 ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}>
           {gain >= 0 ? '+' : ''}{fmt(gain)} € · {gain >= 0 ? '+' : ''}{gainPct.toFixed(2)}%
         </div>
       </div>

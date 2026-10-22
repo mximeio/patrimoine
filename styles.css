@@ -28,11 +28,18 @@
   --warning-light: #fffbeb;
   --info: #06b6d4;
   --info-light: #ecfeff;
-  /* L'icône posée sur une pastille claire de sa couleur : la nuance 600 (DEV v1095, cf. `couleurIcone`, utils.js). */
-  --success-icone: #059669;
-  --danger-icone: #dc2626;
-  --warning-icone: #c96a07; /* un cran au-dessus de la 600 : elle restait sous 3:1 sur pastille à 15 % */
-  --info-icone: #0891b2;
+  /* LA nuance de chaque couleur pour tout ce qui s'écrit ou se dessine sur fond clair — texte, icône, fond plein sous un
+     texte blanc —, sur blanc comme sur fond pâle. Règle de l'utilisateur du 22/10/2026 (« 600 partout », pour l'uniformité) :
+     la couleur PLEINE (`--success`…, la 500) ne sert plus au texte (2,1 à 3,8:1 sur blanc), seulement aux points, liserés et
+     données. Les icônes la portaient depuis la DEV v1095 (`--*-icone`, d'où `couleurIcone`, utils.js) ; le texte l'a rejointe,
+     et le nom a suivi. Contraste : 3,7 à 4,8:1 sur blanc, 3,5 à 4,4:1 sur fond pâle — jamais sous 3:1 (test).
+     ⚠️ Sur les cartes de tête SOMBRES, c'est l'inverse : teintes claires (`#86efac`, `#fca5a5`, `#67e8f9`, posées en JS). */
+  --success-fonce: #059669;
+  --danger-fonce: #dc2626;
+  --warning-fonce: #c96a07; /* un cran au-dessus de la 600 : elle restait sous 3:1 sur pastille à 15 % */
+  --info-fonce: #0891b2;
+  --rose-fonce: #db2777;
+  --violet-fonce: #7c3aed;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -168,8 +175,8 @@ input[type="month"] {
 @media (hover: hover) { .btn-secondary:hover { background: var(--surface-hover); border-color: var(--border-strong); } }
 .btn-ghost { background: transparent; color: var(--text-muted); }
 @media (hover: hover) { .btn-ghost:hover { background: var(--surface-hover); color: var(--text); } }
-.btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
-@media (hover: hover) { .btn-danger:hover { background: #dc2626; } }
+.btn-danger { background: var(--danger-fonce); color: white; border-color: var(--danger-fonce); }
+@media (hover: hover) { .btn-danger:hover { background: #b91c1c; } }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn-lg { padding: 12px 22px; font-size: 14px; }
 /* Bouton « Supprimer » en bas des modales d'édition (remplace le × des lignes). */
@@ -177,7 +184,7 @@ input[type="month"] {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   width: 100%; padding: 11px 16px;
   border: 1px solid #fca5a5; background: var(--danger-light);
-  color: var(--danger); font-family: inherit; font-size: 14px; font-weight: 600;
+  color: var(--danger-fonce); font-family: inherit; font-size: 14px; font-weight: 600;
   border-radius: var(--radius-md); cursor: pointer; transition: background 0.15s;
 }
 @media (hover: hover) { .btn-delete-line:hover { background: #fee2e2; } }
@@ -209,7 +216,7 @@ input[type="month"] {
 .btn-icon:hover { background: var(--surface-hover); color: var(--text); border-color: var(--border); }
 .btn-icon.btn-icon-danger:hover {
   background: var(--danger-light);
-  color: var(--danger);
+  color: var(--danger-fonce);
   border-color: transparent;
 }
 }
@@ -303,7 +310,7 @@ input[type="month"] {
   transition: background 0.1s; font-family: inherit;
 }
 @media (hover: hover) { .dropdown-item:hover { background: var(--surface-hover); } }
-.dropdown-item-danger { color: var(--danger); }
+.dropdown-item-danger { color: var(--danger-fonce); }
 @media (hover: hover) { .dropdown-item-danger:hover { background: var(--danger-light); } }
 .dropdown-separator { height: 1px; background: var(--border); margin: 6px -6px; }
 /* v584 : bloc identité (avatar + email) en haut du menu ⋯ desktop, aligné à
@@ -457,7 +464,7 @@ input[type="month"] {
 .charge-badge {
   width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: var(--danger-light); color: var(--danger);
+  background: var(--danger-light); color: var(--danger-fonce);
   font-weight: 700; font-size: 13px;
 }
 .charge-main { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -512,11 +519,11 @@ input[type="month"] {
 .charges-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 /* Étoile "référence" : icône seule (tient sur la ligne du nom même en mobile) */
 .star-btn { color: var(--text-subtle); font-size: 17px; line-height: 1; }
-.star-btn.on { color: var(--warning); border-color: var(--warning); background: var(--warning-light); }
-@media (hover: hover) { .star-btn:hover { color: var(--warning); } }
+.star-btn.on { color: var(--warning-fonce); border-color: var(--warning-fonce); background: var(--warning-light); }
+@media (hover: hover) { .star-btn:hover { color: var(--warning-fonce); } }
 .ref-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--warning); color: var(--warning); background: var(--warning-light);
+  border: 1px solid var(--warning-fonce); color: var(--warning-fonce); background: var(--warning-light);
   border-radius: var(--radius-full); padding: 8px 13px;
   font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap;
 }
@@ -629,8 +636,8 @@ input[type="month"] {
 }
 .cmpp-tab td .v { display: block; font-weight: 500; color: var(--text); line-height: 1.2; }
 .cmp-delta { display: block; font-size: 11px; font-weight: 400; margin-top: 4px; }
-.cmp-delta.down { color: var(--danger); }
-.cmp-delta.up { color: var(--success); }
+.cmp-delta.down { color: var(--danger-fonce); }
+.cmp-delta.up { color: var(--success-fonce); }
 .cmp-delta.neu { color: var(--text-subtle); }
 .cmp-star { color: var(--accent); }
 /* arrondi (portrait smartphone) vs exact (paysage + desktop) */
@@ -1119,10 +1126,10 @@ button.stat-card {
   display: flex; align-items: center; justify-content: center;
   background: var(--surface-hover); color: var(--text-muted);
 }
-.stat-card-icon.income { background: var(--success-light); color: var(--success-icone); }
-.stat-card-icon.expense { background: var(--danger-light); color: var(--danger-icone); }
+.stat-card-icon.income { background: var(--success-light); color: var(--success-fonce); }
+.stat-card-icon.expense { background: var(--danger-light); color: var(--danger-fonce); }
 .stat-card-icon.tr { background: var(--accent-light); color: var(--accent); }
-.stat-card-icon.tr-utensils { background: var(--warning-light); color: var(--warning-icone); }
+.stat-card-icon.tr-utensils { background: var(--warning-light); color: var(--warning-fonce); }
 .stat-card-label {
   font-size: 11px; color: var(--text-muted);
   font-weight: 500; text-transform: uppercase;
@@ -1138,9 +1145,9 @@ button.stat-card {
   margin-top: 4px; font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-.value-positive { color: var(--success); }
-.value-negative { color: var(--danger); }
-.value-info { color: var(--info); }
+.value-positive { color: var(--success-fonce); }
+.value-negative { color: var(--danger-fonce); }
+.value-info { color: var(--info-fonce); }
 
 /* ============================================================
    Module Épargne — détail d'un livret
@@ -1178,9 +1185,9 @@ button.stat-card {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 10px; margin-bottom: 14px;
 }
-.stat-card-icon.savings-in { background: var(--success-light); color: var(--success-icone); }
-.stat-card-icon.savings-out { background: var(--danger-light); color: var(--danger-icone); }
-.stat-card-icon.savings-itr { background: var(--info-light); color: var(--info-icone); }
+.stat-card-icon.savings-in { background: var(--success-light); color: var(--success-fonce); }
+.stat-card-icon.savings-out { background: var(--danger-light); color: var(--danger-fonce); }
+.stat-card-icon.savings-itr { background: var(--info-light); color: var(--info-fonce); }
 
 /* Mobile : grille resserrée pour les stats de la vue détail d'un livret. */
 @media (max-width: 640px) {
@@ -1207,14 +1214,14 @@ button.stat-card {
   width: 26px; height: 26px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
 }
-.section-icon.income { background: var(--success-light); color: var(--success-icone); }
-.section-icon.expense { background: var(--danger-light); color: var(--danger-icone); }
+.section-icon.income { background: var(--success-light); color: var(--success-fonce); }
+.section-icon.expense { background: var(--danger-light); color: var(--danger-fonce); }
 .section-icon.tr { background: var(--accent-light); color: var(--accent); }
-.section-icon.tr-utensils { background: var(--warning-light); color: var(--warning-icone); }
+.section-icon.tr-utensils { background: var(--warning-light); color: var(--warning-fonce); }
 .section-icon.checking { background: var(--accent-light); color: var(--accent); }
-.section-icon.savings { background: var(--info-light); color: var(--info-icone); }
-.section-icon.invest { background: var(--success-light); color: var(--success-icone); }
-.section-icon.physical { background: var(--warning-light); color: var(--warning-icone); }
+.section-icon.savings { background: var(--info-light); color: var(--info-fonce); }
+.section-icon.invest { background: var(--success-light); color: var(--success-fonce); }
+.section-icon.physical { background: var(--warning-light); color: var(--warning-fonce); }
 .section-total { font-size: 12px; color: var(--text-muted); }
 .section-total strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
@@ -1293,12 +1300,12 @@ button.stat-card {
    donc le cursor:grab pour ne pas suggérer une interaction qui n'existe plus. */
 .tx-icon.no-drag,
 .tx-icon.no-drag:active { cursor: default; }
-.tx-icon.income { background: var(--success-light); color: var(--success-icone); }
-.tx-icon.expense { background: var(--danger-light); color: var(--danger-icone); }
+.tx-icon.income { background: var(--success-light); color: var(--success-fonce); }
+.tx-icon.expense { background: var(--danger-light); color: var(--danger-fonce); }
 .tx-icon.composite { background: var(--accent-light); color: var(--accent); }
-.tx-icon.tr { background: var(--warning-light); color: var(--warning-icone); }
-.tx-icon.pat { background: var(--warning-light); color: var(--warning-icone); }
-.tx-icon.savings-mini { background: var(--info-light); color: var(--info-icone); }
+.tx-icon.tr { background: var(--warning-light); color: var(--warning-fonce); }
+.tx-icon.pat { background: var(--warning-light); color: var(--warning-fonce); }
+.tx-icon.savings-mini { background: var(--info-light); color: var(--info-fonce); }
 .tx-icon.mini {
   width: 18px; height: 18px;
   font-size: 10px;
@@ -1369,9 +1376,9 @@ button.stat-card {
   display: flex; align-items: center; justify-content: center;
   transition: transform 0.08s, background 0.1s;
 }
-.signed-amount-btn.sgn-out { color: var(--danger);  background: var(--danger-light);  border-color: var(--danger-light); }
-.signed-amount-btn.sgn-in  { color: var(--success); background: var(--success-light); border-color: var(--success-light); }
-.signed-amount-btn.sgn-tr  { color: var(--warning); background: var(--warning-light); border-color: var(--warning-light); }
+.signed-amount-btn.sgn-out { color: var(--danger-fonce);  background: var(--danger-light);  border-color: var(--danger-light); }
+.signed-amount-btn.sgn-in  { color: var(--success-fonce); background: var(--success-light); border-color: var(--success-light); }
+.signed-amount-btn.sgn-tr  { color: var(--warning-fonce); background: var(--warning-light); border-color: var(--warning-light); }
 .signed-amount-btn:active { transform: scale(0.94); }
 .signed-amount-btn.is-ro { cursor: default; }
 .signed-amount-btn.is-ro:active { transform: none; }
@@ -1423,19 +1430,19 @@ button.stat-card {
 .tx-row:has(.tx-icon.income) .composite-amount-wrap input,
 .recurring-row:has(.tx-icon.income) .tx-amount-wrap input,
 .recurring-row:has(.tx-icon.income) .composite-amount-wrap input,
-.composite-comp-row:has(.tx-icon.income) .tx-amount-wrap input { color: var(--success); }
+.composite-comp-row:has(.tx-icon.income) .tx-amount-wrap input { color: var(--success-fonce); }
 
 .tx-row:has(.tx-icon.expense) .tx-amount,
 .tx-row:has(.tx-icon.expense) .tx-amount-wrap input,
 .tx-row:has(.tx-icon.expense) .composite-amount-wrap input,
 .recurring-row:has(.tx-icon.expense) .tx-amount-wrap input,
 .recurring-row:has(.tx-icon.expense) .composite-amount-wrap input,
-.composite-comp-row:has(.tx-icon.expense) .tx-amount-wrap input { color: var(--danger); }
+.composite-comp-row:has(.tx-icon.expense) .tx-amount-wrap input { color: var(--danger-fonce); }
 
 .tx-row:has(.tx-icon.tr) .tx-amount,
 .tx-row:has(.tx-icon.tr) .tx-amount-wrap input,
 .recurring-row:has(.tx-icon.tr) .tx-amount-wrap input,
-.composite-comp-row:has(.tx-icon.tr) .tx-amount-wrap input { color: var(--warning); }
+.composite-comp-row:has(.tx-icon.tr) .tx-amount-wrap input { color: var(--warning-fonce); }
 
 .tx-delete {
   width: 24px; height: 24px; padding: 0;
@@ -1458,7 +1465,7 @@ button.stat-card {
 }
 @media (hover: hover) {
 .tx-edit:hover { background: var(--accent-light); color: var(--accent); }
-.tx-delete:hover { background: var(--danger-light); color: var(--danger); }
+.tx-delete:hover { background: var(--danger-light); color: var(--danger-fonce); }
 }
 
 /* Composantes éditables dans les modales (OperationForm / RecurringForm) :
@@ -1490,13 +1497,13 @@ button.stat-card {
    jaune TR auto). */
 .modal-comp-row--income .tx-amount,
 .modal-comp-row--income .tx-amount-wrap input,
-.modal-comp-row--income .tx-currency { color: var(--success); }
+.modal-comp-row--income .tx-currency { color: var(--success-fonce); }
 .modal-comp-row--expense .tx-amount,
 .modal-comp-row--expense .tx-amount-wrap input,
-.modal-comp-row--expense .tx-currency { color: var(--danger); }
+.modal-comp-row--expense .tx-currency { color: var(--danger-fonce); }
 .modal-comp-row--tr .tx-amount,
 .modal-comp-row--tr .tx-amount-wrap input,
-.modal-comp-row--tr .tx-currency { color: var(--warning); }
+.modal-comp-row--tr .tx-currency { color: var(--warning-fonce); }
 
 /* Liste scrollable dans une modale : on déborde des marges horizontales
    du modal-body via marginLeft/Right négatifs, et on ré-applique le
@@ -1618,11 +1625,11 @@ button.stat-card {
   padding: 4px 6px;
 }
 .composite-comp-row input:focus { background: var(--surface-alt); border-radius: 4px; }
-.composite-comp-row input.tr-auto { color: var(--warning); cursor: default; }
+.composite-comp-row input.tr-auto { color: var(--warning-fonce); cursor: default; }
 .composite-comp-label-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .composite-comp-label-wrap input { flex: 1; min-width: 0; }
 .tr-tag {
-  background: var(--warning-light); color: var(--warning);
+  background: var(--warning-light); color: var(--warning-fonce);
   padding: 2px 6px; border-radius: 4px;
   font-size: 10px; font-weight: 600;
   letter-spacing: 0.04em; text-transform: uppercase;
@@ -1789,8 +1796,8 @@ button.stat-card {
   display: flex; justify-content: space-between; align-items: center;
   margin-top: 8px; padding: 8px 12px; border-radius: 9px; font-size: 12.5px;
 }
-.target-sum.ok   { background: var(--success-light); color: #047857; }
-.target-sum.warn { background: var(--warning-light); color: #b45309; }
+.target-sum.ok   { background: var(--success-light); color: var(--success-fonce); }
+.target-sum.warn { background: var(--warning-light); color: var(--warning-fonce); }
 .target-sum b { font-variant-numeric: tabular-nums; }
 
 /* Modale support : segmented control « type » façon onglets desktop (pilule accent) */
@@ -2392,9 +2399,9 @@ button.stat-card {
 }
 .sheet-act:active .sheet-act-circle { transform: scale(0.93); }
 .sheet-act-circle.accent { background: var(--accent-light); color: var(--accent); }
-.sheet-act-circle.danger { background: var(--danger-light); color: var(--danger); }
+.sheet-act-circle.danger { background: var(--danger-light); color: var(--danger-fonce); }
 .sheet-act-lbl { font-size: 12px; font-weight: 600; color: var(--text-light); }
-.sheet-act.danger .sheet-act-lbl { color: var(--danger); }
+.sheet-act.danger .sheet-act-lbl { color: var(--danger-fonce); }
 /* Zone basculante actions ⇄ confirmation de déconnexion (maquette
    Mockup-Sheet-Confirm-Deconnexion) : les deux panneaux sont superposés
    en absolute, le conteneur porte la hauteur (animée en JS par
@@ -2415,7 +2422,7 @@ button.stat-card {
   transition: transform 0.12s, background 0.15s;
 }
 .confirm-btn:active { transform: scale(0.98); }
-.confirm-btn.out { background: var(--danger); color: white; box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3); }
+.confirm-btn.out { background: var(--danger-fonce); color: white; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3); }
 .confirm-btn.cancel { background: #f1f3f7; color: var(--text); }
 .sheet-version {
   /* v584 : style fin (10.5px, léger) pour plus de discrétion. Pas de hairline
@@ -2684,9 +2691,9 @@ button.stat-card {
   flex-shrink: 0;
 }
 .search-result-icon.checking { background: var(--accent-light); color: var(--accent); }
-.search-result-icon.savings { background: var(--info-light); color: var(--info-icone); }
-.search-result-icon.investments { background: var(--success-light); color: var(--success-icone); }
-.search-result-icon.physical { background: var(--warning-light); color: var(--warning-icone); }
+.search-result-icon.savings { background: var(--info-light); color: var(--info-fonce); }
+.search-result-icon.investments { background: var(--success-light); color: var(--success-fonce); }
+.search-result-icon.physical { background: var(--warning-light); color: var(--warning-fonce); }
 .search-result-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .search-result-title {
   font-size: 14px; font-weight: 500; color: var(--text);
@@ -2714,8 +2721,8 @@ button.stat-card {
   text-align: right;
   flex-shrink: 0;
 }
-.search-result-right.pos { color: var(--success); }
-.search-result-right.neg { color: var(--danger); }
+.search-result-right.pos { color: var(--success-fonce); }
+.search-result-right.neg { color: var(--danger-fonce); }
 /* v607 : icône note à côté du nom (cohérent avec les lignes du compte courant) —
    le nom tronque avant elle, l'icône reste visible. */
 .search-note { flex-shrink: 0; color: var(--text-muted); }
@@ -2780,8 +2787,8 @@ button.stat-card {
   text-align: center;
   max-width: min(92vw, 420px);
 }
-.toast.error { background: var(--danger); }
-.toast.success { background: var(--success); }
+.toast.error { background: var(--danger-fonce); }
+.toast.success { background: var(--success-fonce); }
 /* Toast PERSISTANT de mise à jour (service worker, v522) : même coquille
    que le toast standard, enrichie de deux actions. Pas d'auto-dismiss —
    c'est une invitation, pas une alerte (maquette Mockup-Toast-MAJ.html, A).
@@ -2832,7 +2839,7 @@ button.stat-card {
    réseau et le point ambre. */
 .offline-tag {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  background: var(--warning-light); border: 1px solid #fde68a; color: #92400e;
+  background: var(--warning-light); border: 1px solid #fde68a; color: var(--warning-fonce);
   font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px;
   /* v550 : centré verticalement entre l'e-mail et les boutons. .sheet-id a
      4px de padding-bas et .sheet-actions 18px de padding-haut → margin-top 14
@@ -2853,7 +2860,7 @@ button.stat-card {
    il n'a simplement pas de cache durable.
    ------------------------------------------------------------ */
 .offline-tag--cache {
-  background: var(--danger-light); border-color: #fecaca; color: #991b1b;
+  background: var(--danger-light); border-color: #fecaca; color: var(--danger-fonce);
   white-space: normal; text-align: center; line-height: 1.35;
 }
 .offline-tag--cache .offline-tag-dot { background: var(--danger); }
@@ -2876,8 +2883,8 @@ button.stat-card {
    `COLORS.warning`. Les deux jeux de noms diffèrent ailleurs (`--text-muted`
    contre `COLORS.muted`), et un `var(--muted)` écrit de mémoire ne fait RIEN,
    en silence — c'est le piège du §10 qui a déjà coûté une passe entière. */
-.backup-status.ancienne { color: var(--warning); }
-.backup-status.ancienne .ic { color: var(--warning); }
+.backup-status.ancienne { color: var(--warning-fonce); }
+.backup-status.ancienne .ic { color: var(--warning-fonce); }
 .backup-save { margin-bottom: 4px; }
 .backup-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .backup-row {
@@ -2919,7 +2926,7 @@ button.stat-card {
   border: 1px solid var(--border); background: var(--surface); color: var(--text-subtle);
   border-radius: 9px; padding: 7px 9px; display: inline-flex; align-items: center; cursor: pointer; flex-shrink: 0;
 }
-@media (hover: hover) { .backup-del:hover { color: var(--danger); border-color: #fecaca; background: var(--danger-light); } }
+@media (hover: hover) { .backup-del:hover { color: var(--danger-fonce); border-color: #fecaca; background: var(--danger-light); } }
 .backup-showall {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
   font-family: inherit; font-size: 12px; font-weight: 700; color: var(--accent);
@@ -2978,14 +2985,14 @@ button.stat-card {
   grid-column: 1 / -1; margin-top: 3px; font-size: 11px; line-height: 1.4;
   color: var(--text-muted); font-weight: 500;
 }
-.restore-confirm .rc-counts b { color: var(--danger); font-weight: 700; }
+.restore-confirm .rc-counts b { color: var(--danger-fonce); font-weight: 700; }
 .restore-confirm .rc-r.chgd-count { box-shadow: inset 3px 0 0 var(--danger); }
-.restore-confirm .rc-r.chgd-count .gb { color: var(--danger); }
+.restore-confirm .rc-r.chgd-count .gb { color: var(--danger-fonce); }
 .restore-confirm .rc-r.total { background: #f8fafc; font-weight: 800; }
 .restore-confirm .rc-r.total .gl, .restore-confirm .rc-r.total .gb { font-weight: 800; color: var(--text); }
 /* ⚠️ APRÈS la règle `.total` ci-dessus, qui force le noir : sans cette ligne le
    total gardait une valeur noire alors que son liseré passait au rouge. */
-.restore-confirm .rc-r.total.chgd-count .gb { color: var(--danger); }
+.restore-confirm .rc-r.total.chgd-count .gb { color: var(--danger-fonce); }
 .restore-confirm .rc-r.detail { background: #fbfbfd; }
 .restore-confirm .rc-r.detail .gl { padding-left: 12px; color: var(--text-subtle); font-weight: 500; font-size: 11.5px; }
 .restore-confirm .rc-r.detail .ga, .restore-confirm .rc-r.detail .gb { font-size: 11px; font-weight: 600; }
@@ -2995,12 +3002,12 @@ button.stat-card {
 }
 .restore-confirm .rc-safe {
   background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 10px 12px;
-  font-size: 11.5px; color: #166534; line-height: 1.45; display: flex; gap: 8px; align-items: flex-start; margin: 16px 0 18px;
+  font-size: 11.5px; color: var(--success-fonce); line-height: 1.45; display: flex; gap: 8px; align-items: flex-start; margin: 16px 0 18px;
 }
-.restore-confirm .rc-safe svg { color: var(--success); flex-shrink: 0; margin-top: 1px; }
+.restore-confirm .rc-safe svg { color: var(--success-fonce); flex-shrink: 0; margin-top: 1px; }
 .restore-confirm .rc-blocked {
   background: var(--warning-light); border: 1px solid #fde68a; border-radius: 10px; padding: 12px;
-  font-size: 12.5px; color: #92400e; line-height: 1.45; display: flex; gap: 9px; align-items: flex-start; margin: 4px 0 18px;
+  font-size: 12.5px; color: var(--warning-fonce); line-height: 1.45; display: flex; gap: 9px; align-items: flex-start; margin: 4px 0 18px;
 }
 .restore-confirm .rc-blocked svg { flex-shrink: 0; margin-top: 1px; }
 .restore-confirm .rc-errs { font-size: 10.5px; opacity: .85; margin-top: 5px; }
@@ -3268,9 +3275,9 @@ button.stat-card {
   vertical-align: 2px;
   white-space: nowrap;
 }
-.kind-badge.dist { background: #f5f3ff; color: #8b5cf6; }
+.kind-badge.dist { background: #f5f3ff; color: var(--violet-fonce); }
 .kind-badge.cap  { background: var(--accent-light); color: var(--accent); }
-.kind-badge.gift { background: #fdf2f8; color: #ec4899; }
+.kind-badge.gift { background: #fdf2f8; color: var(--rose-fonce); }
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -3868,7 +3875,7 @@ button.stat-card {
 
 .stale-tag {
   display: inline-block; font-size: 10px; font-weight: 700;
-  background: var(--warning-light); color: #b45309;
+  background: var(--warning-light); color: var(--warning-fonce);
   border-radius: var(--radius-full); padding: 1px 7px;
   margin-left: 6px; vertical-align: 2px;
 }
@@ -3992,7 +3999,7 @@ button.stat-card {
 .ops-all-done {
   padding: 22px 14px; text-align: center; font-size: 12.5px; color: var(--text-muted);
 }
-.ops-all-done-big { font-size: 15px; font-weight: 700; color: var(--success); margin-bottom: 4px; }
+.ops-all-done-big { font-size: 15px; font-weight: 700; color: var(--success-fonce); margin-bottom: 4px; }
 /* Fondu de disparition au pointage en mode masqué */
 .tx-row.fading, .tx-composite-wrap.fading { opacity: 0; transition: opacity 0.35s ease; }
 
@@ -4030,7 +4037,7 @@ button.stat-card {
 .pd-row.pd-total { border-top: 1px solid rgba(255, 255, 255, 0.15); margin-top: 5px; padding-top: 7px; }
 .pd-note {
   margin-top: 8px; font-size: 10.5px; line-height: 1.5;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 /* ============================================================
@@ -4038,7 +4045,7 @@ button.stat-card {
    ⚠️ Les noms de variables CSS ne sont PAS ceux du JS : ici c'est
    --text-muted / --text-subtle, jamais --muted (§10, DEV v986).
    ============================================================ */
-.cp-cibles { font-size: 12.5px; color: var(--warning); margin-top: 6px; font-weight: 600; }
+.cp-cibles { font-size: 12.5px; color: var(--warning-fonce); margin-top: 6px; font-weight: 600; }
 
 .cp-etape { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; margin-bottom: 10px; position: relative; }
 /* ⚠️ `--ajustee` était défini DEUX FOIS dans ce fichier, ici et dans le bloc du
@@ -4070,9 +4077,9 @@ button.stat-card {
 .cp-synthese span { display: block; font-size: 11.5px; color: var(--text-muted); }
 .cp-synthese b { font-size: 14px; }
 .cp-etat { font-size: 12.5px; padding: 10px 12px; border-radius: var(--radius-md); margin: 10px 0 14px; }
-.cp-etat--rouge { background: var(--danger-light); color: #b91c1c; }
-.cp-etat--vert { background: var(--success-light); color: #047857; }
-.cp-etat--ambre { background: var(--warning-light); color: #b45309; }
+.cp-etat--rouge { background: var(--danger-light); color: var(--danger-fonce); }
+.cp-etat--vert { background: var(--success-light); color: var(--success-fonce); }
+.cp-etat--ambre { background: var(--warning-light); color: var(--warning-fonce); }
 
 @media (max-width: 640px) and (orientation: portrait) {
   .cp-achat { grid-template-columns: 1fr; align-items: stretch; }
@@ -4103,7 +4110,9 @@ button.cp-seg-item { cursor: pointer; }
    13/08/2026 la coche peut y tomber, quand on revient sur « Valeurs » après avoir
    validé. Une coche blanche s'y fondrait dans le libellé et ne se lirait plus
    comme un acquis — arbitrage de l'utilisateur. */
-.cp-seg-item svg { stroke: var(--success); stroke-width: 3; }
+/* 22/10/2026 : la nuance 600, comme toute icône sur fond clair (sur blanc, la 500 ne faisait que 2,5:1). Sur la moitié
+   active sombre, la 600 garde 4,7:1. */
+.cp-seg-item svg { stroke: var(--success-fonce); stroke-width: 3; }
 
 /* Tableau de l'étape 1 : des colonnes, pas un cadre. Le seul filet est celui
    du total. */
@@ -4285,7 +4294,7 @@ button.cp-seg-item { cursor: pointer; }
 .cp-bilan { margin-left: auto; text-align: right; }
 .cp-bilan-pct { font-size: 14px; font-weight: 600; display: flex; align-items: center;
   justify-content: flex-end; gap: 7px; }
-.cp-ecart { font-weight: 500; font-size: 11px; color: #047857; background: var(--success-light);
+.cp-ecart { font-weight: 500; font-size: 11px; color: var(--success-fonce); background: var(--success-light);
   border-radius: var(--radius-full); padding: 2px 7px; }
 /* 🔴 « LOIN DE LA CIBLE » — au-delà du seuil, dans les DEUX sens (13/08/2026).
    Remplace `.cp-ecart--sous`, qui colorait le SENS de l'écart : vert au-dessus, ambre
@@ -4299,22 +4308,22 @@ button.cp-seg-item { cursor: pointer; }
    montants SIGNÉS de l'app (vert = hausse), visible dans la même fenêtre. L'utilisateur
    a tranché — « vert = c'est bien, ça passe » — et l'unité `pt` distingue le contexte.
    Une variante vert/ambre a été montrée et écartée. */
-.cp-ecart--loin { color: #b91c1c; background: var(--danger-light); }
+.cp-ecart--loin { color: var(--danger-fonce); background: var(--danger-light); }
 .cp-bilan-reste { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
 
 .cp-exclu-ligne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   background: var(--surface-alt); border-radius: var(--radius-md); padding: 10px 11px;
   font-size: 12px; color: var(--text-muted); }
-.cp-cibles { font-size: 12.5px; color: var(--warning); font-weight: 600; }
+.cp-cibles { font-size: 12.5px; color: var(--warning-fonce); font-weight: 600; }
 .cp-reset { margin: 2px 0; }
 .cp-synthese { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px;
   background: var(--surface-alt); border-radius: var(--radius-md); }
 .cp-synthese span { display: block; font-size: 11.5px; color: var(--text-muted); }
 .cp-synthese b { font-size: 14px; }
 .cp-etat { font-size: 12.5px; padding: 10px 12px; border-radius: var(--radius-md); }
-.cp-etat--rouge { background: var(--danger-light); color: #b91c1c; }
-.cp-etat--vert { background: var(--success-light); color: #047857; }
-.cp-etat--ambre { background: var(--warning-light); color: #b45309; }
+.cp-etat--rouge { background: var(--danger-light); color: var(--danger-fonce); }
+.cp-etat--vert { background: var(--success-light); color: var(--success-fonce); }
+.cp-etat--ambre { background: var(--warning-light); color: var(--warning-fonce); }
 
 /* ⚠️ La fenêtre empile ses blocs avec un intervalle constant — c'est ce qui
    donne son rythme à la maquette. Sans ça, chaque bloc doit gérer sa marge et
@@ -4395,7 +4404,7 @@ button.cp-seg-item { cursor: pointer; }
 .tx-edit:active { background: var(--accent-light); color: var(--accent); transition: none; }
 .tx-delete:active,
 .btn-delete-line:active,
-.btn-icon.btn-icon-danger:active { background: var(--danger-light); color: var(--danger); transition: none; }
+.btn-icon.btn-icon-danger:active { background: var(--danger-light); color: var(--danger-fonce); transition: none; }
 .hero-kebab:active,
 .month-chip-hero .mc-chev:not(:disabled):active { background: rgba(255,255,255,0.12); color: white; transition: none; }
 .month-chip-light .mc-chev:not(:disabled):active { background: #e2e8f0; color: var(--text); transition: none; }

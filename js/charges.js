@@ -142,6 +142,9 @@ function ChargesAmount({ value, onChange }) {
 // Couleurs fixes des deux personnes (utilisées par la modale et le formulaire).
 const PERSON_COLORS = ['#f59e0b', '#10b981'];
 const personColorAt = (i) => PERSON_COLORS[i] || (i === 0 ? '#f59e0b' : '#10b981');
+// Le TEXTE d'une personne (initiales, nom) prend la nuance 600 de sa couleur, comme tout texte coloré de l'app (règle du
+// 22/10/2026) ; la couleur pleine ne sert plus qu'à ses pastilles rondes.
+const personTextAt = (i) => couleurIcone(personColorAt(i));
 // Versions claires (fond des avatars en style stat-card, cohérent avec l'app).
 const PERSON_COLORS_LIGHT = ['#fffbeb', '#ecfdf5'];
 const personLightAt = (i) => PERSON_COLORS_LIGHT[i] || (i === 0 ? '#fffbeb' : '#ecfdf5');
@@ -185,7 +188,7 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
         <span className="charge-name">
           <span className="charge-name-text">{c.label || '(sans libellé)'}</span>
           {persoSolo
-            ? <span className="charge-person-tag" style={{ background: personLightAt(persoIdx), color: personColorAt(persoIdx) }} title={`Charge personnelle · ${persoSolo.label}`}>{initials(persoSolo.label)}</span>
+            ? <span className="charge-person-tag" style={{ background: personLightAt(persoIdx), color: personTextAt(persoIdx) }} title={`Charge personnelle · ${persoSolo.label}`}>{initials(persoSolo.label)}</span>
             : <span className="charge-tag">{splitLabel(c, people)}</span>}
           {c.joint && <span className="charge-vir-dot" title="Incluse dans le virement mensuel" aria-label="Virement mensuel" />}
           {c.period === 'annual' && c.provision !== false && <span className="charge-prov-dot" title="Provision annuelle (charge annuelle ÷ 12)" aria-label="Provision annuelle" />}
@@ -194,14 +197,14 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
       <div className="charge-amount-block">
         {c.period === 'annual' ? (
           <>
-            <span className="charge-total-ro" style={{ color: 'var(--danger)' }}>{eurEl(chargeTotalOf(c))}{showMonthlyEquiv && <span className="charge-monthly-equiv"> · − {eurEl(monthlyEquiv)}/mois</span>}</span>
+            <span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>{eurEl(chargeTotalOf(c))}{showMonthlyEquiv && <span className="charge-monthly-equiv"> · − {eurEl(monthlyEquiv)}/mois</span>}</span>
             <span className="charge-split-mini">
               {people.map((p, i) => {
                 const sh = chargeShareOf(c, p.id, nets, people.length) / 12;
                 if (roundDisp(sh) === 0) return null; // on masque une part à 0
                 return (
                   <span key={p.id} className="csm-item">
-                    <span className="csm-name" style={{ color: personColorAt(i) }}>{initials(p.label)}</span> {eur(sh)}
+                    <span className="csm-name" style={{ color: personTextAt(i) }}>{initials(p.label)}</span> {eur(sh)}
                   </span>
                 );
               })}
@@ -209,14 +212,14 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
           </>
         ) : (
           <>
-            <span className="charge-total-ro" style={{ color: 'var(--danger)' }}>− {eurEl(chargeTotalOf(c))}</span>
+            <span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>− {eurEl(chargeTotalOf(c))}</span>
             <span className="charge-split-mini">
               {people.map((p, i) => {
                 const sh = chargeShareOf(c, p.id, nets, people.length);
                 if (roundDisp(sh) === 0) return null; // on masque une part à 0
                 return (
                   <span key={p.id} className="csm-item">
-                    <span className="csm-name" style={{ color: personColorAt(i) }}>{initials(p.label)}</span> {eur(sh)}
+                    <span className="csm-name" style={{ color: personTextAt(i) }}>{initials(p.label)}</span> {eur(sh)}
                   </span>
                 );
               })}
@@ -409,7 +412,7 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
 
       <div className="field-hint">
         {people.map((p, i) => (
-          <span key={p.id}>{i > 0 ? ' · ' : 'Part : '}<strong style={{ color: personColorAt(i) }}>{p.label}</strong> {eur(chargeShareOf(tempCharge, p.id, nets, people.length))}</span>
+          <span key={p.id}>{i > 0 ? ' · ' : 'Part : '}<strong style={{ color: personTextAt(i) }}>{p.label}</strong> {eur(chargeShareOf(tempCharge, p.id, nets, people.length))}</span>
         ))}
       </div>
 
@@ -593,7 +596,6 @@ function ChargesModal({ ctx, onClose }) {
   useSlideIndicator(railRef, railIndRef, '.seg-tab-active', [activeId, view, railLabels], undefined, true);
   // null = fermé, 'new' = création, objet charge = édition
   const [editingCharge, setEditingCharge] = useState(null);
-  const personColor = personColorAt;
 
   // ---- Comparaison ----
   const scMetrics = (s) => {
@@ -697,7 +699,7 @@ function ChargesModal({ ctx, onClose }) {
           <div className="inc-row">
             {people.map((p, i) => (
               <div key={p.id} className="inc-fld">
-                <span className="inc-ava" style={{ background: personLightAt(i), color: personColor(i) }}>{initials(p.label)}</span>
+                <span className="inc-ava" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
                 <span className="inc-name">{p.label}</span>
                 <div className="inc-lbl">Revenu net</div>
                 <div className="inc-amt">
@@ -766,11 +768,11 @@ function ChargesModal({ ctx, onClose }) {
           <div className="pcards">
             {people.map((p, i) => (
               <div key={p.id} className="pcard">
-                <span className="pc-ava" style={{ background: personLightAt(i), color: personColor(i) }}>{initials(p.label)}</span>
+                <span className="pc-ava" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
                 <div className="pc-name">{p.label}</div>
                 <div className="pcard-hero">
                   <div className="pcard-hero-label">Il reste</div>
-                  <div className="pcard-hero-val" style={{ color: sum.restant[p.id] >= 0 ? 'var(--success)' : 'var(--danger)' }}>{eurEl(sum.restant[p.id])}</div>
+                  <div className="pcard-hero-val" style={{ color: sum.restant[p.id] >= 0 ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}>{eurEl(sum.restant[p.id])}</div>
                 </div>
                 <div className="pcard-sub">
                   À payer <b>{eurEl(sum.aPayer[p.id])}</b>
@@ -841,7 +843,7 @@ function ChargesModal({ ctx, onClose }) {
           {people.map((p, i) => (
             <div key={p.id} className="cmpp">
               <div className="cmpp-head">
-                <span className="cmpp-ava" style={{ background: personLightAt(i), color: personColor(i) }}>{initials(p.label)}</span>
+                <span className="cmpp-ava" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
                 <span className="cmpp-name">{p.label}</span>
               </div>
               <div className="cmpp-scroll">
