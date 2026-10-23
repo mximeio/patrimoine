@@ -2,6 +2,14 @@
 //  MODULE PARAMÈTRES (modules, TR, récurrents, données)
 // ============================================================
 
+// Les quatre RUBRIQUES qui se désactivent (« Patrimoine », la vue d'ensemble, est toujours là).
+const RUBRIQUES = ['checking', 'savings', 'investments', 'physical'];
+// Désactiver `cle` laisse-t-il au moins une rubrique ? PURE, testée. Le compte courant est actif sauf
+// `false` explicite (compatibilité avec les anciens profils, cf. `checkingEnabled`).
+function laisseUneRubrique(modules, cle) {
+  return RUBRIQUES.some((k) => k !== cle && (k === 'checking' ? modules.checking !== false : !!modules[k]));
+}
+
 function SettingsView({ ctx }) {
   const { profile, profilProvisoire, updateProfile, checkingAccounts, renameCheckingAccount, showToast } = ctx;
   const modules = profile.modulesEnabled;
@@ -13,6 +21,11 @@ function SettingsView({ ctx }) {
   // chacun réécrit la map `modulesEnabled` entière.
   const garde = (onChange) => (v) =>
     (profilProvisoire ? refuser(showToast, REFUS.reglagesNonCharges) : onChange(v));
+  // La DERNIÈRE rubrique ne se désactive pas (23/10/2026) — posé APRÈS `garde` (un profil provisoire ne
+  // dit rien des vraies rubriques) et AVANT la confirmation : on ne fait pas confirmer un geste refusé.
+  // ⚠️ Un profil qui a DÉJÀ tout désactivé n'est pas corrigé : la barre a son filet (classe `seule`).
+  const pasLaDerniere = (cle, onChange) => (v) =>
+    (!v && !laisseUneRubrique(modules, cle) ? refuser(showToast, REFUS.derniereRubrique) : onChange(v));
   // Par défaut, le compte courant est activé (compatibilité avec l'ancien
   // profil qui n'avait pas cette clé).
   const checkingEnabled = modules.checking !== false;
@@ -68,10 +81,10 @@ function SettingsView({ ctx }) {
           Active ou désactive les modules selon tes besoins. Les données restent conservées en base et seront retrouvées lors d'une éventuelle réactivation.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          <ModuleToggleRow icon="creditCard" label="Compte courant" hint="Entrées, sorties, pointage, tickets resto" enabled={checkingEnabled} onChange={garde(toggleChecking)} />
-          <ModuleToggleRow icon="piggy" label="Épargne" hint="Livret A, LDDS, … (suivi manuel du solde)" enabled={modules.savings} onChange={garde((v) => { if (confirmToggle(v, 'Épargne')) setModule('savings', v); })} />
-          <ModuleToggleRow icon="chart" label="Investissements" hint="PEA, PEI, supports, opérations, valorisations" enabled={modules.investments} onChange={garde((v) => { if (confirmToggle(v, 'Investissements')) setModule('investments', v); })} />
-          <ModuleToggleRow icon="coin" label="Actifs physiques" hint="Pièces d'or, métaux précieux (suivi manuel du prix)" enabled={modules.physical} onChange={garde((v) => { if (confirmToggle(v, 'Actifs physiques')) setModule('physical', v); })} />
+          <ModuleToggleRow icon="creditCard" label="Compte courant" hint="Entrées, sorties, pointage, tickets resto" enabled={checkingEnabled} onChange={garde(pasLaDerniere('checking', toggleChecking))} />
+          <ModuleToggleRow icon="piggy" label="Épargne" hint="Livret A, LDDS, … (suivi manuel du solde)" enabled={modules.savings} onChange={garde(pasLaDerniere('savings', (v) => { if (confirmToggle(v, 'Épargne')) setModule('savings', v); }))} />
+          <ModuleToggleRow icon="chart" label="Investissements" hint="PEA, PEI, supports, opérations, valorisations" enabled={modules.investments} onChange={garde(pasLaDerniere('investments', (v) => { if (confirmToggle(v, 'Investissements')) setModule('investments', v); }))} />
+          <ModuleToggleRow icon="coin" label="Actifs physiques" hint="Pièces d'or, métaux précieux (suivi manuel du prix)" enabled={modules.physical} onChange={garde(pasLaDerniere('physical', (v) => { if (confirmToggle(v, 'Actifs physiques')) setModule('physical', v); }))} />
         </div>
       </div>
 

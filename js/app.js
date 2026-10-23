@@ -1478,11 +1478,11 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
   };
 
   return (
-    // `hug` (moins de 5 rubriques) : la capsule s'ajuste à son contenu et
-    // se cale à GAUCHE — points d'ancrage immuables (1er onglet et « ⋯ »
-    // ne bougent jamais quand on active/désactive des modules). À 5
-    // rubriques, remplissage pleine largeur (comportement d'origine).
-    <div className={`tabbar-wrap${mini ? ' mini' : ''}${tabs.length < 5 ? ' hug' : ''}`} ref={wrapRef}>
+    // La capsule remplit TOUJOURS jusqu'au « ⋯ » (le mode « hug » des moins de
+    // 5 rubriques est retiré le 23/10/2026, cf. styles.css). `seule` : une
+    // seule rubrique — plus de capsule, le « ⋯ » reste seul (filet de
+    // sécurité : les Paramètres refusent de désactiver la dernière rubrique).
+    <div className={`tabbar-wrap${mini ? ' mini' : ''}${tabs.length === 1 ? ' seule' : ''}`} ref={wrapRef}>
       <nav
         className="tabbar-capsule glassbar"
         ref={barRef}
@@ -1512,8 +1512,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
           </button>
         ))}
       </nav>
-      {/* Espace élastique entre capsule et « ⋯ » : replié à zéro quand la
-          capsule remplit (5 rubriques), déployé en mode hug. */}
+      {/* L'écart capsule ↔ « ⋯ » : 10 px, porté par cet espaceur seul. */}
       <div className="tabbar-spacer" />
       {/* « ⋯ » : une ACTION, pas une section → cercle séparé, icône seule,
           jamais d'état actif (recommandation retenue à la validation). */}

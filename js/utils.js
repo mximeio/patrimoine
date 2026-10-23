@@ -429,6 +429,9 @@ const REFUS = {
   // d'origine avaient deux variantes ; les unifier a fait perdre cette nuance.
   plusieursComptes:   (n) => `${n} comptes courants existent. Il faut n'en garder qu'un seul d'abord.`,
   compteCourantRequis: "Le module Compte courant doit être activé d'abord.",
+  // Désactiver la DERNIÈRE des quatre rubriques (23/10/2026) : la barre basse n'aurait plus qu'un onglet,
+  // « Patrimoine », et l'app plus rien à montrer. Cf. `laisseUneRubrique` (settings.js).
+  derniereRubrique:   'Au moins une rubrique doit rester activée.',
   // 🔴 PROFIL PROVISOIRE — chantier « l'ambiguïté d'une collection vide » (clos en PROD v660,
   // récit au CHANGELOG), piste « 1 bis » du 16/10/2026. Un onglet sans cache et hors ligne n'a pas pu lire le
   // profil : `subscribeProfile` propage `DEFAULT_PROFILE`, les interrupteurs affichent des

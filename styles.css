@@ -45,13 +45,14 @@
   --radius-lg: 14px;
   --radius-xl: 20px;
   --radius-full: 999px;
-  /* LIGNE D'APPUI des objets flottants du bas, en portrait téléphone : la barre
+  /* LIGNE D'APPUI des objets flottants du bas, sur téléphone : la barre
      basse (.tabbar-wrap), la feuille « ⋯ » (.bottom-sheet), la réserve de
      .main-container et le bas des modales (bloc « Modale : PORTRAIT »). ≈ 30 pt
      sur un iPhone à barre d'accueil (safe-area 34 − 4), 14 px ailleurs. UNE
      variable pour que ces quatre-là ne divergent jamais : si la barre bouge, la
-     modale suit et la cache toujours. Le paysage a sa propre ligne (bloc
-     paysage téléphone, safe-area − 10). */
+     modale suit et la cache toujours. Le paysage téléphone suit la MÊME règle
+     (≈ 17 pt sur un iPhone couché) : barre, feuille et réserve du contenu ;
+     les modales n'y dépendent pas d'elle. */
   --ligne-appui: max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px));
   --shadow-xs: 0 1px 2px rgba(15,23,42,0.04);
   --shadow-sm: 0 1px 3px rgba(15,23,42,0.05), 0 1px 2px rgba(15,23,42,0.03);
@@ -924,21 +925,24 @@ input[type="month"] {
    ajustements de position sont pilotés par les media queries :
    portrait ≤640px ET paysage téléphone (pointer:coarse). */
 .tabbar-wrap {
-  display: none; align-items: center; gap: 10px;
-  position: fixed; left: 34px; right: 34px;
-  /* Placement « Instagram » aux valeurs EXACTES mesurées sur captures
-     iPhone 17 Pro Max (maquette Mockup-Barre-Marges-Reel) : côtés 34px,
-     bas ≈30px sur appareils à encoche (safe-area 34 − 4). Le max()
-     garantit 14px sans indicateur d'accueil. Remplace le calage
-     « WhatsApp » (12px / safe-area − 18) des v419-465. Contrepartie
-     assumée : notre barre étant plus large qu'IG (capsule + « ⋯ »
-     séparé), les ovales se resserrent sur les écrans < 440pt — paliers
-     de padding plus bas. La formule vit dans --ligne-appui (:root),
-     partagée avec la feuille « ⋯ », la réserve du contenu et les modales. */
+  display: none; align-items: center; gap: 0;
+  position: fixed; left: 30px; right: 30px;
+  /* MARGES ÉGALES : 30 px sur les côtés comme en bas (≈ 30 pt sur appareils
+     à encoche : safe-area 34 − 4 ; le max() garantit 14px sans indicateur
+     d'accueil). Décision de l'utilisateur du 23/10/2026, jugée sur son
+     iPhone (maquette Mockup-Barre-Ligne-Appui, artefact « Barre basse de
+     Patrimoine »). Remplace le placement « Instagram » (côtés 34, v466-467),
+     qui laissait le bas plus serré que les côtés. Sur un écran aux coins
+     d'environ 55 pt (iPhone 15, 16), l'écart à l'arrondi vaut 30 pt partout.
+     La formule du bas vit dans --ligne-appui (:root), partagée avec la
+     feuille « ⋯ », la réserve du contenu et les modales.
+     ⚠️ `gap: 0` : l'écart capsule ↔ « ⋯ » est porté par `.tabbar-spacer` seul
+     (10 px). Avec un gap sur le conteneur, l'espaceur vide le recevait des
+     DEUX côtés : 20 px réels pour 10 annoncés, de juillet au 23/10/2026. */
   bottom: var(--ligne-appui);
   z-index: 40;
   /* Contraction façon Instagram : les insets latéraux s'animent
-     (34px ↔ 57px — amplitude de 23px, celle mesurée sur Instagram). */
+     (30px ↔ 53px — amplitude de 23px, celle mesurée sur Instagram). */
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   /* PAS de transform ici : l'ancien translateZ(0) (contournement v439 du
@@ -2251,11 +2255,12 @@ button.stat-card {
   /* Paddings ASYMÉTRIQUES (12px vertical / 19px horizontal) : la goutte
      devient un OVALE ~60×46 (ratio Instagram), au lieu d'un rond. */
   border-radius: var(--radius-full); padding: 12px 19px;
-  /* width:100% : la pill REMPLIT son slot. À 5 rubriques (slots flex:1
-     plus larges que l'ovale minimal), la goutte épouse toute la largeur →
-     anneau de 3px IDENTIQUE sur les 4 côtés, et ovale adaptatif selon la
-     largeur d'écran. En mode hug (<5), la largeur naturelle EST le slot :
-     aucun changement. */
+  /* width:100% : la pill REMPLIT son slot (slots flex:1, la capsule remplit
+     toujours jusqu'au « ⋯ ») : la goutte épouse toute la largeur → anneau de
+     3px IDENTIQUE sur les 4 côtés. Avec moins de rubriques, elle s'allonge
+     avec son onglet (49 à 154 pt de 5 à 2 rubriques), lue comme le curseur
+     d'un sélecteur segmenté — préférée le 23/10/2026 à une goutte plafonnée,
+     qui rendait l'anneau inégal au bout de la capsule. */
   width: 100%;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); min-width: 0; max-width: 100%;
 }
@@ -2268,19 +2273,24 @@ button.stat-card {
   transform: scale(calc(var(--icob, 1) * var(--icop, 1)));
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* Espace élastique capsule ↔ « ⋯ » : nul à 5 rubriques (la capsule
-   remplit), déployé en mode hug (voir ci-dessous). Le gap de 10px du
-   wrap reste la seule séparation quand le spacer est nul. */
-.tabbar-spacer { flex: 0 0 0px; }
-/* Mode HUG (moins de 5 rubriques actives) : capsule ajustée à son
-   contenu, alignée à GAUCHE, onglets à largeur naturelle — le « ⋯ »
-   reste vissé à droite. Points d'ancrage immuables quel que soit le
-   nombre de modules activés. */
-.tabbar-wrap.hug .tabbar-capsule { flex: 0 0 auto; }
-.tabbar-wrap.hug .tab-item { flex: 0 0 auto; }
-.tabbar-wrap.hug .tabbar-spacer { flex: 1 1 auto; }
+/* L'écart capsule ↔ « ⋯ » : 10 px, porté par cet espaceur SEUL (le wrap a
+   `gap: 0`, cf. plus haut). */
+.tabbar-spacer { flex: 0 0 10px; }
+/* La capsule REMPLIT toujours jusqu'au « ⋯ », quel que soit le nombre de
+   rubriques : chaque onglet prend une part égale, et la goutte avec lui
+   (`.tab-pill` width:100%, anneau de 3 px régulier). Décision du 23/10/2026 :
+   le « ⋯ » reste ainsi au MÊME ENDROIT pour tout le monde. Remplace le mode
+   « hug » (< 5 rubriques : capsule ajustée à gauche), qui laissait un vide de
+   57 à 146 pt entre la capsule et le « ⋯ ».
+   Une SEULE rubrique (filet de sécurité : les Paramètres refusent désormais
+   de désactiver la dernière, cf. REFUS.derniereRubrique) : rien à choisir,
+   donc plus de capsule — le « ⋯ » reste seul, à sa place. */
+.tabbar-wrap.seule .tabbar-capsule,
+.tabbar-wrap.seule .tabbar-spacer { display: none; }
+.tabbar-wrap.seule .tabbar-more { margin-left: auto; }
 
-/* Écrans < 440pt : avec les marges « Instagram » exactes (34/57px), les
+/* Écrans < 440pt : calculés avec les marges « Instagram » (34/57px), les
+   paliers restent valables avec 30/53 px, qui donnent PLUS de place. Les
    cinq ovales + « ⋯ » ne tiennent qu'en resserrant le padding horizontal
    des pills par PALIERS (calculés pour chaque largeur d'iPhone réelle :
    430/428, 414, 393/390, 375, 360, 320). L'icône de 22px ne bouge pas,
@@ -2303,8 +2313,11 @@ button.stat-card {
 }
 
 /* Cercle « ⋯ » séparé de la capsule (pattern Music / App Store iOS 26+) */
+/* 54 px : la hauteur de la capsule (3 + 46 + 3 + 2 × 1 de bordure) — le
+   « ⋯ » finit au même niveau qu'elle, en haut comme en bas (il faisait 50 px,
+   donc 2 px de moins de chaque côté ; décision du 23/10/2026). */
 .tabbar-more {
-  flex: 0 0 50px; height: 50px;
+  flex: 0 0 54px; height: 54px;
   border-radius: var(--radius-full);
   font-size: 20px; color: var(--text-light);
   display: flex; align-items: center; justify-content: center;
@@ -2313,11 +2326,11 @@ button.stat-card {
 /* Contraction au scroll (façon Instagram) : TOUTE la capsule se resserre —
    marges latérales élargies, padding réduit, icônes à −14 %, cercle « ⋯ »
    40 px. La barre se RÉDUIT mais ne disparaît jamais. */
-.tabbar-wrap.mini { left: 57px; right: 57px; }
+.tabbar-wrap.mini { left: 53px; right: 53px; }
 .tabbar-wrap.mini .tabbar-capsule { padding: 2px; }
 .tabbar-wrap.mini .tab-pill { padding: 8px 13px; }
 .tabbar-wrap.mini .tab-ico { --icob: 0.86; }
-.tabbar-wrap.mini .tabbar-more { flex-basis: 40px; height: 40px; font-size: 17px; }
+.tabbar-wrap.mini .tabbar-more { flex-basis: 44px; height: 44px; font-size: 17px; } /* = capsule réduite : 2 + 38 + 2 + 2 */
 
 /* Bottom sheet (menu « ⋯ ») — flottante et en verre, comme la barre */
 .sheet-backdrop {
@@ -3636,6 +3649,13 @@ button.stat-card {
    fenêtre desktop basse (< 600px) garde l'AppBar classique.
    ============================================================ */
 @media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+  /* LIGNE D'APPUI : la MÊME règle qu'en portrait (--ligne-appui, :root), pas de
+     ligne propre au paysage — ≈ 17 pt sur un iPhone couché (safe-area 21 − 4).
+     Décision de l'utilisateur du 23/10/2026, sur l'avis du skill apple-design :
+     l'ancienne ligne (safe-area − 10, ≈ 11 pt) laissait moins d'air sous la barre
+     qu'au-dessus (16 pt jusqu'au contenu) et la faisait empiéter de 10 pt sur la
+     zone du geste d'accueil, juste au-dessus de la barre d'accueil d'iOS. La barre,
+     la feuille « ⋯ » et la réserve du contenu la suivent. */
   /* L'AppBar desktop disparaît : même nav qu'en portrait */
   .app-header { display: none; }
   /* Ligne de titre (non-sticky) — pas de safe-area top en paysage,
@@ -3662,19 +3682,27 @@ button.stat-card {
   .title-row.title-row-sous-page .title-row-slot { display: flex; }
   .month-chip-hero { display: none; }
   /* Barre basse : visible, avec safe-areas LATÉRALES (l'encoche est
-     sur un côté en paysage) */
+     sur un côté en paysage).
+     LIMITÉE À 380 px ET CENTRÉE (23/10/2026, décision de l'utilisateur sur
+     images, maquette Mockup-Barre-Ligne-Appui) : la largeur qu'elle a en
+     portrait sur le plus grand iPhone (440 − 2 × 30). En pleine largeur, la
+     capsule pleine étirait la goutte à 150 pt dès 5 rubriques, 375 à 2 ; ici
+     elle garde les proportions du portrait (64 pt à 5, 160 à 2). Même règle
+     que la feuille « ⋯ », déjà recadrée et centrée en paysage (plus bas).
+     `left`/`right` gardent les safe-areas : la marge auto centre la barre
+     dans la zone sûre. Le bas suit --ligne-appui, comme en portrait. */
   .tabbar-wrap {
     display: flex;
     left: calc(12px + env(safe-area-inset-left, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
-    bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 10px));
+    max-width: 380px; margin: 0 auto;
   }
   /* Compacte en permanence (équivaut au mode contracté, sans dépendre du
      scroll) : la hauteur d'écran est comptée en paysage. */
   .tabbar-wrap .tabbar-capsule { padding: 2px; }
   .tabbar-wrap .tab-pill { padding: 8px 13px; }
   .tabbar-wrap .tab-ico { --icob: 0.86; }
-  .tabbar-wrap .tabbar-more { flex: 0 0 40px; height: 40px; font-size: 17px; }
+  .tabbar-wrap .tabbar-more { flex: 0 0 44px; height: 44px; font-size: 17px; } /* = capsule compacte (2 + 38 + 2 + 2) */
   /* Le toggle .mini (scroll) ne doit pas écraser les insets safe-area
      du paysage (spécificité supérieure de .tabbar-wrap.mini) */
   .tabbar-wrap.mini {
@@ -3683,21 +3711,23 @@ button.stat-card {
   }
   /* Le contenu ne passe pas sous la barre, et scroller interne comme en
      portrait (page verrouillée). Réserve du bas calculée comme en portrait
-     (DEV v1091) : position de la barre (son `bottom` ci-dessus) + sa hauteur
-     compacte (42 px : capsule 2 + goutte 8 + icône 22 + 8 + 2) + 16 px d'écart. */
+     (DEV v1091) : ligne d'appui de la barre + sa hauteur compacte (42 px :
+     capsule 2 + goutte 8 + icône 22 + 8 + 2) + 16 px d'écart. */
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   .main-container {
     height: 100dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
-    padding-bottom: calc(max(8px, calc(env(safe-area-inset-bottom, 0px) - 10px)) + 42px + 16px);
+    padding-bottom: calc(var(--ligne-appui) + 42px + 16px);
   }
   .main-inner > :last-child,
   .main-inner > :last-child > :last-child { margin-bottom: 0 !important; }
   /* Overflow garanti (cf. portrait) : le geste reste dans le scroller */
   .main-inner { min-height: calc(100% + 1px); }
-  /* Bottom sheet : recadrée en largeur (pleine largeur = absurde en paysage) */
+  /* Bottom sheet : recadrée en largeur (pleine largeur = absurde en paysage).
+     Son bas suit --ligne-appui comme la barre : plus large (430 contre 380) et
+     plus haute, elle la recouvre entièrement, comme en portrait. */
   .bottom-sheet { left: 0; right: 0; margin: 0 auto; width: min(430px, calc(100% - 16px)); }
 }
 
