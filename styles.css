@@ -45,6 +45,14 @@
   --radius-lg: 14px;
   --radius-xl: 20px;
   --radius-full: 999px;
+  /* LIGNE D'APPUI des objets flottants du bas, en portrait téléphone : la barre
+     basse (.tabbar-wrap), la feuille « ⋯ » (.bottom-sheet), la réserve de
+     .main-container et le bas des modales (bloc « Modale : PORTRAIT »). ≈ 30 pt
+     sur un iPhone à barre d'accueil (safe-area 34 − 4), 14 px ailleurs. UNE
+     variable pour que ces quatre-là ne divergent jamais : si la barre bouge, la
+     modale suit et la cache toujours. Le paysage a sa propre ligne (bloc
+     paysage téléphone, safe-area − 10). */
+  --ligne-appui: max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px));
   --shadow-xs: 0 1px 2px rgba(15,23,42,0.04);
   --shadow-sm: 0 1px 3px rgba(15,23,42,0.05), 0 1px 2px rgba(15,23,42,0.03);
   --shadow-md: 0 4px 12px rgba(15,23,42,0.06), 0 2px 4px rgba(15,23,42,0.04);
@@ -287,8 +295,9 @@ input[type="month"] {
    mort ». Morte au comptage, vivante par décision. La retirer laisserait la prop
    `footer` d'`ui.js` exister SANS sa mise en forme, donc un pied cassé au premier
    appelant, EN SILENCE. Cf. BACKLOG.md, section ÉCARTÉ, « le pied figé ».
-   ⚠️ Pas de safe-area en bas, et c'est VÉRIFIÉ, pas oublié : en portrait
-   l'overlay pose 14px tout autour, la modale flotte et ne touche jamais le home
+   ⚠️ Pas de safe-area dans le pied, et c'est VÉRIFIÉ, pas oublié : en portrait
+   c'est l'OVERLAY qui en dépend — sa marge du bas est la ligne d'appui de la
+   barre (--ligne-appui), la modale flotte au-dessus et ne touche jamais le home
    indicator (voir le commentaire de .modal-body en media-query 768px). */
 .modal-foot {
   border-top: 1px solid var(--border); background: var(--surface);
@@ -924,8 +933,9 @@ input[type="month"] {
      « WhatsApp » (12px / safe-area − 18) des v419-465. Contrepartie
      assumée : notre barre étant plus large qu'IG (capsule + « ⋯ »
      séparé), les ovales se resserrent sur les écrans < 440pt — paliers
-     de padding plus bas. */
-  bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px));
+     de padding plus bas. La formule vit dans --ligne-appui (:root),
+     partagée avec la feuille « ⋯ », la réserve du contenu et les modales. */
+  bottom: var(--ligne-appui);
   z-index: 40;
   /* Contraction façon Instagram : les insets latéraux s'animent
      (34px ↔ 57px — amplitude de 23px, celle mesurée sur Instagram). */
@@ -2324,7 +2334,7 @@ button.stat-card {
      flottants partagent la même ligne d'appui — l'ancien calage
      (8px + safe-area ≈ 42px) laissait la sheet 12px plus haute que la
      barre depuis le placement « Instagram » (~30px). */
-  bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px));
+  bottom: var(--ligne-appui);
   z-index: 61;
   /* Tout en BLANC opaque, cartes délimitées par le liseré var(--border) —
      c'est le langage des cards partout ailleurs dans l'app (stat-cards,
@@ -3282,9 +3292,9 @@ button.stat-card {
      DEV v1091 : l'ancienne réserve (102 px + safe-area) laissait ~35 pt dans
      Safari et ~54 pt en PWA (mesuré sur les captures de l'utilisateur), parce
      qu'elle ajoutait toute la safe-area alors que la barre n'en remonte que
-     de safe-area − 4. ⚠️ Changer la position ou la hauteur de la barre oblige
-     à changer cette ligne. */
-  .main-container { padding: 4px 14px calc(max(14px, calc(env(safe-area-inset-bottom, 0px) - 4px)) + 52px + 16px); }
+     de safe-area − 4. La position suit --ligne-appui toute seule ; ⚠️ changer
+     la HAUTEUR de la barre oblige à changer cette ligne. */
+  .main-container { padding: 4px 14px calc(var(--ligne-appui) + 52px + 16px); }
   /* La réserve porte TOUT l'écart : la marge basse du dernier bloc (16 px sur
      la carte « Répartition » de l'accueil) s'y ajoutait. `!important` : elle
      peut être posée en style en ligne. */
@@ -3373,8 +3383,9 @@ button.stat-card {
        sous la status bar transparente.
      Combiné avec viewport-fit=cover dans le meta viewport. */
   .modal-body {
-    /* Modale flottante centrée (marge de 14px tout autour via l'overlay) : elle
-       ne touche jamais le home indicator, donc pas de safe-area ici. Padding
+    /* Modale flottante centrée (en portrait téléphone, l'overlay pose 14px en
+       haut et sur les côtés, la ligne d'appui de la barre en bas) : elle ne
+       touche jamais le home indicator, donc pas de safe-area ici. Padding
        symétrique 16px → plus de grande bande blanche après les boutons. */
     padding: 16px;
   }
@@ -3536,10 +3547,18 @@ button.stat-card {
    « pendouillait ». On utilise donc une carte CENTRÉE avec une marge tout
    autour : le voile sombre l'encadre (backdrop assumé) et, l'overlay
    s'arrêtant au viewport VISIBLE (100dvh), la bande sous la barre Safari reste
-   transparente. En paysage la modale reste gérée par le bloc landscape. */
+   transparente. En paysage la modale reste gérée par le bloc landscape.
+   MARGES : 14px en haut et sur les côtés, la LIGNE D'APPUI de la barre basse en
+   bas (--ligne-appui, ≈ 30 pt sur un iPhone à barre d'accueil, 14px ailleurs).
+   Avec 14px en bas, une modale à sa hauteur max touchait l'arrondi des coins de
+   l'écran (≈ 62 pt sur un 17 Pro Max : écart ≈ 0 dans le coin) ; à 30 pt il
+   reste ≈ 9,5 pt, et la modale couvre toujours la barre. Coins et côtés
+   inchangés. Une petite modale, centrée, remonte de la moitié de l'écart
+   (8 pt). Chantier « les modales longues touchent les coins de l'écran »,
+   tranché par l'utilisateur sur son iPhone le 23/10/2026. */
 @media (max-width: 640px) and (orientation: portrait) {
   .modal-overlay {
-    padding: 14px;
+    padding: 14px 14px var(--ligne-appui);
     align-items: center;
     top: 0; bottom: auto;
     height: 100vh;   /* repli pour les navigateurs sans dvh */
@@ -3548,8 +3567,8 @@ button.stat-card {
   .modal {
     border-radius: var(--radius-lg); max-width: 100%; width: 100%;
     height: auto;
-    max-height: calc(100vh - 28px);   /* repli sans dvh */
-    max-height: calc(100dvh - 28px);  /* marge de 14px haut + bas */
+    max-height: calc(100vh - 14px - var(--ligne-appui));   /* repli sans dvh */
+    max-height: calc(100dvh - 14px - var(--ligne-appui));  /* = le padding de l'overlay */
   }
   /* Carte flottante : le sommet ne touche jamais l'encoche → pas de
      safe-area-top (qui ajouterait un grand vide au-dessus du titre). On force
