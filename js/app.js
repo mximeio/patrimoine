@@ -535,10 +535,40 @@ function App() {
     };
   }, [dataLoaded, user, profile, checkingAccounts, savings, portfolios, physical]);
 
-  // Auto-sauvegarde hebdomadaire (v552) : à la 1ʳᵉ ouverture de la
-  // semaine (fenêtre glissante de 7 jours), on pose un instantané perso
-  // en silence. Une seule tentative par session. Hors ligne, l'écriture
-  // Firestore est mise en file et se synchronise ensuite (pas d'échec).
+  // Auto-sauvegarde hebdomadaire (v552) : 7 jours après la précédente
+  // automatique (fenêtre glissante), on pose un instantané perso en silence.
+  // Hors ligne, l'écriture Firestore est mise en file et se synchronise
+  // ensuite (pas d'échec).
+  // 🆕 VÉRIFIÉE AU DÉMARRAGE **ET À CHAQUE RETOUR DANS L'APP** (DEV v1112) :
+  // une PWA reprise depuis l'arrière-plan ne redémarre pas, et l'automatique
+  // attendait jusque-là le prochain vrai lancement (31 h de retard relevé en
+  // PROD). Le retour ne coûte rien : `maybeAutoBackup` ne lit la liste que si
+  // la date retenue par l'appareil a 7 jours (cf. backups.js).
+  // ⚠️ Les données passent par un `ref` remis à jour à chaque rendu : le
+  // gestionnaire du retour est posé une fois, il doit lire l'état COURANT.
+  // ⚠️ `uneVerificationALaFois` : un retour pendant une vérification en cours
+  // reçoit la même promesse — jamais deux automatiques ensemble.
+  const donneesSauvegarde = useRef(null);
+  donneesSauvegarde.current = (dataLoaded && user && profile && joint !== undefined)
+    ? { user, data: { profile, checkingAccounts, savings, portfolios, physical,
+        joint, chargesMember: !!(joint && Array.isArray(joint.members) && joint.members.includes(user.uid)) } }
+    : null;
+  const verifierSauvegarde = useRef(null);
+  if (!verifierSauvegarde.current) {
+    verifierSauvegarde.current = uneVerificationALaFois(() => {
+      const d = donneesSauvegarde.current;
+      return d ? maybeAutoBackup(d.user, d.data) : undefined; // pas encore prêt : le démarrage s'en chargera
+    });
+  }
+  useEffect(() => {
+    const auRetour = () => { if (document.visibilityState === 'visible') verifierSauvegarde.current(); };
+    document.addEventListener('visibilitychange', auRetour);
+    window.addEventListener('pageshow', auRetour);
+    return () => {
+      document.removeEventListener('visibilitychange', auRetour);
+      window.removeEventListener('pageshow', auRetour);
+    };
+  }, []);
   const autoBackupTried = useRef(false);
   useEffect(() => {
     if (!dataLoaded || !user || !profile) return;
@@ -565,8 +595,9 @@ function App() {
     if (joint === undefined) return;
     if (autoBackupTried.current) return;
     autoBackupTried.current = true;
-    maybeAutoBackup(user, { profile, checkingAccounts, savings, portfolios, physical,
-      joint, chargesMember: !!(joint && Array.isArray(joint.members) && joint.members.includes(user.uid)) });
+    // Le DÉMARRAGE garde sa tentative unique (et sa garde `joint` AVANT le
+    // drapeau, ci-dessus) ; les retours dans l'app passent par l'effet plus haut.
+    verifierSauvegarde.current();
   }, [dataLoaded, user, profile, joint]);
 
   // ============================================================

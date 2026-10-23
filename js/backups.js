@@ -3,10 +3,11 @@
 //
 //  Principe : une sauvegarde est un instantané des données PERSO
 //  (profil, comptes courants, épargne, investissements, actifs),
-//  stocké dans Firestore `users/{uid}/backups`. On garde les 10
-//  dernières en rotation. Une sauvegarde auto est posée à la 1ʳᵉ
-//  ouverture de la semaine (fenêtre glissante de 7 jours) ; on peut
-//  aussi sauvegarder manuellement.
+//  stocké dans Firestore `users/{uid}/backups`. On garde les 5
+//  dernières en rotation (10 jusqu'au 23/10/2026). Une sauvegarde auto
+//  est posée 7 jours après la précédente, vérifiée au démarrage ET au
+//  retour dans l'app (cf. `maybeAutoBackup`) ; on peut aussi
+//  sauvegarder manuellement.
 //
 //  Le format est IDENTIQUE à celui de l'export (version 4). La
 //  validation et la réécriture ci-dessous sont PORTÉES ici et nulle
@@ -35,7 +36,14 @@
 //  double garde (accès membre + confirmation explicite).
 // ============================================================
 
-const BACKUP_KEEP = 10;               // nombre de sauvegardes conservées
+// 5 et non plus 10 — décision de l'utilisateur du 23/10/2026 : il fait ses comptes
+// chaque jour, donc une donnée fausse se voit en quelques jours ; et une restauration
+// remplace TOUT, si bien qu'au-delà de deux ou trois semaines on corrige à la main
+// plutôt que de ressaisir. Les places sont PARTAGÉES avec les manuelles et les
+// « avant import / restauration » : ≈ 4 à 5 semaines d'automatiques en temps normal.
+// ⚠️ La rotation ne supprime qu'APRÈS une création : une panne de l'automatique
+// n'efface rien (c'est ce qui a protégé l'historique pendant celle d'août 2026).
+const BACKUP_KEEP = 5;                // nombre de sauvegardes conservées
 const BACKUP_AUTO_INTERVAL_DAYS = 7;  // auto si rien depuis 7 jours
 
 // ============================================================
@@ -1026,12 +1034,72 @@ function porteDuTravail(compte) {
 }
 
 // ============================================================
+//  La date de la dernière automatique, RETENUE PAR APPAREIL (23/10/2026)
+//
+//  🔴 POURQUOI. Pour savoir s'il faut poser une automatique, il ne faut qu'UNE
+//  date — et `maybeAutoBackup` relisait pour ça les sauvegardes COMPLÈTES
+//  (10 × ≈ 150 Ko mesurés sur DEV), à CHAQUE démarrage. L'appareil retient donc
+//  la date de la dernière automatique qu'il connaît, et ne relit la liste que
+//  lorsqu'elle a 7 jours : une fois par semaine au lieu de chaque ouverture.
+//  ⚠️ CE N'EST QU'UN RACCOURCI, JAMAIS UNE DÉCISION : la mémoire ne sait que
+//  dire « inutile de relire ». Créer une sauvegarde se décide TOUJOURS sur la
+//  liste de Firestore, commune à tous les appareils — c'est ce qui garde le
+//  multi-appareil intact (un autre appareil a sauvegardé : on le lit, on n'en
+//  pose pas une seconde). Absente, illisible ou dans le futur, la mémoire est
+//  ignorée et l'on relit, comme avant.
+//  ⚠️ Une clé PAR COMPTE : deux comptes sur un même appareil ne se mélangent pas.
+//  ⚠️ `localStorage` peut lever (navigation privée, stockage bloqué) : chaque
+//  accès est gardé, et l'échec retombe sur le comportement d'avant.
+// ============================================================
+const cleDerniereAuto = (uid) => 'patrimoine.derniereAuto.' + uid;
+function lireDerniereAuto(uid) {
+  try { return localStorage.getItem(cleDerniereAuto(uid)); } catch (e) { return null; }
+}
+// `at` absent → la mémoire est effacée (plus aucune automatique connue).
+function retenirDerniereAuto(uid, at) {
+  try {
+    if (at) localStorage.setItem(cleDerniereAuto(uid), at);
+    else localStorage.removeItem(cleDerniereAuto(uid));
+  } catch (e) { /* stockage indisponible : on relira la liste, comme avant */ }
+}
+// Faut-il relire la liste ? PURE, testée. Vrai sauf si l'on connaît une
+// automatique de moins de BACKUP_AUTO_INTERVAL_DAYS jours.
+function autoSauvegardeAVerifier(derniereConnue, maintenant) {
+  if (!derniereConnue) return true;
+  const t = new Date(derniereConnue).getTime();
+  if (!Number.isFinite(t)) return true;
+  if (t > maintenant) return true; // horloge fausse ou date d'un autre appareil en avance : on ne s'y fie pas
+  return (maintenant - t) / 86400000 >= BACKUP_AUTO_INTERVAL_DAYS;
+}
+// Une seule vérification à la fois : un retour dans l'app pendant qu'une autre
+// tourne (démarrage, écriture en file hors ligne) reçoit la MÊME promesse au lieu
+// d'en lancer une seconde — sinon deux automatiques pourraient naître ensemble.
+// PURE au sens du harnais (aucune I/O), testée.
+function uneVerificationALaFois(lancer) {
+  let enCours = null;
+  return () => {
+    if (enCours) return enCours;
+    enCours = Promise.resolve()
+      .then(lancer)
+      .catch((e) => { console.warn('Vérification de la sauvegarde automatique interrompue', e); })
+      .finally(() => { enCours = null; });
+    return enCours;
+  };
+}
+
+// ============================================================
 //  Auto-sauvegarde hebdomadaire (fenêtre glissante 7 jours)
-//  Appelée au chargement. Silencieuse. Hors ligne : l'écriture
-//  Firestore est mise en file et se synchronisera (pas d'échec).
+//  Appelée au DÉMARRAGE et à chaque RETOUR dans l'app (app.js) —
+//  avant le 23/10/2026, au démarrage seulement : une PWA reprise depuis
+//  l'arrière-plan ne redémarre pas, et l'automatique attendait le
+//  prochain vrai lancement (jusqu'à 31 h de retard relevé en PROD).
+//  Silencieuse. Hors ligne : l'écriture Firestore est mise en file et
+//  se synchronisera (pas d'échec).
 // ============================================================
 async function maybeAutoBackup(user, dataObj) {
   try {
+    // La mémoire de l'appareil connaît une automatique récente : rien à lire.
+    if (!autoSauvegardeAVerifier(lireDerniereAuto(user.uid), Date.now())) return;
     const list = await Adapter.listBackups(user.uid);
     // 🔴 ON NE REGARDE QUE LES AUTOMATIQUES — décision de l'utilisateur du
     // 03/09/2026. Avant, on prenait `list[0]`, donc la dernière sauvegarde de
@@ -1047,13 +1115,19 @@ async function maybeAutoBackup(user, dataObj) {
     // ⚠️ Coût ASSUMÉ, chiffré avant de trancher : des instantanés redondants
     // consomment les `BACKUP_KEEP` emplacements, donc la plus ancienne
     // sauvegarde remonte moins loin (~5-6 semaines au lieu de ~9 sur son
-    // historique réel). Choisi en connaissance de cause, au profit d'une cadence
+    // historique réel, quand on en gardait 10 ; avec 5, ≈ 4 à 5 semaines).
+    // Choisi en connaissance de cause, au profit d'une cadence
     // LISIBLE — un mécanisme de sécurité qui se comporte comme on le croit vaut
     // mieux qu'un mécanisme plus fin qu'on comprend mal.
     const lastAuto = list.find(b => b && b.type === 'auto');
     if (lastAuto && lastAuto.at) {
       const ageDays = (Date.now() - new Date(lastAuto.at).getTime()) / 86400000;
-      if (ageDays < BACKUP_AUTO_INTERVAL_DAYS) return; // automatique récente : rien à faire
+      if (ageDays < BACKUP_AUTO_INTERVAL_DAYS) {
+        // Automatique récente — peut-être posée par un AUTRE appareil : on la
+        // retient, et l'on ne relira plus la liste avant ses 7 jours.
+        retenirDerniereAuto(user.uid, lastAuto.at);
+        return;
+      }
     }
     // Garde « données non vides » : inutile de poser un instantané auto pour
     // un compte tout neuf encore vide (rotation à 10 → sans danger, juste inutile).
@@ -1071,9 +1145,11 @@ async function maybeAutoBackup(user, dataObj) {
     // oublier les charges dans les sauvegardes automatiques.
     // `dataObj` porte `joint` et `chargesMember` (cf. l'appel dans app.js).
     const payload = buildBackupPayload(dataObj, sharedChargesFrom(dataObj).jointData);
-    await Adapter.createBackup(user.uid, {
-      type: 'auto', at: new Date().toISOString(), payload,
-    });
+    const at = new Date().toISOString();
+    await Adapter.createBackup(user.uid, { type: 'auto', at, payload });
+    // Retenue APRÈS l'écriture, jamais avant : une création qui échoue ne doit
+    // pas faire croire à l'appareil qu'il a une automatique récente.
+    retenirDerniereAuto(user.uid, at);
     await Adapter.pruneBackups(user.uid, BACKUP_KEEP);
   } catch (e) {
     console.warn('Auto-sauvegarde non effectuée', e);
@@ -1117,6 +1193,12 @@ function BackupsCard({ ctx }) {
     try {
       const list = await Adapter.listBackups(user.uid);
       setBackups(list);
+      // La liste est lue de toute façon : on en profite pour remettre la mémoire
+      // de l'appareil à l'heure (cf. `retenirDerniereAuto`). C'est ce qui couvre
+      // la SUPPRESSION d'une automatique — par la corbeille d'ici, ou vue ici
+      // après l'avoir faite ailleurs : la date retenue suit la liste réelle.
+      const derniere = list.find((b) => b && b.type === 'auto');
+      retenirDerniereAuto(user.uid, derniere && derniere.at);
     } catch (e) {
       console.warn('Chargement des sauvegardes impossible', e);
       setBackups([]);

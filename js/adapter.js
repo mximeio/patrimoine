@@ -756,8 +756,9 @@ const Adapter = {
     return ref.id;
   },
   async deleteBackup(uidStr, id) { await this._backupsCol(uidStr).doc(id).delete(); },
-  // Rotation : ne conserve que les `keep` plus récentes (par `at`).
-  async pruneBackups(uidStr, keep = 10) {
+  // Rotation : ne conserve que les `keep` plus récentes (par `at`). Les appelants
+  // passent BACKUP_KEEP (backups.js) ; le défaut doit lui rester égal (testé).
+  async pruneBackups(uidStr, keep = 5) {
     const snap = await this._backupsCol(uidStr).orderBy('at', 'desc').get();
     const docs = snap.docs;
     for (let i = keep; i < docs.length; i++) {
