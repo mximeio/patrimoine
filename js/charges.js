@@ -181,6 +181,34 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
     persoWith.every(p => (Number(sp.amounts?.[p.id]) || 0) === (Number(sp.amounts?.[persoWith[0].id]) || 0));
   const showMonthlyEquiv = !!persoSolo || splitLabel(c, people) === '50/50' || persoAmountsEqual;
   const monthlyEquiv = people.reduce((s, p) => s + roundDisp(chargeShareOf(c, p.id, nets, people.length) / 12), 0);
+  // 26/10/2026 : en portrait téléphone, la part de chacun (et l'équivalent mensuel
+  // d'une charge annuelle) est masquée sous le montant — l'afficher sur la ligne la
+  // ferait grandir (+12 pt sous le nom) ou couperait les noms (sous le montant).
+  // TOUCHER le montant l'ouvre dans une bulle, comme le nom d'un support. Mêmes
+  // parts que `charge-split-mini` ci-dessous (par mois pour une annuelle, parts à 0
+  // masquées). Le crayon reste le seul à modifier. Maquette Mockup-Portrait-Complet.
+  const compact = useEcranCompact();
+  const annuelle = c.period === 'annual';
+  const parts = people
+    .map((p, i) => ({ p, i, v: chargeShareOf(c, p.id, nets, people.length) / (annuelle ? 12 : 1) }))
+    .filter((x) => roundDisp(x.v) !== 0);
+  const partsTexte = parts.map((x) => `${initials(x.p.label)} ${eur(x.v)}`).join(' · ');
+  const parAn = annuelle ? `${eur(chargeTotalOf(c))} par an${showMonthlyEquiv ? `, soit ${eur(monthlyEquiv)}/mois` : ''}` : '';
+  const bulleParts = (
+    <>
+      {annuelle && 'Par mois : '}
+      {parts.map((x, k) => (
+        <React.Fragment key={x.p.id}>
+          {k > 0 && ' · '}
+          <span className="csm-name" style={{ color: personTextAt(x.i) }}>{initials(x.p.label)}</span> {eur(x.v)}
+        </React.Fragment>
+      ))}
+      {annuelle && <span className="infotip-sous">{parAn}</span>}
+    </>
+  );
+  const avecBulle = (total) => (compact && parts.length > 0
+    ? <InfoTip className="charge-montant-tip" popClassName="infotip-pop--wrap" label={`${annuelle ? 'Par mois : ' : ''}${partsTexte}${annuelle ? ` — ${parAn}` : ''}`} content={bulleParts}>{total}</InfoTip>
+    : total);
   return (
     <div ref={dropRef} className="charge-row charge-row--ro">
       <span ref={dragRef} className="charge-badge" title="Glisser pour réordonner"><Icon name="receipt" size={14} /></span>
@@ -197,7 +225,7 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
       <div className="charge-amount-block">
         {c.period === 'annual' ? (
           <>
-            <span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>{eurEl(chargeTotalOf(c))}{showMonthlyEquiv && <span className="charge-monthly-equiv"> · − {eurEl(monthlyEquiv)}/mois</span>}</span>
+            {avecBulle(<span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>{eurEl(chargeTotalOf(c))}{showMonthlyEquiv && <span className="charge-monthly-equiv"> · − {eurEl(monthlyEquiv)}/mois</span>}</span>)}
             <span className="charge-split-mini">
               {people.map((p, i) => {
                 const sh = chargeShareOf(c, p.id, nets, people.length) / 12;
@@ -212,7 +240,7 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
           </>
         ) : (
           <>
-            <span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>− {eurEl(chargeTotalOf(c))}</span>
+            {avecBulle(<span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>− {eurEl(chargeTotalOf(c))}</span>)}
             <span className="charge-split-mini">
               {people.map((p, i) => {
                 const sh = chargeShareOf(c, p.id, nets, people.length);

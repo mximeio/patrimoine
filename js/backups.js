@@ -1179,6 +1179,16 @@ function backupDateLabel(at) {
   return `${date}, ${time}`;
 }
 
+// La même date en court (« 23/10/26, 08:04 ») : en portrait téléphone, elle fait
+// place au mot « Restaurer » de la ligne (cf. styles.css, 26/10/2026).
+function backupDateCourte(at) {
+  if (!at) return '';
+  const d = new Date(at);
+  const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `${date}, ${time}`;
+}
+
 // ============================================================
 //  Carte « Sauvegardes » (rendue dans les Paramètres)
 // ============================================================
@@ -1304,7 +1314,8 @@ function BackupsCard({ ctx }) {
                       et affiché selon l'écran par media query, pour garder une
                       seule structure DOM. */}
                   <div className="d">
-                    {backupDateLabel(b.at)}
+                    <span className="d-long">{backupDateLabel(b.at)}</span>
+                    <span className="d-court">{backupDateCourte(b.at)}</span>
                     <span className={`backup-tag d-tag ${backupTypeTag(b.type).cls}`}>{backupTypeTag(b.type).label}</span>
                   </div>
                   <div className="figs">

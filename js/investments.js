@@ -166,7 +166,12 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
         <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(consolidated.totalValue)} €</div>
         <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value</div>
+            {/* « dont … de div. » : les dividendes en portrait téléphone, où le chiffre
+                « Dividendes perçus » est masqué (il ferait passer la ligne en deux et
+                grandir la carte de tête). Exact : la plus-value les inclut
+                (compute.js). « div. » est abrégé pour tenir sur une ligne à 375 pt,
+                même à quatre chiffres. Maquette Mockup-Portrait-Complet (26/10/2026). */}
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value{consolidated.hasDistributing && consolidated.totalDividends > 0 && <span className="hero-div-dont">, dont {fmt(consolidated.totalDividends)} € de div.</span>}</div>
             <div className="num" style={{ fontSize: 16, fontWeight: 600, color: positive ? '#86efac' : '#fca5a5' }}>
               {positive ? '+' : ''}{fmt(consolidated.totalGain)} €
               {consolidated.totalPurchased > 0 && (
@@ -522,7 +527,8 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(stats.totalValue)} €</div>
         <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value</div>
+            {/* Même « dont … de div. » que la vue Investissements (motif écrit là-bas). */}
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value{stats.hasDistributing && stats.totalDividends > 0 && <span className="hero-div-dont">, dont {fmt(stats.totalDividends)} € de div.</span>}</div>
             <div className="num" style={{ fontSize: 16, fontWeight: 600, color: positive ? '#86efac' : '#fca5a5' }}>
               {positive ? '+' : ''}{fmt(stats.totalGain)} €
               {stats.totalPurchased > 0 && (
@@ -878,6 +884,22 @@ function SupportRow({ position, lastDate }) {
   // vit désormais dans `nomsDuSupport` (utils.js), rendue par `NomSupport` et
   // `LibelleSupport`. ⚠️ Ne pas la réécrire à la main ici : c'est ce qui l'avait
   // fait diverger.
+  // 26/10/2026 : en portrait téléphone, où seul le nom court tient, TOUCHER le nom
+  // ouvre une bulle avec le nom complet (et ticker · ISIN). Le nom complet est pris
+  // dans `nomsDuSupport`, jamais recalculé : c'est celui qu'afficherait le paysage.
+  // Pas de bulle quand rien ne bascule (nom court = nom complet). La ligne ne
+  // réagissait à aucun toucher : le geste est libre. Maquette Mockup-Portrait-Complet.
+  const compact = useEcranCompact();
+  const noms = nomsDuSupport(position);
+  const nomComplet = noms.secondaireCourt ? noms.secondaireLong : (noms.principalCourt ? noms.principal : '');
+  const reperes = [position.ticker, position.isin].map((x) => (x || '').trim()).filter(Boolean).join(' · ');
+  const nomEtLibelle = (
+    <>
+      <NomSupport etf={position} />
+      <LibelleSupport etf={position} className="" prefixe=" — "
+        style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }} />
+    </>
+  );
   return (
     <div className="support-row" data-locate={`etf-${position.id}`}>
       {/* ⚠️ L'initiale reste celle de `supportName` (ticker ou nom court), pas du
@@ -888,9 +910,12 @@ function SupportRow({ position, lastDate }) {
       </span>
       <div className="support-main">
         <div className="support-name">
-          <NomSupport etf={position} />
-          <LibelleSupport etf={position} className="" prefixe=" — "
-            style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }} />
+          {compact && nomComplet ? (
+            <InfoTip className="support-nom-tip" popClassName="infotip-pop--wrap" label={nomComplet}
+              content={<>{nomComplet}{reperes && <span className="infotip-sous">{reperes}</span>}</>}>
+              {nomEtLibelle}
+            </InfoTip>
+          ) : nomEtLibelle}
           {isDist && (
             <span className="kind-badge dist" style={{ marginLeft: 6 }}>Distribuant</span>
           )}
@@ -2225,8 +2250,10 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
               <div className="cp-tableau">
                 <div className="cp-tableau-tete">
                   <span />
-                  <span><span className="cp-th-long">Valeur actuelle (€)</span><span className="cp-th-court">Valeur</span></span>
-                  <span><span className="cp-th-long">Prix d'une part (€)</span><span className="cp-th-court">Prix</span></span>
+                  {/* En portrait téléphone, l'intitulé court garde l'unité (26/10/2026) :
+                      « Valeur (€) » et « Prix (€) » tiennent sur une ligne, les longs non. */}
+                  <span><span className="cp-th-long">Valeur actuelle (€)</span><span className="cp-th-court">Valeur (€)</span></span>
+                  <span><span className="cp-th-long">Prix d'une part (€)</span><span className="cp-th-court">Prix (€)</span></span>
                 </div>
                 {etfs.map((e) => {
                   const saisie = valeurSaisie(valeurAffichee(e));

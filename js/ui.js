@@ -320,7 +320,10 @@ function Dropdown({ trigger, children, align = 'right', portal = false }) {
 // de sa boîte plafonnée à 220 px, donc de l'écran — 220 px dehors sur un
 // viewport de 390, et encore 195 px sur un viewport de 766. Le recadrage au
 // viewport n'y peut rien, il place la BOÎTE, pas le contenu qui en sort.
-function InfoTip({ iconName = 'target', size = 13, label, className = '', popClassName = '', children = null }) {
+// 26/10/2026 : `content` (facultatif) remplace le contenu de la bulle par un
+// rendu riche (deux lignes, couleurs) ; `label` reste le TEXTE lu par
+// l'accessibilité (`aria-label`), il doit donc rester une chaîne.
+function InfoTip({ iconName = 'target', size = 13, label, content = null, className = '', popClassName = '', children = null }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const ref = useRef(null);
@@ -434,7 +437,7 @@ function InfoTip({ iconName = 'target', size = 13, label, className = '', popCla
               node.style.overflowY = 'auto';
             }
           }}
-        >{label}</span>,
+        >{content || label}</span>,
         document.body
       )}
     </span>

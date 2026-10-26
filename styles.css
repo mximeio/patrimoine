@@ -2946,17 +2946,24 @@ button.stat-card {
 .backup-showall .backup-chev.up { transform: rotate(180deg); }
 
 /* v559 — Portrait mobile UNIQUEMENT : lignes de sauvegarde compactes
-   (2 lignes). On masque le pictogramme de gauche, on déplace le tag type
-   sur la ligne d'âge, et « Restaurer » devient une icône seule (la
-   confirmation s'ouvre de toute façon). Desktop/paysage : inchangé. */
+   (2 lignes). On masque le pictogramme de gauche et on déplace le tag type
+   sur la ligne d'âge. Desktop/paysage : inchangé.
+   26/10/2026 : « Restaurer » garde son MOT et perd son icône — un nuage seul,
+   à côté d'une corbeille, ne disait pas ce qu'il fait, et son `title` ne
+   s'affiche jamais au doigt. Pour lui faire place, la date passe en court
+   (« 23/10/26, 08:04 » au lieu de « 23 oct. 2026, 08:04 ») : sans ça, à 375 pt,
+   le mot coupait 3 dates sur 4. Maquette Mockup-Portrait-Complet. */
+.backup-row .d-court { display: none; }
 @media (max-width: 480px) and (orientation: portrait) {
   .backup-row { gap: 10px; padding: 9px 11px; }
   .backup-row .ic { display: none; }
   .backup-row .d { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .backup-row .d .d-tag { display: none; }
+  .backup-row .d-long { display: none; }
+  .backup-row .d-court { display: inline; }
   .backup-row .figs .sub-tag { display: inline-block; }
   .backup-restore { padding: 7px 9px; gap: 0; }
-  .backup-restore .lbl { display: none; }
+  .backup-restore svg { display: none; }
 }
 
 /* --- Confirmation de restauration --- */
@@ -3270,6 +3277,17 @@ button.stat-card {
 }
 /* v596 : variante multi-ligne pour un commentaire (texte long) */
 .infotip-pop.infotip-pop--wrap { white-space: normal; max-width: min(420px, calc(100vw - 16px)); line-height: 1.4; }
+/* 26/10/2026 : seconde ligne discrète d'une bulle (prop `content` d'InfoTip) —
+   ticker · ISIN sous le nom complet d'un support, total annuel sous les parts
+   d'une charge. */
+.infotip-sous { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; color: var(--text-muted); }
+/* Les deux déclencheurs « en touchant » du portrait téléphone (nom d'un support,
+   montant d'une charge) : un pointillé dit qu'on peut toucher. */
+.support-nom-tip, .charge-montant-tip { text-decoration: underline dotted; text-decoration-color: rgba(100, 116, 139, 0.55); text-underline-offset: 3px; }
+/* ⚠️ Dans la colonne flex du montant, `.infotip-txt` devient un bloc : son
+   padding vertical (la cible au doigt) ferait GRANDIR la ligne de 18 pt. La
+   marge négative le compense — même cible, même hauteur de ligne. */
+.charge-amount-block > .charge-montant-tip { margin: -9px 0; }
 /* v596 : bulle commentaire sur une ligne d'opération — toujours visible
    (le libellé tronque avant elle), centrée verticalement. */
 .op-note { flex-shrink: 0; align-self: center; }
@@ -3485,10 +3503,15 @@ button.stat-card {
 @media (max-width: 480px) {
   .hero-value-big { font-size: 26px; }
 }
-/* Mobile en portrait : on masque l'affichage des dividendes dans le hero
-   pour ne pas faire grandir la card. En paysage et sur desktop, l'info reste visible. */
+/* Mobile en portrait : on masque le chiffre « Dividendes perçus » de la carte de
+   tête, qui ferait passer la ligne en deux et grandir la carte (194 pt au lieu des
+   136 de toutes les cartes de tête). Les dividendes passent alors dans l'étiquette
+   « Plus-value, dont … de div. » (26/10/2026, maquette Mockup-Portrait-Complet) :
+   même hauteur, à 375 pt comme à 440. En paysage et sur desktop, le chiffre reste. */
+.hero-div-dont { display: none; }
 @media (max-width: 768px) and (orientation: portrait) {
   .hero-dividends-stat { display: none; }
+  .hero-div-dont { display: inline; }
 }
 @media (max-width: 640px) {
   .hide-mobile { display: none !important; }
