@@ -360,7 +360,7 @@ const Adapter = {
   async changePassword(currentPassword, newPassword) {
     const user = fbAuth.currentUser;
     if (!user) throw new Error('Non connecté');
-    if (newPassword.length < 6) throw new Error('Le nouveau mot de passe doit faire au moins 6 caractères.');
+    if (newPassword.length < MOT_DE_PASSE_MIN) throw new Error(MESSAGE_MOT_DE_PASSE_COURT);
     // Ré-authentification requise par Firebase pour les opérations sensibles
     const cred = FBAUTH.EmailAuthProvider.credential(user.email, currentPassword);
     await user.reauthenticateWithCredential(cred);
@@ -1074,7 +1074,11 @@ const Adapter = {
       'auth/wrong-password': "Mot de passe incorrect.",
       'auth/invalid-credential': "Identifiants invalides.",
       'auth/email-already-in-use': "Un compte existe déjà avec cet email.",
-      'auth/weak-password': "Le mot de passe doit faire au moins 6 caractères.",
+      'auth/weak-password': MESSAGE_MOT_DE_PASSE_COURT,
+      // Le refus de la politique de la console (12 caractères, cf. MOT_DE_PASSE_MIN). Sans
+      // cette entrée, le message brut du SDK s'affichait, en anglais. Code relevé dans le SDK
+      // servi (firebase-auth-compat 10.14.1) le 04/11/2026.
+      'auth/password-does-not-meet-requirements': MESSAGE_MOT_DE_PASSE_COURT,
       'auth/too-many-requests': "Trop de tentatives. Réessaie dans quelques minutes.",
       'auth/network-request-failed': "Problème de connexion réseau.",
     };

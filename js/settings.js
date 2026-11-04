@@ -162,7 +162,7 @@ function PasswordChangeCard({ ctx }) {
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
-    if (next.length < 6) { setError('Le nouveau mot de passe doit faire au moins 6 caractères.'); return; }
+    if (next.length < MOT_DE_PASSE_MIN) { setError(MESSAGE_MOT_DE_PASSE_COURT); return; }
     if (next !== confirm) { setError('Les deux nouveaux mots de passe ne correspondent pas.'); return; }
     setBusy(true);
     try {
@@ -177,7 +177,7 @@ function PasswordChangeCard({ ctx }) {
   return (
     <div className="settings-card">
       <h2>Mot de passe</h2>
-      <p className="muted">Modifie ton mot de passe de connexion.</p>
+      <p className="muted">Modifie ton mot de passe de connexion : {MOT_DE_PASSE_MIN} caractères minimum.</p>
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 380 }}>
         {error && <div style={{ padding: 10, background: 'var(--danger-light)', color: 'var(--danger-fonce)', fontSize: 13, borderRadius: 8 }}>{error}</div>}
         <div>
@@ -186,11 +186,11 @@ function PasswordChangeCard({ ctx }) {
         </div>
         <div>
           <label className="label">Nouveau mot de passe</label>
-          <input type="password" className="input" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" minLength={6} required />
+          <input type="password" className="input" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" minLength={MOT_DE_PASSE_MIN} required />
         </div>
         <div>
           <label className="label">Confirmer le nouveau mot de passe</label>
-          <input type="password" className="input" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" minLength={6} required />
+          <input type="password" className="input" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" minLength={MOT_DE_PASSE_MIN} required />
         </div>
         <button type="submit" className="btn btn-secondary" disabled={busy} style={{ alignSelf: 'flex-start' }}>
           {busy ? 'Modification…' : 'Modifier le mot de passe'}

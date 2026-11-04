@@ -96,6 +96,14 @@ const fmtNoDec = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 
 // ⚠️ Ne concerne PAS les montants en euros : eux ont déjà `fmt` / `fmtNoDec`.
 const eur = (n) => eurFormatter.format(n || 0).replace(',', '.');
 const r2 = (n) => Math.round(n * 100) / 100;
+
+// Longueur minimale d'un NOUVEAU mot de passe — le miroir de la politique de la console
+// Firebase (« Exiger », 12 caractères, sur les deux projets depuis le 04/11/2026 : §3 de
+// CLAUDE.md). C'est le serveur qui fait foi ; l'app ne fait que l'annoncer et refuser plus tôt.
+// ⚠️ NE PAS l'appliquer au champ de CONNEXION (auth.js) : les mots de passe d'avant, plus
+// courts, se connectent toujours (case « Changement requis lors de la connexion » décochée).
+const MOT_DE_PASSE_MIN = 12;
+const MESSAGE_MOT_DE_PASSE_COURT = `Le nouveau mot de passe doit faire au moins ${MOT_DE_PASSE_MIN} caractères.`;
 // Signe affiché devant un montant de ligne (compte courant + récurrents) :
 //  - entrée  → toujours +
 //  - sortie  → toujours −
