@@ -110,7 +110,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
                 </div>
                 <div className="portfolio-list-main">
                   <div className="portfolio-list-name">
-                    {acc.name || <span style={{ color: COLORS.subtle, fontStyle: 'italic' }}>(sans nom)</span>}
+                    {acc.name || <span style={{ color: COLORS.muted, fontStyle: 'italic' }}>(sans nom)</span>}
                   </div>
                   <div className="portfolio-list-sub">
                     {monthsCount} mois
@@ -126,7 +126,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
                       Pointé · {fmt(acc._balancePointed)} €
                     </div>
                   ) : (
-                    <div className="num" style={{ fontSize: 12, color: COLORS.subtle, marginTop: 2 }}>Solde initial</div>
+                    <div className="num" style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>Solde initial</div>
                   )}
                 </div>
                 <span className="portfolio-list-arrow" aria-hidden="true">›</span>
@@ -2419,7 +2419,7 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
       </div>
       <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
         <span className="op-label">
-          {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
+          {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
         </span>
         {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
         {datesMode && item.date && (
@@ -2477,7 +2477,7 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
         <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
           <span className="op-label-chevron">
             <span className="op-label">
-              {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
+              {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
             </span>
             <button className="composite-chevron" onClick={onToggle} title={expanded ? 'Replier' : 'Déplier les composantes'}><Icon name="chevronDown" size={12} /></button>
           </span>
@@ -2699,7 +2699,7 @@ function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMo
           entrées/sorties (les TR ne se pointent pas), et TR vit dans sa popup. */}
       <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
         <span className="op-label">
-          {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
+          {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
         </span>
         {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
         {datesMode && item.date && (

@@ -8,7 +8,8 @@
   --text: #0f172a;
   --text-light: #475569;
   --text-muted: #64748b;
-  --text-subtle: #94a3b8;
+  --text-subtle: #808fa4; /* 04/11/2026 : ICÔNES, SIGNES et états VIDES seulement (3:1 sur blanc et #f8fafc). Un TEXTE
+                            prend --text-muted (4,5:1) : #94a3b8 (2,56:1) portait des chiffres. Verrouillé par tests.js. */
   --accent: #4f46e5;
   --accent-hover: #4338ca;
   --accent-light: #eef2ff;
@@ -344,7 +345,7 @@ input[type="month"] {
 .dropdown-version {
   border-top: 1px solid #eef1f5; margin: 5px -6px 0; padding: 8px 12px 3px;
   text-align: center; font-size: 10.5px; font-weight: 300;
-  color: var(--text-subtle); font-variant-numeric: tabular-nums;
+  color: var(--text-muted); font-variant-numeric: tabular-nums;
 }
 
 /* ============================================================
@@ -560,7 +561,7 @@ input[type="month"] {
   text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
   padding-right: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.inc-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); font-weight: 600; margin-top: 9px; }
+.inc-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-top: 9px; }
 .inc-amt { display: flex; align-items: baseline; gap: 5px; margin-top: 2px; }
 .inc-amt-input {
   border: 1px solid transparent; background: transparent; font-family: inherit;
@@ -594,7 +595,7 @@ input[type="month"] {
 }
 .pc-name { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding-right: 36px; }
 .pcard-hero { margin-top: 9px; }
-.pcard-hero-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); font-weight: 600; }
+.pcard-hero-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; }
 .pcard-hero-val { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 2px; }
 .pcard-sub { font-size: 12px; color: var(--text-muted); margin-top: 7px; font-variant-numeric: tabular-nums; }
 .pcard-sub b { color: var(--text); font-weight: 600; }
@@ -631,7 +632,7 @@ input[type="month"] {
 .cmpp-name { font-size: 14px; font-weight: 700; }
 .cmpp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .cmpp-tab { border-collapse: collapse; width: 100%; }
-.cmpp-tab th { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-subtle); text-align: right; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.cmpp-tab th { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); text-align: right; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .cmpp-tab td { font-size: 12.5px; text-align: right; padding: 11px 12px; vertical-align: top; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cmpp-tab td.cmpp-sc, .cmpp-tab th.cmpp-sc { position: sticky; left: 0; background: var(--surface); text-align: left; font-weight: 600; z-index: 2; min-width: 92px; box-shadow: 1px 0 0 var(--border); }
 .cmpp-tab tr.ref td { background: var(--accent-light); }
@@ -648,7 +649,7 @@ input[type="month"] {
 .cmp-delta { display: block; font-size: 11px; font-weight: 400; margin-top: 4px; }
 .cmp-delta.down { color: var(--danger-fonce); }
 .cmp-delta.up { color: var(--success-fonce); }
-.cmp-delta.neu { color: var(--text-subtle); }
+.cmp-delta.neu { color: var(--text-muted); }
 .cmp-star { color: var(--accent); }
 /* arrondi (portrait smartphone) vs exact (paysage + desktop) */
 .cmpd-round { display: none; }
@@ -1250,6 +1251,11 @@ button.stat-card {
 }
 .tx-row:last-child { border-bottom: none; }
 @media (hover: hover) { .tx-row:hover { background: var(--surface-alt); } }
+/* TOUTE la ligne à pointer s'estompe, boutons compris (case, crayon, chevron), PAR CHOIX de l'utilisateur le 04/11/2026 :
+   « toute la ligne dit en attente ». Deux autres réglages ont été essayés en DEV et écartés (v1121 : case et crayon nets,
+   case à bord foncé ; v1122 : case estompée, crayon net — l'action quotidienne devenait la plus pâle de la ligne).
+   Maquette _maquettes/Mockup-Case-A-Pointer/. Coût connu et accepté : crayon et chevron à 2,5:1, case vide à 1,3:1.
+   Ne pas « corriger » au nom du contraste. Verrouillé par tests.js. */
 .tx-row.unpointed { opacity: 0.65; }
 @media (hover: hover) { .tx-row.unpointed:hover { opacity: 0.85; } }
 
@@ -1326,6 +1332,7 @@ button.stat-card {
 }
 
 .tx-check {
+  /* Bord --border-strong (1,5:1) gardé PAR CHOIX le 04/11/2026 : un bord à 3:1 (DEV v1121) rendait la case trop présente. */
   width: 18px; height: 18px; border: 2px solid var(--border-strong);
   border-radius: 4px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -2436,7 +2443,7 @@ button.stat-card {
 .sheet-version {
   /* v584 : style fin (10.5px, léger) pour plus de discrétion. Pas de hairline
      ici : l'espacement de la feuille sépare déjà visuellement du bloc au-dessus. */
-  text-align: center; font-size: 10.5px; font-weight: 300; color: var(--text-subtle);
+  text-align: center; font-size: 10.5px; font-weight: 300; color: var(--text-muted);
   padding: 10px 0 0; font-variant-numeric: tabular-nums;
 }
 /* Poignée physique (drag-to-dismiss) : sans touch-action:none, iOS
@@ -2553,7 +2560,7 @@ button.stat-card {
    évite de chercher en vain sous un filtre oublié. */
 /* Ce que la période écarte faute de date. Discret, mais jamais absent :
    masquer sans le dire serait une perte silencieuse. */
-.search-meta-exclus { color: var(--text-subtle); }
+.search-meta-exclus { color: var(--text-muted); }
 
 .search-periode-btn {
   width: 28px; height: 28px; padding: 0;
@@ -2634,7 +2641,7 @@ button.stat-card {
   padding: 6px 20px;
   display: flex; align-items: center; gap: 8px;
 }
-.search-group-count { color: var(--text-subtle); font-weight: 500; }
+.search-group-count { color: var(--text-muted); font-weight: 500; }
 /* v617 — Groupe paginé : "50 sur 93" passe en accent pour se remarquer. */
 .search-group-count.trunc { color: var(--accent); font-weight: 600; }
 /* v617 — Bouton de pagination en pied de groupe. Bordure tiretée pour le
@@ -2669,7 +2676,7 @@ button.stat-card {
   padding: 9px 20px 4px;
   font-size: 10px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--text-subtle);
+  color: var(--text-muted);
 }
 .search-near-sep::after {
   content: ""; flex: 1; height: 1px; background: var(--border);
@@ -2911,7 +2918,7 @@ button.stat-card {
   display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
   font-size: 13px; font-weight: 700; line-height: 1.2;
 }
-.backup-row .figs { font-size: 11px; color: var(--text-subtle); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+.backup-row .figs { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
 /* Le tag type sur la ligne d'âge n'apparaît qu'en portrait mobile (cf. media query). */
 .backup-tag.sub-tag { display: none; }
 .backup-row .figs b { color: var(--text-muted); font-weight: 700; }
@@ -2921,7 +2928,7 @@ button.stat-card {
   padding: 2px 6px; border-radius: var(--radius-full);
 }
 .backup-tag.manual { background: var(--accent-light); color: var(--accent); }
-.backup-tag.auto { background: var(--surface-hover); color: var(--text-subtle); }
+.backup-tag.auto { background: var(--surface-hover); color: var(--text-light); }
 .backup-tag.latest-tag { background: var(--accent-light); color: var(--accent); }
 /* « avant restauration » : teinte ardoise neutre, casse normale (libellé long). */
 .backup-tag.pre { background: #e7ecf3; color: #475569; text-transform: none; letter-spacing: 0; font-weight: 700; }
@@ -2972,7 +2979,7 @@ button.stat-card {
 .restore-confirm .rc-summary b { color: var(--accent); }
 .restore-confirm .rc-head {
   display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 0 12px 6px;
-  font-size: 9.5px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--text-subtle);
+  font-size: 9.5px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--text-muted);
 }
 .restore-confirm .rc-head span:nth-child(2), .restore-confirm .rc-head span:nth-child(3) { text-align: right; }
 .restore-confirm .rc-grid { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -2982,9 +2989,9 @@ button.stat-card {
 }
 .restore-confirm .rc-r + .rc-r { border-top: 1px solid var(--border); }
 .restore-confirm .rc-r .gl { color: var(--text); font-weight: 600; }
-.restore-confirm .rc-r .ga { color: var(--text-subtle); text-align: right; white-space: nowrap; font-size: 11.5px; }
+.restore-confirm .rc-r .ga { color: var(--text-muted); text-align: right; white-space: nowrap; font-size: 11.5px; }
 .restore-confirm .rc-r .gb { text-align: right; white-space: nowrap; font-weight: 700; min-width: 58px; }
-.restore-confirm .rc-r.eq .gb { color: var(--text-subtle); font-weight: 600; }
+.restore-confirm .rc-r.eq .gb { color: var(--text-muted); font-weight: 600; }
 /* v560 — rubrique modifiée : fin liseré indigo à gauche + valeur restaurée
    en accent (charte de l'app), sans fond coloré (fini l'ambre/brun). */
 .restore-confirm .rc-r.chgd { box-shadow: inset 3px 0 0 var(--accent); }
@@ -3010,7 +3017,7 @@ button.stat-card {
    total gardait une valeur noire alors que son liseré passait au rouge. */
 .restore-confirm .rc-r.total.chgd-count .gb { color: var(--danger-fonce); }
 .restore-confirm .rc-r.detail { background: #fbfbfd; }
-.restore-confirm .rc-r.detail .gl { padding-left: 12px; color: var(--text-subtle); font-weight: 500; font-size: 11.5px; }
+.restore-confirm .rc-r.detail .gl { padding-left: 12px; color: var(--text-muted); font-weight: 500; font-size: 11.5px; }
 .restore-confirm .rc-r.detail .ga, .restore-confirm .rc-r.detail .gb { font-size: 11px; font-weight: 600; }
 .restore-confirm .rc-expand {
   display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--accent);
@@ -4233,7 +4240,7 @@ button.cp-seg-item { cursor: pointer; }
 /* Le delta repoussé à DROITE du libellé et insécable — copié de
    `.maj-sup-lbl .maj-delta`, même motif : identité à gauche, montant à droite. */
 .cp-lbl .maj-delta { margin-left: auto; flex: none; white-space: nowrap; }
-.cp-sanscible { text-align: right; color: var(--text-subtle); }
+.cp-sanscible { text-align: right; color: var(--text-muted); }
 .cp-note { font-size: 12px; line-height: 1.45; color: var(--text-muted); margin: 4px 0 0; }
 .cp-th-court { display: none; }
 
@@ -4345,12 +4352,12 @@ button.cp-seg-item { cursor: pointer; }
 .cp-cible { display: inline-flex; align-items: center; gap: 4px;
   font-size: 11px; font-weight: 600; color: var(--text-muted);
   background: var(--surface-hover); border-radius: var(--radius-full); padding: 2px 8px; }
-.cp-prix-rappel { font-size: 11.5px; color: var(--text-subtle); }
+.cp-prix-rappel { font-size: 11.5px; color: var(--text-muted); }
 /* « · déduit » — le prix vient du montant payé, pas de la saisie de l'étape 1.
    En indigo comme le liseré des lignes ajustées : les deux marquent une
    INTERVENTION de l'utilisateur, pas une conséquence du calcul. */
 .cp-prix-deduit { color: var(--accent); font-weight: 500; }
-.cp-rang { margin-left: auto; font-size: 11.5px; color: var(--text-subtle); }
+.cp-rang { margin-left: auto; font-size: 11.5px; color: var(--text-muted); }
 
 .cp-achat { display: flex; align-items: flex-end; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
 .cp-achat .label { font-size: 12px; font-weight: 500; margin-bottom: 5px; }

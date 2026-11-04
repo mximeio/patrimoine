@@ -890,7 +890,7 @@ function SimpleRecurringRow({ item, scope, list, index, onUpdate, onRemove, onEd
       </span>
       <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
         <span className="op-label">
-          {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
+          {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
         </span>
         {datesMode && item.dayOfMonth && (
           <span className="op-date">Le {item.dayOfMonth}</span>
@@ -1055,7 +1055,7 @@ function CompositeRecurringRow({ item, scope, list, index, expanded, onToggle, o
         <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
           <span className="op-label-chevron">
             <span className="op-label">
-              {labelText || <span style={{ color: 'var(--text-subtle)', fontStyle: 'italic' }}>(sans libellé)</span>}
+              {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
             </span>
             <button className="composite-chevron" onClick={onToggle} title={expanded ? 'Replier' : 'Déplier les composantes'}><Icon name="chevronDown" size={12} /></button>
           </span>

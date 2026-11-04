@@ -10,7 +10,7 @@ const COLORS = {
   success: '#10b981',
   danger: '#ef4444',
   muted: '#64748b',
-  subtle: '#94a3b8',
+  subtle: '#808fa4', // icônes et signes seulement (3:1) ; un texte prend `muted` (04/11/2026)
   border: '#e2e8f0',
   text: '#0f172a',
   surface: '#ffffff',

@@ -324,7 +324,7 @@ function PortfolioListRow({ portfolio, colorIndex, total, onClick }) {
             )}
           </div>
         ) : (
-          <div className="num" style={{ fontSize: 12, color: COLORS.subtle, marginTop: 2 }}>— · —</div>
+          <div className="num" style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>— · —</div>
         )}
       </div>
       <span className="portfolio-list-arrow" aria-hidden="true">›</span>
