@@ -118,7 +118,7 @@ jobs:
       - name: Compiler le JSX
         run: |
           for f in js/*.js; do
-            npx --yes esbuild "$f" \
+            npx --yes esbuild@0.28.2 "$f" \
               --loader:.js=jsx \
               --target=${{ env.TARGET }} \
               --outfile="_site/js/$(basename "$f")"
