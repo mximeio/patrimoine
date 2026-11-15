@@ -139,6 +139,10 @@ function App() {
   const [joint, setJoint] = useState(undefined);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [moduleName, setModuleName] = useState(() => readModuleFromHash());
+  // La rubrique ouverte, posée sur <html> (modernisation C', 14/11/2026) : les fenêtres sont rendues hors de la vue
+  // (portail), c'est par là que leur bouton principal prend la couleur de la rubrique. Déclaré AVANT les retours
+  // anticipés d'`App`, comme tout hook (§8 de CLAUDE.md).
+  useEffect(() => { document.documentElement.dataset.rubrique = moduleName || ''; }, [moduleName]);
   const [toast, setToast] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   // En-tête de SOUS-PAGE (15/08/2026) : `{ nom, onBack }` quand une sous-page est
@@ -958,7 +962,7 @@ function App() {
         </div>
       )}
       {showSettings && (
-        <Modal title="Paramètres" size="lg" noDirtyGuard onClose={() => setShowSettings(false)}>
+        <Modal title="Paramètres" icon="settings" tone="neutre" subtitle="Général · Données · Mon compte" size="lg" noDirtyGuard onClose={() => setShowSettings(false)}>
           <SettingsView ctx={ctx} />
         </Modal>
       )}
@@ -1179,8 +1183,10 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
   return (
     <header className="app-header">
       <div className="app-bar-inner">
-        {/* Pas de logo : l'onglet actif du segmented (icône + nom foncés)
-            jouait déjà ce rôle visuellement — le logo faisait doublon. */}
+        {/* LE LOGO REVIENT avec la modernisation C' (15/11/2026, maquette cartes2.html) : l'onglet actif n'est plus
+            foncé (pastille blanche, point de couleur), il ne joue plus le rôle de marque. Il avait été retiré parce qu'il
+            faisait doublon avec l'onglet actif foncé. */}
+        <div className="app-bar-logo"><LogoPatrimoine size={30} /><span>Patrimoine</span></div>
         <nav className="app-bar-nav" ref={railRef}>
           <div className="seg-indicator" ref={indRef} />
           {tabs.map(t => (
@@ -1189,8 +1195,10 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
               onClick={() => onSelectModule(t.id)}
               className={`module-tab ${currentModule === t.id ? 'module-tab-active' : ''}`}
             >
-              <span className="module-tab-icon"><Icon name={t.icon} size={15} /></span>
-              {t.label}
+              {/* Un point de la couleur de la rubrique à la place de l'icône (maquette C') ; l'accueil n'en a pas. */}
+              {MODULE_COLORS[t.id] && <i className="module-tab-dot" style={{ background: MODULE_COLORS[t.id] }} aria-hidden="true" />}
+              {/* Libellé court sous 1024 px (15/11/2026) : à 820 px, « Actifs physiques » passait sous la recherche et le menu. */}
+              <span className="mt-long">{t.label}</span><span className="mt-court">{t.short || t.label}</span>
             </button>
           ))}
         </nav>

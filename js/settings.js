@@ -74,51 +74,39 @@ function SettingsView({ ctx }) {
 
   return (
     <div>
-      <h3 className="settings-group-title">Général</h3>
-      <div className="settings-card">
-        <h2>Modules actifs</h2>
-        <p className="muted">
-          Active ou désactive les modules selon tes besoins. Les données restent conservées en base et seront retrouvées lors d'une éventuelle réactivation.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          <ModuleToggleRow icon="creditCard" label="Compte courant" hint="Entrées, sorties, pointage, tickets resto" enabled={checkingEnabled} onChange={garde(pasLaDerniere('checking', toggleChecking))} />
-          <ModuleToggleRow icon="piggy" label="Épargne" hint="Livret A, LDDS, … (suivi manuel du solde)" enabled={modules.savings} onChange={garde(pasLaDerniere('savings', (v) => { if (confirmToggle(v, 'Épargne')) setModule('savings', v); }))} />
-          <ModuleToggleRow icon="chart" label="Investissements" hint="PEA, PEI, supports, opérations, valorisations" enabled={modules.investments} onChange={garde(pasLaDerniere('investments', (v) => { if (confirmToggle(v, 'Investissements')) setModule('investments', v); }))} />
-          <ModuleToggleRow icon="coin" label="Actifs physiques" hint="Pièces d'or, métaux précieux (suivi manuel du prix)" enabled={modules.physical} onChange={garde(pasLaDerniere('physical', (v) => { if (confirmToggle(v, 'Actifs physiques')) setModule('physical', v); }))} />
-        </div>
-      </div>
-
-      <div className="settings-card">
-        <h2>Options avancées</h2>
-        <p className="muted">
-          Paramètres transverses qui touchent à l'organisation globale de l'application.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8, opacity: checkingEnabled ? 1 : 0.5 }}>
-          <ModuleToggleRow
-            icon="creditCard"
-            label="Plusieurs comptes courants"
-            hint={checkingEnabled
-              ? "Active la gestion de plusieurs comptes courants (Boursorama, BNP, …). Chaque compte a ses propres mois, récurrents et réglages TR."
-              : "Disponible uniquement si le module Compte courant est activé."}
-            enabled={!!modules.multiCheckingAccounts}
-            onChange={garde(toggleMulti)}
-          />
-          <ModuleToggleRow
-            icon="calendar"
-            label="Gestion des dates sur le compte courant"
-            hint={checkingEnabled
-              ? "Affiche un champ date sur les entrées, sorties, tickets resto et opérations récurrentes. Le glisser-déposer est désactivé tant que ce mode est actif. Les dates restent en base si tu désactives l'option ensuite."
-              : "Disponible uniquement si le module Compte courant est activé."}
-            enabled={!!modules.checkingDates}
-            onChange={garde((v) => {
-              if (!checkingEnabled) {
-                return refuser(showToast, REFUS.compteCourantRequis);
-              }
-              if (!confirmToggle(v, 'Gestion des dates sur le compte courant')) return;
-              setModule('checkingDates', v);
-            })}
-          />
-        </div>
+      {/* Maquette C' (fenParametres) : titre de section hors du cadre, puis un groupe gris de rangées séparées par un filet.
+          Une ligne par réglage, les explications dans des « ? » (Mockup-Parametres-Raccourcis). Version B de
+          Mockup-Parametres-Icones-Options (15/11/2026) : tuiles PLEINES de la couleur de la rubrique, comme ses cartes et ses
+          en-têtes de fenêtre ; les deux options du compte courant rangées SOUS lui, en retrait, et absentes quand il est coupé
+          (elles gardent leur état et reviennent avec lui). Plus de section « Options avancées ». */}
+      <h3 className="settings-group-title">Modules actifs<AideChamp>Active ou désactive les modules selon tes besoins. Les données restent conservées et seront retrouvées à une réactivation.</AideChamp></h3>
+      <div className="settings-groupe">
+          <ModuleToggleRow module="checking" icon="creditCard" label="Compte courant" hint="Entrées, sorties, pointage, tickets resto" enabled={checkingEnabled} onChange={garde(pasLaDerniere('checking', toggleChecking))} />
+          {checkingEnabled && (
+            <ModuleToggleRow
+              sous
+              label="Plusieurs comptes courants"
+              hint="Mois, récurrents et TR par compte"
+              enabled={!!modules.multiCheckingAccounts}
+              onChange={garde(toggleMulti)}
+            />
+          )}
+          {checkingEnabled && (
+            <ModuleToggleRow
+              sous
+              label="Dates sur le compte courant"
+              aide="Un champ date sur les entrées, sorties, tickets resto et récurrents. Le glisser-déposer est alors désactivé. Les dates restent gardées si tu désactives l'option."
+              hint="Une date sur chaque ligne"
+              enabled={!!modules.checkingDates}
+              onChange={garde((v) => {
+                if (!confirmToggle(v, 'Dates sur le compte courant')) return;
+                setModule('checkingDates', v);
+              })}
+            />
+          )}
+          <ModuleToggleRow module="savings" icon="piggy" label="Épargne" hint="Livret A, LDDS, … (suivi manuel du solde)" enabled={modules.savings} onChange={garde(pasLaDerniere('savings', (v) => { if (confirmToggle(v, 'Épargne')) setModule('savings', v); }))} />
+          <ModuleToggleRow module="investments" icon="chart" label="Investissements" hint="PEA, PEI, supports, valorisations" enabled={modules.investments} onChange={garde(pasLaDerniere('investments', (v) => { if (confirmToggle(v, 'Investissements')) setModule('investments', v); }))} />
+          <ModuleToggleRow module="physical" icon="coin" label="Actifs physiques" hint="Pièces d'or, métaux (prix manuel)" enabled={modules.physical} onChange={garde(pasLaDerniere('physical', (v) => { if (confirmToggle(v, 'Actifs physiques')) setModule('physical', v); }))} />
       </div>
 
       <h3 className="settings-group-title">Données</h3>
@@ -126,77 +114,113 @@ function SettingsView({ ctx }) {
       <DataActionsCard ctx={ctx} />
 
       <h3 className="settings-group-title">Mon compte</h3>
-      <PasswordChangeCard ctx={ctx} />
-      <SignOutCard ctx={ctx} />
+      <MonCompteGroupe ctx={ctx} />
     </div>
   );
 }
 
-function SignOutCard({ ctx }) {
+// « Mon compte » (15/11/2026, Mockup-Mot-De-Passe, version A) : UNE carte de deux rangées — qui est connecté (avec « Se
+// déconnecter »), et le mot de passe, dont la rangée ouvre une petite fenêtre dédiée. Les trois champs n'occupent plus les
+// Paramètres en permanence pour un geste qu'on fait rarement.
+function MonCompteGroupe({ ctx }) {
   const { user } = ctx;
+  const [mdpOuvert, setMdpOuvert] = useState(false);
   const handleSignOut = () => {
     if (!confirm('Te déconnecter de ce compte ?')) return;
     Adapter.signOut();
   };
   return (
-    <div className="settings-card">
-      <h2>Déconnexion</h2>
-      <p className="muted">
-        Compte connecté : <strong style={{ color: COLORS.text }}>{user.email}</strong>
-      </p>
-      <button className="btn btn-accent" onClick={handleSignOut} style={{ marginTop: 8 }}>
-        <Icon name="logout" size={14} /> Se déconnecter
+    <div className="settings-groupe">
+      <div className="rang-reglage">
+        <span className="rang-reglage-txt">
+          <b>Compte connecté</b>
+          <small>{user.email}</small>
+        </span>
+        <button className="btn btn-danger-doux" onClick={handleSignOut}>
+          <Icon name="logout" size={14} /> Se déconnecter
+        </button>
+      </div>
+      <div className="rang-reglage">
+        <span className="rang-reglage-txt">
+          <b>Mot de passe</b>
+          <small>{MOT_DE_PASSE_MIN} caractères minimum</small>
+        </span>
+        <button type="button" className="btn-modifier-rang" onClick={() => setMdpOuvert(true)}>
+          Modifier <Icon name="chevronRight" size={15} />
+        </button>
+      </div>
+      {mdpOuvert && <PasswordChangeModal ctx={ctx} onClose={() => setMdpOuvert(false)} />}
+    </div>
+  );
+}
+
+// Un champ mot de passe avec son œil (afficher / masquer ce qu'on tape).
+function ChampMotDePasse({ value, onChange, autoComplete, erreur }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="champ-mdp">
+      <input
+        type={visible ? 'text' : 'password'}
+        className={`input${erreur ? ' input-erreur' : ''}`}
+        aria-invalid={erreur ? 'true' : undefined}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        autoComplete={autoComplete}
+      />
+      <button type="button" className="champ-mdp-oeil" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}>
+        <Icon name={visible ? 'eyeOff' : 'eye'} size={17} />
       </button>
     </div>
   );
 }
 
-function PasswordChangeCard({ ctx }) {
+// La fenêtre « Mot de passe ». Une erreur suit la règle de l'app (DEV v1208) : le champ fautif passe en rouge et
+// l'explication vient en notification ; plus de bandeau rouge dans le formulaire.
+function PasswordChangeModal({ ctx, onClose }) {
   const { showToast } = ctx;
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const [fautif, setFautif] = useState(null); // 'actuel' | 'nouveau' | 'confirmation'
 
   const submit = async (e) => {
     e.preventDefault();
-    setError(null);
-    if (next.length < MOT_DE_PASSE_MIN) { setError(MESSAGE_MOT_DE_PASSE_COURT); return; }
-    if (next !== confirm) { setError('Les deux nouveaux mots de passe ne correspondent pas.'); return; }
+    setFautif(null);
+    if (!current) { setFautif('actuel'); return showToast('Saisis ton mot de passe actuel.', 'error'); }
+    if (next.length < MOT_DE_PASSE_MIN) { setFautif('nouveau'); return showToast(MESSAGE_MOT_DE_PASSE_COURT, 'error'); }
+    if (next !== confirmation) { setFautif('confirmation'); return showToast('Les deux nouveaux mots de passe ne correspondent pas.', 'error'); }
     setBusy(true);
     try {
       await Adapter.changePassword(current, next);
-      setCurrent(''); setNext(''); setConfirm('');
       showToast('Mot de passe modifié', 'success');
+      onClose();
     } catch (err) {
-      setError(Adapter.translateAuthError(err));
+      setFautif('actuel');
+      showToast(Adapter.translateAuthError(err), 'error');
     } finally { setBusy(false); }
   };
 
   return (
-    <div className="settings-card">
-      <h2>Mot de passe</h2>
-      <p className="muted">Modifie ton mot de passe de connexion : {MOT_DE_PASSE_MIN} caractères minimum.</p>
-      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 380 }}>
-        {error && <div style={{ padding: 10, background: 'var(--danger-light)', color: 'var(--danger-fonce)', fontSize: 13, borderRadius: 8 }}>{error}</div>}
+    <Modal title="Mot de passe" icon="lock" tone="neutre" subtitle="Mon compte" onClose={onClose} dirty={!!(current || next || confirmation)}>
+      <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label className="label">Mot de passe actuel</label>
-          <input type="password" className="input" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" required />
+          <ChampMotDePasse value={current} onChange={setCurrent} autoComplete="current-password" erreur={fautif === 'actuel'} />
         </div>
         <div>
-          <label className="label">Nouveau mot de passe</label>
-          <input type="password" className="input" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" minLength={MOT_DE_PASSE_MIN} required />
+          <label className="label">Nouveau mot de passe<AideChamp>{MOT_DE_PASSE_MIN} caractères minimum.</AideChamp></label>
+          <ChampMotDePasse value={next} onChange={setNext} autoComplete="new-password" erreur={fautif === 'nouveau'} />
         </div>
         <div>
           <label className="label">Confirmer le nouveau mot de passe</label>
-          <input type="password" className="input" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" minLength={MOT_DE_PASSE_MIN} required />
+          <ChampMotDePasse value={confirmation} onChange={setConfirmation} autoComplete="new-password" erreur={fautif === 'confirmation'} />
         </div>
-        <button type="submit" className="btn btn-secondary" disabled={busy} style={{ alignSelf: 'flex-start' }}>
-          {busy ? 'Modification…' : 'Modifier le mot de passe'}
+        <button type="submit" className="btn btn-accent btn-lg" disabled={busy}>
+          {busy ? 'Enregistrement…' : 'Enregistrer'}
         </button>
       </form>
-    </div>
+    </Modal>
   );
 }
 
@@ -270,40 +294,42 @@ function EtfsList({ data, onUpdate, onPersist, showToast }) {
 
   return (
     <>
-      <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: 'hidden' }}>
+      {/* Maquette C' (fenReglagesEnv, 15/11/2026) : groupe gris, toute la ligne ouvre le support (chevron), nom complet
+          dessous, cible en gras ; le total des cibles est la dernière ligne du groupe. */}
+      <div className="supports-groupe">
         {etfs.map(e => {
-          const hasBoth = (e.ticker || '').trim() && (e.label || '').trim();
+          // Ligne 1 : ticker + nom COURT ; ligne 2 : nom complet. `LibelleSupport` rendait le nom complet sur ordinateur, qui
+          // se retrouvait alors deux fois (relevé de l'utilisateur, 15/11/2026).
+          const tk = (e.ticker || '').trim(), court = (e.label || '').trim(), complet = (e.fullName || '').trim();
+          const nomComplet = complet && complet !== court && complet !== supportName(e) ? complet : '';
           return (
-            <div key={e.id} className="support-edit-row">
-              <span className="support-edit-dot" style={{ background: e.color || COLORS.muted }} />
+            <button type="button" key={e.id} className="support-edit-row" onClick={() => setEditing(e)} aria-label={`Modifier le support ${supportName(e)}`}>
               <span className="support-edit-name">
                 {/* Nom complet si la place le permet, nom court sinon — motif partagé
                     (`LibelleSupport`, ui.js). Cette table était le seul endroit à ne
                     l'avoir jamais employé : elle n'affichait que le nom court, alors
                     que c'est l'écran où l'on CONFIGURE un support. Relevé par
                     l'utilisateur le 10/08/2026. */}
-                <NomSupport etf={e} /><LibelleSupport etf={e} className="support-edit-lbl" prefixe=" — " />
+                <span className="support-edit-l1"><NomSupport etf={e} Balise="b" />{tk && court && <span className="support-edit-lbl"> {court}</span>}</span>
+                {nomComplet && <small className="support-edit-complet">{nomComplet}</small>}
               </span>
-              {e.target != null && e.target !== ''
-                ? <span className="support-edit-cible"><Icon name="target" size={13} /> {fmt(e.target)} %</span>
-                : <span className="support-edit-cible" />}
-              <button type="button" className="tx-edit" onClick={() => setEditing(e)} aria-label="Modifier le support"><Icon name="pencil" size={14} /></button>
-            </div>
+              <span className="support-edit-cible num">{e.target != null && e.target !== '' ? `${fmt(e.target)} %` : ''}</span>
+              <span className="support-edit-chev" aria-hidden="true">›</span>
+            </button>
           );
         })}
         {etfs.length === 0 && (
-          <div className="empty-state" style={{ padding: 14 }}>Aucun support.</div>
+          <EmptyState icon="list" title="Aucun support" />
+        )}
+        {targeted.length > 0 && (
+          <div className={`support-total ${Math.round(totalTarget) === 100 ? 'ok' : 'warn'}`}>
+            <b>Total des cibles</b>
+            <span className="num">{fmt(totalTarget)} %{Math.round(totalTarget) === 100 ? '' : ' · à ajuster'}</span>
+          </div>
         )}
       </div>
 
-      {targeted.length > 0 && (
-        <div className={`target-sum ${Math.round(totalTarget) === 100 ? 'ok' : 'warn'}`}>
-          <span>Total des cibles</span>
-          <b>{fmt(totalTarget)} %{Math.round(totalTarget) === 100 ? '' : ' · à ajuster'}</b>
-        </div>
-      )}
-
-      <button type="button" className="btn-add" style={{ marginTop: 10 }} onClick={openCreate}>+ Ajouter un support</button>
+      <button type="button" className="btn-add" style={{ marginTop: 10 }} onClick={openCreate}>Ajouter un support</button>
 
       {editing && (
         <Modal
@@ -381,10 +407,8 @@ function SupportForm({ etf, onSubmit, onDelete, onDirtyChange, showToast }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="support-type-row">
-        <div className="support-color-cell">
-          <label className="label">Couleur</label>
-          <input type="color" className="support-color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Couleur du support" />
-        </div>
+        {/* Plus de champ « Couleur » (15/11/2026, demande de l'utilisateur) : les supports sont verts dans les listes. La couleur
+            reste ENREGISTRÉE (attribuée d'office à la création, cf. openCreate) : elle ne sert plus qu'aux graphiques de répartition. */}
         <div className="support-type-cell">
           <label className="label">Type</label>
           <div className="support-type-seg" role="group" aria-label="Type de support">
@@ -435,18 +459,25 @@ function SupportForm({ etf, onSubmit, onDelete, onDirtyChange, showToast }) {
 }
 
 
-function ModuleToggleRow({ icon, label, hint, enabled, onChange }) {
+function ModuleToggleRow({ icon, label, hint, aide = null, enabled, onChange, module = null, couleur = MODULE_COLORS.checking, sous = false }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 10 }}>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'white', border: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.accent, flexShrink: 0 }}>
-        <Icon name={icon} size={16} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: 11.5, color: COLORS.muted }}>{hint}</div>
-      </div>
+    // Seul l'INTERRUPTEUR bascule l'option (15/11/2026, demande de l'utilisateur) : la rangée entière était un <label>, si bien
+    // qu'un toucher pour fermer la bulle du « ? » — ou un toucher distrait sur le texte — activait l'option par mégarde.
+    <div className={`rang-reglage${sous ? ' rang-reglage--sous' : ''}`}>
+      {/* `icon` absent = bascule simple, sans tuile (maquette : « Calculer mes versements »). */}
+      {icon && (
+        // `module` = tuile PLEINE de la rubrique (styles.css, `.rang-reglage-ico--*`, mêmes couleurs que `.modal-ico`) ; sinon
+        // l'ancienne tuile pâle de `couleur` (« Calculer mes versements » n'a pas d'icône, elle n'est pas concernée).
+        <span className={`rang-reglage-ico${module ? ' rang-reglage-ico--' + module : ''}`} style={module ? undefined : { background: fondPastille(couleur), color: couleurIcone(couleur) }}>
+          <Icon name={icon} size={17} />
+        </span>
+      )}
+      <span className="rang-reglage-txt">
+        <b>{label}<AideChamp>{aide}</AideChamp></b>
+        <small>{hint}</small>
+      </span>
       <label className="toggle">
-        <input type="checkbox" checked={!!enabled} onChange={(e) => onChange(e.target.checked)} />
+        <input type="checkbox" aria-label={label} checked={!!enabled} onChange={(e) => onChange(e.target.checked)} />
         <span className="toggle-slider"></span>
       </label>
     </div>
@@ -521,7 +552,8 @@ function RecurringList({ items, onChange, trEnabled, datesMode, showToast }) {
 
   return (
     <>
-      <div style={{ '--amt-w': amountColVar(items), border: `1px solid ${COLORS.border}`, borderRadius: 10, overflow: 'hidden', marginTop: 8 }}>
+      {/* Sans cadre depuis la modernisation C' (maquette, 15/11/2026) : un filet en haut, des lignes séparées, comme les autres listes. */}
+      <div className={`liste-rec${datesMode ? ' mode-dates' : ''}`} style={{ '--amt-w': amountColVar(items), borderTop: `1px solid ${COLORS.border}`, marginTop: 8 }}>
         {/* En mode dates : tri par dayOfMonth, sans muter le tableau. */}
         {(datesMode ? sortItemsBySortKey(items, (it) => it.dayOfMonth) : items).map((item) => {
           const idx = items.findIndex(x => x.id === item.id);
@@ -552,17 +584,17 @@ function RecurringList({ items, onChange, trEnabled, datesMode, showToast }) {
             />
           );
         })}
-        {items.length === 0 && <div className="empty-state" style={{ padding: 20 }}>Aucune ligne récurrente.</div>}
+        {items.length === 0 && <EmptyState icon="refresh" title="Aucune opération récurrente" />}
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-        <button className="btn-add" onClick={openCreate}>+ Nouvelle opération récurrente</button>
+        <button className="btn btn-accent btn-lg btn-fen" onClick={openCreate}><Icon name="plus" size={16} /> Nouvelle opération récurrente</button>
         {trEnabled && !hasTR && (
-          <button className="btn-add" onClick={addTrRefund}>+ Tickets resto (auto)</button>
+          <button className="btn-add" onClick={addTrRefund}><Icon name="plus" size={14} /> Tickets resto (auto)</button>
         )}
       </div>
 
       {showForm && (
-        <Modal title={editing ? 'Modifier une opération récurrente' : 'Nouvelle opération récurrente'} onClose={() => { setShowForm(false); setEditing(null); }}>
+        <Modal title={editing ? 'Modifier une opération récurrente' : 'Nouvelle opération récurrente'} icon="arrowLeftRight" subtitle="Opérations récurrentes" onClose={() => { setShowForm(false); setEditing(null); }}>
           <RecurringForm
             showToast={showToast}
             initial={editing}
@@ -699,45 +731,17 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
   };
 
   const types = [
-    { id: 'in',  label: 'Entrée d\'argent', icon: 'arrowDown', color: 'var(--success-fonce)', bg: 'var(--success-light)', desc: 'Cash entrant' },
-    { id: 'out', label: 'Sortie d\'argent', icon: 'arrowUp',   color: 'var(--danger-fonce)', bg: 'var(--danger-light)',  desc: 'Cash sortant' },
+    { id: 'in',  label: 'Entrée', icon: 'arrowDown', color: 'var(--success-fonce)', bg: 'var(--success-light)', desc: 'Cash entrant' },
+    { id: 'out', label: 'Sortie', icon: 'arrowUp',   color: 'var(--danger-fonce)', bg: 'var(--danger-light)',  desc: 'Cash sortant' },
   ];
 
   return (
     <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Sélecteur de type */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {types.map((t) => {
-          const active = type === t.id;
-          return (
-            <button
-              key={t.id} type="button" onClick={() => setType(t.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', textAlign: 'left',
-                border: `1px solid ${active ? t.color : COLORS.border}`,
-                borderRadius: 10,
-                background: active ? t.bg : 'white',
-                cursor: 'pointer', transition: 'all 0.15s',
-                fontFamily: 'inherit',
-              }}
-            >
-              <span style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: t.bg, color: t.color,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}><Icon name={t.icon} size={16} /></span>
-              <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: active ? t.color : COLORS.text, lineHeight: 1.2 }}>{t.label}</span>
-                <span style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>{t.desc}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <ChoixType types={types} value={type} onChange={setType} compact />
 
       {/* Toggle composite */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 'var(--r-touche)' }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 500 }}>Ligne composite</div>
           <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
@@ -767,7 +771,7 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
           "Effacer" inline. */}
       {datesMode && (
         <div>
-          <label className="label">Jour du mois (optionnel)</label>
+          <label className="label">Jour du mois <span className="aide-c">facultatif</span><AideChamp>Reporté automatiquement comme date sur les lignes créées.</AideChamp></label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <DayInputPicker value={dayOfMonth} onChange={setDayOfMonth} />
@@ -781,26 +785,27 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
               >Effacer</button>
             )}
           </div>
-          <div className="field-hint">Reporté automatiquement comme date sur les lignes créées.</div>
         </div>
       )}
 
       {/* Montant ou Composantes */}
       {!isComposite ? (
         <div>
-          <label className="label">Montant (€)</label>
-          <AmountInput
-            value={amount}
-            onChange={setAmount}
-            className="input"
-            placeholder="0.00"
-            readOnly={isTRAuto}
-            noNegative
-          />
+          <label className="label">Montant</label>
+          <div className="unite-eur">
+            <AmountInput
+              value={amount}
+              onChange={setAmount}
+              className="input"
+              placeholder="0.00"
+              readOnly={isTRAuto}
+              noNegative
+            />
+          </div>
         </div>
       ) : (
         <div>
-          <label className="label">Composantes (€)</label>
+          <label className="label">Composantes</label>
           <div className="modal-comp-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {components.map((c, idx) => {
               // Couleur de la composante selon son SIGNE RÉEL (crédit négatif →
@@ -844,20 +849,19 @@ function RecurringForm({ initial, onSubmit, onDelete, datesMode, trEnabled, hasG
                   className="tx-delete"
                   onClick={() => removeComp(idx)}
                   title="Supprimer la composante"
-                >×</button>
+                  aria-label="Supprimer la composante"
+                ><Icon name="trash" size={17} /></button>
               </div>
               );
             })}
-            <div style={{ display: 'grid', gridTemplateColumns: canAddTRComp ? '1fr 1fr' : '1fr', gap: 8 }}>
-              <button type="button" className="btn-add" onClick={addComp}>+ Composante</button>
+            <div className="ajouts-comp">
+              <button type="button" className="btn-add" onClick={addComp}><Icon name="plus" size={14} /> Composante</button>
               {canAddTRComp && (
-                <button type="button" className="btn-add" onClick={addTrComp}>+ Tickets resto (auto)</button>
+                <button type="button" className="btn-add" onClick={addTrComp}><Icon name="plus" size={14} /> Tickets resto (auto)</button>
               )}
             </div>
           </div>
-          <div className="field-hint" style={{ marginTop: 8 }}>
-            Total calculé : <strong>{eur(compTotal)}</strong>
-          </div>
+          <div className="total-fen"><span>Total calculé</span><b className="num">{eur(compTotal)}</b></div>
         </div>
       )}
 
@@ -881,13 +885,8 @@ function SimpleRecurringRow({ item, scope, list, index, onUpdate, onRemove, onEd
   const handleRef = datesMode ? null : dragRef;
   const labelText = (item.label || '').trim();
   return (
-    <div ref={rowRef} data-locate={`rec-${item.id}`} className={`recurring-row ${onEdit ? 'with-edit' : ''}`} style={{ paddingLeft: 14 }}>
-      <span ref={handleRef} className={`tx-icon ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser'}>
-        {variant === 'income' ? <Icon name="arrowDown" size={12} />
-          : variant === 'expense' ? <Icon name="arrowUp" size={12} />
-          : variant === 'tr' ? <Icon name="utensils" size={12} />
-          : '€'}
-      </span>
+    <div ref={rowRef} data-locate={`rec-${item.id}`} className={`recurring-row ${onEdit ? 'with-edit' : ''}`}>
+      <span ref={handleRef} className={`tx-icon tx-grip ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}><Icon name="poignee" size={14} /></span>
       <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
         <span className="op-label">
           {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
@@ -1045,13 +1044,8 @@ function CompositeRecurringRow({ item, scope, list, index, expanded, onToggle, o
   const labelText = (item.label || '').trim();
   return (
     <div className={`tx-composite-wrap ${expanded ? 'expanded' : ''}`}>
-      <div ref={rowRef} data-locate={`rec-${item.id}`} className={`recurring-row composite-row ${onEdit ? 'with-edit' : ''}`} style={{ paddingLeft: 14 }}>
-        <span ref={handleRef} className={`tx-icon ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser'}>
-          {variant === 'income' ? <Icon name="arrowDown" size={12} />
-            : variant === 'expense' ? <Icon name="arrowUp" size={12} />
-            : variant === 'tr' ? <Icon name="utensils" size={12} />
-            : '€'}
-        </span>
+      <div ref={rowRef} data-locate={`rec-${item.id}`} className={`recurring-row composite-row ${onEdit ? 'with-edit' : ''}`}>
+        <span ref={handleRef} className={`tx-icon tx-grip ${variant} ${datesMode ? 'no-drag' : ''}`} title={datesMode ? '' : 'Glisser pour réorganiser'}><Icon name="poignee" size={14} /></span>
         <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
           <span className="op-label-chevron">
             <span className="op-label">
@@ -1105,12 +1099,7 @@ function CompositeRecurringCompRow({ c, parent, variant, scope, list, index, onD
   const compVariant = c.isTRRefund ? 'tr' : signVariant;
   return (
     <div ref={dropRef} className={`composite-comp-row ${withEdit ? 'with-edit' : ''}`}>
-      <span ref={dragRef} className={`tx-icon ${compVariant}`} title="Glisser">
-        {compVariant === 'income' ? <Icon name="arrowDown" size={12} />
-          : compVariant === 'expense' ? <Icon name="arrowUp" size={12} />
-          : compVariant === 'tr' ? <Icon name="utensils" size={12} />
-          : '€'}
-      </span>
+      <span ref={dragRef} className={`tx-icon tx-grip ${compVariant}`} title="Glisser pour réorganiser"><Icon name="poignee" size={14} /></span>
       <input
         type="text"
         value={c.label || ''}
@@ -1268,20 +1257,16 @@ function DataActionsCard({ ctx }) {
 
   return (
     <div className="settings-card">
-      <h2>Export / Import</h2>
-      <p className="muted">Tes données sont stockées dans Firebase Firestore.</p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+      <h2>Export / Import<AideChamp>L'export inclut la répartition des charges si tu y as accès. À l'import, tes données sont remplacées ; les charges demandent une confirmation à part.</AideChamp></h2>
+      <div className="settings-deux-b">
         <button className="btn btn-secondary" onClick={doExport}>
-          <Icon name="download" size={14} /> Exporter (JSON complet)
+          <Icon name="download" size={14} /> Exporter (JSON)
         </button>
         <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>
-          <Icon name="upload" size={14} /> Importer (JSON complet)
+          <Icon name="upload" size={14} /> Importer (JSON)
         </button>
         <input ref={fileRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) doImport(f); e.target.value = ''; }} />
       </div>
-      <p className="muted" style={{ marginTop: 12, fontSize: 12 }}>
-        L'export inclut aussi la répartition des charges (partagée), si tu y as accès. À l'import, tes données perso sont remplacées ; pour les charges, une confirmation à part te sera demandée car elles sont communes aux deux comptes.
-      </p>
 
       {/* La MÊME fenêtre que la restauration (backups.js), en mode import :
           comparaison avant/après plutôt qu'un texte. Elle remplace l'ancien

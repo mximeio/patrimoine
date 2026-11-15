@@ -32,43 +32,50 @@ function AuthScreen() {
   };
   const t = titles[mode];
 
+  // LA FORME C' (modernisation, 14/11/2026) : la carte sombre de l'accueil, posée sur la pile des quatre rubriques
+  // dont on voit dépasser les bords (indigo, cyan, vert, ambre) — on reconnaît l'app avant même d'y entrer. Puis le
+  // formulaire sur le fond blanc, sans cadre, aux champs de toute l'app, et le grand bouton des fenêtres.
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ maxWidth: 420, width: '100%' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ width: 48, height: 48, margin: '0 auto 16px' }}><LogoPatrimoine size={48} /></div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>Patrimoine</h1>
-          <p style={{ color: COLORS.muted, fontSize: 14, margin: '6px 0 0' }}>{t.title}</p>
+    <div className="auth">
+      <div className="auth-colonne">
+        <div className="auth-pile" aria-hidden="true">
+          <span className="auth-bord auth-bord--physical" />
+          <span className="auth-bord auth-bord--investments" />
+          <span className="auth-bord auth-bord--savings" />
+          <span className="auth-bord auth-bord--checking" />
         </div>
-        <div style={{ background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 28, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
-          {error && <div style={{ padding: 10, marginBottom: 16, background: 'var(--danger-light)', color: 'var(--danger-fonce)', fontSize: 13, borderRadius: 8 }}>{error}</div>}
-          {info && <div style={{ padding: 10, marginBottom: 16, background: 'var(--success-light)', color: 'var(--success-fonce)', fontSize: 13, borderRadius: 8 }}>{info}</div>}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label className="label">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input" required autoComplete="email" />
-            </div>
-            {mode !== 'reset' && (
-              <div>
-                <label className="label">Mot de passe</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input" required minLength={6} autoComplete="current-password" />
-              </div>
-            )}
-            <button type="submit" className="btn btn-accent btn-lg" disabled={busy} style={{ marginTop: 6, opacity: busy ? 0.6 : 1 }}>
-              {busy ? 'Patiente...' : t.cta}
-            </button>
-          </form>
-          <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${COLORS.border}`, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {mode === 'signin' && (
-              <a onClick={() => setMode('reset')} style={{ color: COLORS.muted, cursor: 'pointer' }}>Mot de passe oublié</a>
-            )}
-            {mode !== 'signin' && (
-              <a onClick={() => setMode('signin')} style={{ color: COLORS.muted, cursor: 'pointer' }}>← Retour à la connexion</a>
-            )}
-            <div style={{ color: COLORS.muted, fontSize: 12, marginTop: 4 }}>
-              Besoin d'un compte&nbsp;? Adressez-vous à l'administrateur.
-            </div>
+        <div className="auth-carte">
+          <LogoPatrimoine size={44} />
+          <div>
+            <h1>Patrimoine</h1>
+            <p>{t.title}</p>
           </div>
+        </div>
+        {error && <div className="auth-msg auth-msg--erreur" role="alert">{error}</div>}
+        {info && <div className="auth-msg auth-msg--info" role="status">{info}</div>}
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div>
+            <label className="label" htmlFor="auth-email">Email</label>
+            <input id="auth-email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="input" required autoComplete="email" />
+          </div>
+          {mode !== 'reset' && (
+            <div>
+              <label className="label" htmlFor="auth-mdp">Mot de passe</label>
+              <input id="auth-mdp" type="password" value={password} onChange={e => setPassword(e.target.value)} className="input" required minLength={6} autoComplete="current-password" />
+            </div>
+          )}
+          <button type="submit" className="btn btn-accent btn-lg auth-bouton" disabled={busy}>
+            {busy ? 'Patiente...' : t.cta}
+          </button>
+        </form>
+        <div className="auth-pied">
+          {mode === 'signin' && (
+            <button type="button" className="auth-lien" onClick={() => setMode('reset')}>Mot de passe oublié</button>
+          )}
+          {mode !== 'signin' && (
+            <button type="button" className="auth-lien" onClick={() => setMode('signin')}>← Retour à la connexion</button>
+          )}
+          <div className="auth-note">Besoin d'un compte&nbsp;? Adressez-vous à l'administrateur.</div>
         </div>
       </div>
     </div>

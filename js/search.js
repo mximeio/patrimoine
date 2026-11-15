@@ -1025,7 +1025,8 @@ function SearchModal({ ctx, onClose, onNavigate }) {
               return (
                 <div key={g.module} className="search-group">
                   <div className="search-group-title">
-                    <Icon name={MODULE_ICONS_NAMES[g.module]} size={12} />
+                    {/* Un point de la couleur de la rubrique à la place de l'icône (maquette C', 15/11/2026). */}
+                    <i className="search-group-dot" style={{ background: MODULE_COLORS[g.module] || COLORS.muted }} aria-hidden="true" />
                     {getModuleLabel(g.module, ctx.profile)}
                     {/* v617 : "50 sur 93" quand le groupe est borné, pour que la
                         troncature se voie AUSSI ici et pas seulement en pied. */}

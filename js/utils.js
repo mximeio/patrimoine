@@ -18,10 +18,16 @@ const COLORS = {
   info: '#06b6d4',
 };
 
+// LA COULEUR DES REPÈRES D'UNE RUBRIQUE (points des onglets, carrés de la bulle de la courbe, points de la recherche).
+// 15/11/2026, choix de l'utilisateur (_maquettes/Mockup-Couleurs-Rubriques) : chaque couleur vient de l'app — indigo = la
+// carte du compte, ambre = le repère des actifs (presque la carte, plus lisible sur blanc), et pour l'épargne et les
+// investissements la nuance 600, celle du texte de leurs avatars (#06b6d4 et #10b981 avant) : deux fois plus près de leur
+// carte, à peine moins distincts l'un de l'autre (0,118 contre 0,125 en OKLab), 3,7:1 sur blanc au lieu de 2,4.
+// ⚠️ Les avatars ne bougent pas : `fondPastille` et `couleurIcone` reconnaissent ces deux 600 (tables ci-dessous).
 const MODULE_COLORS = {
   checking: '#4f46e5',
-  savings: '#06b6d4',
-  investments: '#10b981',
+  savings: '#0891b2',
+  investments: '#059669',
   physical: '#f59e0b',
 };
 
@@ -38,12 +44,14 @@ const PORTFOLIO_PALETTE = ['#4f46e5', '#f59e0b', '#06b6d4', '#ec4899', '#10b981'
 // faisait que 2,1 à 2,4:1 pour le vert, le cyan et l'ambre — sous le minimum de 3:1 d'une icône qui porte un sens
 // (WCAG 2.1, 1.4.11). La 600 donne 3,1 à 5,6:1 en restant douce ; la 700 (4,8 à 7,1:1) a été écartée, jugée plus
 // agressive. ⚠️ L'ambre est un cran plus sombre que sa 600 (#d97706) : sur une pastille teintée à 15 %, celle-ci
-// tombait à 2,8:1 (attrapé par le test) ; #c96a07 donne 3,4 à 3,7:1. L'indigo et le gris passaient déjà : inchangés. Une couleur hors de cette table (choisie
+// tombait à 2,8:1 (attrapé par le test) ; #c96a07 donnait 3,4 à 3,7:1, et depuis le 15/11/2026 c'est l'ambre DORÉ #a8730a
+// (famille de l'ambre clair #f2b33d des actifs et des tickets resto, 3,95:1 sur son fond pâle). L'indigo et le gris passaient déjà : inchangés. Une couleur hors de cette table (choisie
 // librement pour un compte ou une enveloppe) est assombrie d'un quart vers le bleu nuit.
 // Le pendant CSS : les variables `--*-fonce` de styles.css — la même nuance sert aussi au TEXTE depuis le 22/10/2026.
 const NUANCE_ICONE = {
-  '#10b981': '#059669', '#ef4444': '#dc2626', '#f59e0b': '#c96a07', '#06b6d4': '#0891b2',
+  '#10b981': '#059669', '#ef4444': '#dc2626', '#f59e0b': '#a8730a', '#06b6d4': '#0891b2',
   '#ec4899': '#db2777', '#8b5cf6': '#7c3aed', '#4f46e5': '#4f46e5', '#64748b': '#64748b',
+  '#0891b2': '#0891b2', '#059669': '#059669', // les repères de l'épargne et des investissements, déjà en 600 (15/11/2026)
 };
 const couleurIcone = (couleur) => NUANCE_ICONE[String(couleur).toLowerCase()] || `color-mix(in srgb, ${couleur} 75%, #0f172a)`;
 
@@ -52,8 +60,10 @@ const couleurIcone = (couleur) => NUANCE_ICONE[String(couleur).toLowerCase()] ||
 // d'actifs et les supports plus ternes que la carte « Tickets resto » (relevé par l'utilisateur). Une couleur hors
 // table (choisie librement) est éclaircie à 8 %. Avec `couleurIcone`, l'icône y reste à 3:1 au moins (test).
 const FOND_PASTILLE = {
-  '#10b981': '#ecfdf5', '#ef4444': '#fef2f2', '#f59e0b': '#fffbeb', '#06b6d4': '#ecfeff',
+  '#10b981': '#ecfdf5', '#ef4444': '#fef2f2', '#f59e0b': '#fef3c7', '#06b6d4': '#ecfeff',
   '#ec4899': '#fdf2f8', '#8b5cf6': '#f5f3ff', '#4f46e5': '#eef2ff', '#64748b': '#f1f5f9',
+  '#0891b2': '#ecfeff', '#059669': '#ecfdf5', // repères de l'épargne et des investissements (15/11/2026) : même fond pâle qu'avant
+  // L'ambre : #fef3c7 (et non sa nuance 50 #fffbeb, trop crème à l'œil) depuis le 15/11/2026 — cf. --ambre-element (styles.css).
 };
 const fondPastille = (couleur) => FOND_PASTILLE[String(couleur).toLowerCase()] || `color-mix(in srgb, ${couleur} 8%, #ffffff)`;
 
@@ -62,8 +72,22 @@ const fondPastille = (couleur) => FOND_PASTILLE[String(couleur).toLowerCase()] |
 // toujours du `12.5` (AmountInput → String(n)).
 // On part du format fr-FR puis on remplace la virgule par un point.
 const eurFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
-const fmt = (n) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0).replace(',', '.');
-const fmtNoDec = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0).replace(',', '.');
+// SIGNES ET POURCENTAGES (14/11/2026, règle unique choisie par l'utilisateur, _maquettes/Mockup-Signes-Pourcentages) :
+//   1. le signe se COLLE au chiffre, partout, opérations comprises : « −50.00 € », « +3 160.00 € » ;
+//   2. le moins est le VRAI signe moins (U+2212), jamais le tiret : Intl rend « -1 234,56 », on le remplace ici ;
+//   3. une espace INSÉCABLE avant le % (U+00A0), comme avant le € : `fmtPct`.
+// ⚠️ Un montant formaté ne se relit pas avec parseFloat (« −12 » donne NaN) : passer par `lireMontant`.
+const moinsVrai = (s) => s.replace(/^-/, '\u2212');
+const fmt = (n) => moinsVrai(new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0).replace(',', '.'));
+const fmtNoDec = (n) => moinsVrai(new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0).replace(',', '.'));
+// Relit un montant formaté par fmt (espaces de milliers, vrai moins).
+const lireMontant = (s) => parseFloat(String(s).replace(/\s/g, '').replace(/\u2212/g, '-'));
+// Pourcentage signé : « +9.52 % », « −100.00 % » (signe collé, vrai moins, espace insécable). `signe: false` pour une part.
+const fmtPct = (n, { signe = true, dec = 2 } = {}) => {
+  const v = Number(n) || 0;
+  const s = signe ? (v >= 0 ? '+' : '\u2212') : (v < 0 ? '\u2212' : '');
+  return `${s}${Math.abs(v).toFixed(dec)}\u00a0%`;
+};
 // 🔴 RÈGLE DU 13/08/2026 — UN POURCENTAGE S'AFFICHE TOUJOURS À DEUX DÉCIMALES.
 // Posée par l'utilisateur après avoir vu « 65.0 % » dans la liste des supports et
 // « 15.00 % » pour la même notion dans la fenêtre de versement. Il y avait TROIS
@@ -94,7 +118,7 @@ const fmtNoDec = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 
 // ⇒ Quand la compacité est vraiment nécessaire, c'est `.cmpd-exact` / `.cmpd-round` qui
 //   répond : pilotée par l'ÉCRAN, jamais par la valeur.
 // ⚠️ Ne concerne PAS les montants en euros : eux ont déjà `fmt` / `fmtNoDec`.
-const eur = (n) => eurFormatter.format(n || 0).replace(',', '.');
+const eur = (n) => eurFormatter.format(n || 0).replace(',', '.').replace(/^-/, '\u2212');
 const r2 = (n) => Math.round(n * 100) / 100;
 
 // Longueur minimale d'un NOUVEAU mot de passe — le miroir de la politique de la console
@@ -115,7 +139,7 @@ const opSignChar = (variant, amount) => {
 };
 // Montant formaté avec son signe et en valeur absolue (fmt gère déjà les
 // décimales). Aligné sur l'affichage de l'Épargne / des Investissements.
-const fmtSigned = (variant, amount) => `${opSignChar(variant, amount)} ${fmt(Math.abs(amount || 0))}`;
+const fmtSigned = (variant, amount) => `${opSignChar(variant, amount)}${fmt(Math.abs(amount || 0))}`; // signe collé (règle du 14/11/2026)
 const uid = () => Math.random().toString(36).slice(2, 10);
 // La date du jour au format AAAA-MM-JJ, en heure LOCALE — comme `currentMonthKey`.
 // 🔴 Jamais `toISOString()` : il rend la date UTC, donc la VEILLE entre minuit et

@@ -45,10 +45,8 @@ function PhysicalView({ ctx }) {
   const editing = editId ? physical.find(p => p.id === editId) : null;
 
   return (
-    <div>
-      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.physical)), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          {/* « Valeur totale » et non « actuelle » (15/08/2026) : cette hero card
+    <div className="vue-rub">
+      {/* « Valeur totale » et non « actuelle » (15/08/2026) : cette hero card
               affiche exactement le même trio que celle des investissements —
               valeur, plus-value, investi. « Actuelle » y opposait la valeur à
               l'investi, or cette opposition est déjà écrite en toutes lettres
@@ -56,24 +54,15 @@ function PhysicalView({ ctx }) {
               écrit nulle part ailleurs : c'est la SOMME du module, par opposition
               à la valeur d'un actif isolé. Un qualificatif se garde quand il
               apporte — comme « pointé » sur le compte courant. */}
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>Valeur totale</div>
-          <ModuleBadge module="physical" />
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(totalCurrent)} €</div>
-        <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600, color: totalGain >= 0 ? '#86efac' : '#fca5a5' }}>
-              {totalGain >= 0 ? '+' : ''}{fmt(totalGain)} € · {totalGain >= 0 ? '+' : ''}{totalGainPct.toFixed(2)}%
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Investi</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600 }}>
-              {fmt(totalInvested)} €
-            </div>
-          </div>
-        </div>
+      <div className="colle">
+      <CarteDeTete
+        module="physical" libelle="Valeur totale" montant={totalCurrent}
+        droite={<span className="ct-pill">{fmtPct(totalGainPct)}</span>}
+        pied={[
+          { label: 'Plus-value', value: `${totalGain >= 0 ? '+' : ''}${fmt(totalGain)} €` },
+          { label: 'Investi', value: `${fmt(totalInvested)} €` },
+        ]}
+      />
       </div>
 
       <div className="section-block">
@@ -82,6 +71,7 @@ function PhysicalView({ ctx }) {
             <span className="section-icon physical"><Icon name="coin" size={14} /></span>
             Mes actifs physiques
           </div>
+          <span className="section-aide">{physical.length}</span>
         </div>
         <div>
           {sortByNumber(physical, p => physicalCurrentValue(p)).map(p => (
@@ -92,17 +82,17 @@ function PhysicalView({ ctx }) {
           )}
         </div>
         <div className="section-footer">
-          <button className="btn-add" onClick={() => setShowNew(true)}>+ Ajouter un actif</button>
+          <button className="btn-add" onClick={() => setShowNew(true)}>Ajouter un actif</button>
         </div>
       </div>
 
       {showNew && (
-        <Modal title="Nouvel actif physique" onClose={() => setShowNew(false)}>
+        <Modal title="Nouvel actif physique" icon="coin" subtitle="Actifs physiques" onClose={() => setShowNew(false)}>
           <PhysicalForm showToast={showToast} onSubmit={handleCreate} />
         </Modal>
       )}
       {editing && (
-        <Modal title="Modifier l'actif" onClose={() => setEditId(null)}>
+        <Modal title="Modifier l'actif" icon="coin" subtitle="Actifs physiques" onClose={() => setEditId(null)}>
           <PhysicalForm
             showToast={showToast}
             initial={editing}
@@ -120,25 +110,25 @@ function PhysicalRow({ item, onEdit, onDelete }) {
   const invested = physicalInvested(item);
   const gain = current - invested;
   const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
+  // Ligne C' (maquette cartes2.html, 15/11/2026) : avatar à deux lettres et TOUTE la ligne ouvre la modification — le
+  // crayon est retiré, ce qui rend au nom la place qu'il n'avait pas (« Napoléon 20 Fra… » relevé à 390 px).
   return (
-    <div className="asset-row" data-locate={`phys-${item.id}`}>
-      <span className="tx-icon pat">€</span>
-      <div>
-        <div className="asset-name">{item.name}</div>
-        <div className="asset-sub">
+    <button type="button" className="portfolio-list-row asset-l" data-locate={`phys-${item.id}`} onClick={onEdit} aria-label={`Modifier ${item.name}`}>
+      <div className="portfolio-list-icon portfolio-list-av" style={{ background: fondPastille(MODULE_COLORS.physical), color: couleurIcone(MODULE_COLORS.physical) }}>{initiales(item.name)}</div>
+      <div className="portfolio-list-main">
+        <div className="portfolio-list-name">{item.name}</div>
+        <div className="portfolio-list-sub">
           {item.quantity || 0} × {fmt(item.unitCurrentPrice || 0)} € · {fmtDateNumeric(item.priceUpdatedAt)}
         </div>
       </div>
-      <div style={{ textAlign: 'right' }}>
-        <div className="asset-value num">{fmt(current)}<span className="currency-muted"> €</span></div>
-        <div className="asset-gain num" style={{ color: gain >= 0 ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}>
-          {gain >= 0 ? '+' : ''}{fmt(gain)} € · {gain >= 0 ? '+' : ''}{gainPct.toFixed(2)}%
+      <div className="portfolio-list-right">
+        <div className="num" style={{ fontSize: 14, fontWeight: 500 }}>{fmt(current)}<span className="currency-muted"> €</span></div>
+        <div className="portfolio-list-sub num" style={{ color: gain >= 0 ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}>
+          {gain >= 0 ? '+' : ''}{fmt(gain)} € · {fmtPct(gainPct)}
         </div>
       </div>
-      <button className="btn-icon" title="Modifier" onClick={onEdit}>
-        <Icon name="pencil" size={14} />
-      </button>
-    </div>
+      <span className="portfolio-list-arrow" aria-hidden="true">›</span>
+    </button>
   );
 }
 
@@ -197,6 +187,17 @@ function PhysicalForm({ initial, onSubmit, onDelete, showToast }) {
       if (!name.trim()) return refuser(showToast, REFUS.nomObligatoire);
       onSubmit(aEnvoyer);
     }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Bandeau d'indicateurs (maquette C', 15/11/2026), en modification : il suit les champs en direct. */}
+      {initial && (() => {
+        const valeur = aEnvoyer.quantity * aEnvoyer.unitCurrentPrice;
+        const investi = aEnvoyer.quantity * aEnvoyer.unitPurchasePrice;
+        const pv = valeur - investi;
+        return <IndicateursFenetre cellules={[
+          { label: 'Valeur actuelle', court: 'Valeur', value: eur(valeur) },
+          { label: 'Plus-value', value: `${pv >= 0 ? '+' : ''}${fmt(pv)} €`, classe: pv >= 0 ? 'value-positive' : 'value-negative' },
+          { label: 'Investi', value: eur(investi) },
+        ]} />;
+      })()}
       <div>
         <label className="label">Nom</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="ex: 20 Francs - Napoléon" required />
@@ -207,14 +208,13 @@ function PhysicalForm({ initial, onSubmit, onDelete, showToast }) {
           <AmountInput value={quantity} onChange={(n) => setQuantity(n)} className="input" />
         </div>
         <div>
-          <label className="label">Prix d'achat unitaire (€)</label>
-          <AmountInput value={unitPurchasePrice} onChange={(n) => setPurchase(n)} className="input" />
+          <label className="label">Prix d'achat unitaire</label>
+          <div className="unite-eur"><AmountInput value={unitPurchasePrice} onChange={(n) => setPurchase(n)} className="input" /></div>
         </div>
       </div>
       <div>
-        <label className="label">Prix actuel unitaire (€)</label>
-        <AmountInput value={unitCurrentPrice} onChange={(n) => setCurrent(n)} className="input" />
-        <div className="field-hint">Mets à jour ce prix régulièrement pour suivre la valeur actuelle.</div>
+        <label className="label">Prix actuel unitaire<AideChamp>Mets à jour ce prix régulièrement pour suivre la valeur actuelle.</AideChamp></label>
+        <div className="unite-eur"><AmountInput value={unitCurrentPrice} onChange={(n) => setCurrent(n)} className="input" /></div>
       </div>
       <div className="form-actions">
         <button type="submit" className="btn btn-accent btn-lg">{initial ? 'Mettre à jour' : 'Créer'}</button>

@@ -20,14 +20,13 @@ const LISERE_PATRIMOINE = (() => {
 
 // L'ACCUEIL SE COMPORTE COMME UN ONGLET D'APP iPHONE : il garde son état et ne rejoue pas son entrée (décision de
 // l'utilisateur, 22/10/2026). ⚠️ La vue est DÉMONTÉE quand on quitte l'onglet (`app.js` ne la rend que sur le sien) :
-// un `useState` repartirait de zéro au retour — l'anneau, en 12M. Ce qui doit durer vit donc au niveau du FICHIER :
-// ça survit au démontage et disparaît au rechargement, exactement la durée d'une session.
-// ⚠️ Pas de `localStorage` : c'est un réglage de LECTURE, pas un endroit où l'on travaille (le mois du compte courant,
-// lui, est retenu sur l'appareil). À la relance, on repart de l'anneau en 12M.
-const SESSION_ACCUEIL = { vue: 'repartition', periode: '12', dejaAffiche: false };
+// un `useState` repartirait de zéro au retour. Ce qui doit durer vit donc au niveau du FICHIER : ça survit au
+// démontage et disparaît au rechargement, exactement la durée d'une session.
+// ⚠️ Pas de `localStorage` : c'est un réglage de LECTURE, pas un endroit où l'on travaille. À la relance, 12M.
+// (La bascule anneau / évolution et son champ `vue` ont disparu avec l'anneau, le 14/11/2026 : modernisation C'.)
+const SESSION_ACCUEIL = { periode: '12', dejaAffiche: false };
 
-// L'ANIMATION DES DEUX GRAPHIQUES. Recharts anime l'entrée en 1,5 s par défaut — après 400 ms d'attente pour
-// l'anneau —, et la rejouait à chaque bascule et à chaque retour sur l'onglet : ce n'était pas un calcul.
+// L'ANIMATION DU GRAPHIQUE D'ÉVOLUTION. Recharts anime l'entrée en 1,5 s par défaut, et la rejouait à chaque bascule et à chaque retour sur l'onglet : ce n'était pas un calcul.
 // Règle : entrée en 300 ms au PREMIER affichage de la session, puis plus aucune entrée animée (elle n'apprend rien et
 // retarde la lecture) ; un changement de données affiché garde sa transition courte, qui montre ce qui a bougé ; rien
 // du tout avec « Réduire les animations », que le bloc `prefers-reduced-motion` de styles.css n'atteint pas —
@@ -39,12 +38,11 @@ function dureeAnimationGraphique(reduit, entree, dejaAffiche) {
   return DUREE_ANIMATION_GRAPHIQUE;
 }
 
-// La durée à passer à UN graphique — par instance : l'anneau et la courbe se montent et se démontent à chaque bascule.
+// La durée à passer à UN graphique — par instance.
 // 🔴 Une DURÉE NULLE, jamais `isAnimationActive` qu'on basculerait : dans Recharts 2.12.7, passer `isAnimationActive`
-//  de faux à vrai remet à vide les secteurs précédents de l'anneau (`prevSectors: []`), donc REJOUE l'entrée entière.
+//  de faux à vrai REJOUE l'entrée entière (vécu sur l'anneau, retiré depuis).
 //  Une durée nulle fait poser l'état final dès la construction de l'animation (react-smooth, `duration <= 0`).
-// 🔴 Le hook s'appelle DANS le composant que rend `ResponsiveContainer` (`AnneauRepartitionChart`,
-//  `EvolutionAiresChart`), jamais au-dessus. `ResponsiveContainer` ne monte le graphique qu'au rendu SUIVANT, une fois
+// 🔴 Le hook s'appelle DANS le composant que rend `ResponsiveContainer` (`EvolutionAiresChart`), jamais au-dessus. `ResponsiveContainer` ne monte le graphique qu'au rendu SUIVANT, une fois
 //  sa taille mesurée dans son effet, en clonant ses enfants DU MOMENT. Appelé dans le parent (DEV v1099), le hook
 //  décidait au premier rendu de la carte : qu'un état d'`App` soit posé dans la même vague d'effets, et la carte se
 //  redessinait en « mise à jour » (300 ms) avant la naissance du graphique — l'entrée s'animait au retour sur l'onglet
@@ -58,13 +56,49 @@ function useDureeAnimationGraphique() {
   return dureeAnimationGraphique(reduit, entree.current, dejaAffiche.current);
 }
 
+// La courbe du bas de la carte de tête : le total, mois par mois, en SVG simple (pas de Recharts : 44 px, ni axe ni
+// bulle). Bords francs à gauche et à droite, la carte la recadre.
+function MiniCourbe({ valeurs }) {
+  const W = 600, H = 44;
+  const min = Math.min(...valeurs), max = Math.max(...valeurs);
+  const ecart = max - min || 1;
+  const x = (i) => (i / (valeurs.length - 1)) * W;
+  const y = (v) => 4 + (1 - (v - min) / ecart) * (H - 8);
+  let d = '';
+  valeurs.forEach((v, i) => {
+    if (!i) { d = `M0 ${y(v).toFixed(1)}`; return; }
+    const cx = ((x(i - 1) + x(i)) / 2).toFixed(1);
+    d += ` C${cx} ${y(valeurs[i - 1]).toFixed(1)} ${cx} ${y(v).toFixed(1)} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`;
+  });
+  return (
+    <div className="ct-courbe" aria-hidden="true">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="ct-courbe-fond" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#818cf8" stopOpacity="0.45" />
+            <stop offset="1" stopColor="#818cf8" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`${d} L${W} ${H} L0 ${H}Z`} fill="url(#ct-courbe-fond)" />
+        <path d={d} fill="none" stroke="#a5b4fc" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
+  );
+}
+
+// L'ACCUEIL C' (modernisation, 14/11/2026 — maquette _maquettes/Mockup-Modernisation-Design/cartes2.html) :
+// - la carte de tête, avec la courbe des douze derniers mois en pied et la variation sur la période en pastille ;
+// - (l'encart « Ce mois-ci » et l'alerte de valorisation, à sa droite sur ordinateur, sont retirés depuis le 15/11/2026) ;
+// - « Mes rubriques » : une carte pleine de sa couleur par rubrique, EMPILÉES sur téléphone (le haut de chacune
+//   dépasse, la dernière est entière), côte à côte sur ordinateur ;
+// - « Évolution » : la courbe du total, avec la période en tête de section.
+// L'anneau de répartition est retiré : la part de chaque rubrique est écrite sur sa carte (« … % du total »).
 function ConsolidatedView({ ctx, onNavigate }) {
   const { profile, checkingAccounts, savings, portfolios, physical, snapshots } = ctx;
   const enabled = profile.modulesEnabled;
-  // La vue du graphique de la carte « Répartition » : l'anneau ou l'évolution. On rouvre sur la dernière vue de la
-  // session (cf. `SESSION_ACCUEIL`) — l'anneau, la première fois.
-  const [vue, setVueEtat] = useState(SESSION_ACCUEIL.vue);
-  const setVue = (v) => { SESSION_ACCUEIL.vue = v; setVueEtat(v); };
+  // La période de la section « Évolution », retenue pour la session (cf. `SESSION_ACCUEIL`).
+  const [period, setPeriodEtat] = useState(SESSION_ACCUEIL.periode);
+  const setPeriod = (p) => { SESSION_ACCUEIL.periode = p; setPeriodEtat(p); };
 
   // Référence = mois calendaire courant (on ignore les mois futurs créés pour planifier).
   // À défaut, le mois créé le plus récent qui n'est pas dans le futur.
@@ -74,7 +108,7 @@ function ConsolidatedView({ ctx, onNavigate }) {
     const realKeys = Object.keys(acc.months || {}).filter(k => k <= cur).sort();
     const refKey = realKeys[realKeys.length - 1] || null;
     const stats = refKey ? computeMonth(acc, refKey) : null;
-    return { refKey, balance: stats ? stats.balanceProjected : (acc.initialBalance || 0) };
+    return { refKey, stats, balance: stats ? stats.balanceProjected : (acc.initialBalance || 0) };
   });
   const checkingBalance = checkingPerAccount.reduce((s, p) => s + p.balance, 0);
   const refKeysAll = checkingPerAccount.map(p => p.refKey).filter(Boolean).sort();
@@ -108,7 +142,15 @@ function ConsolidatedView({ ctx, onNavigate }) {
   ].filter(Boolean);
 
   const totalPatrimoine = categories.reduce((s, c) => s + c.value, 0);
-  const pieData = categories.map(c => ({ ...c, name: c.label }));
+  // « % du total » → PARTS DES AVOIRS (15/11/2026, décision de l'utilisateur, après un cas pratique) : la part d'une rubrique se
+  // calcule sur la somme des rubriques POSITIVES. Tant que tout est positif, c'est exactement le « % du total » d'avant ; dès
+  // qu'une rubrique est négative (en pratique, le compte courant à découvert), les autres affichent « x % des avoirs » — juste,
+  // stable quand le compte courant bouge, et jamais 112 % ou 337 % comme l'ancien calcul sur le total net (−33 105 € de
+  // découvert) — et la rubrique négative n'affiche pas de part (celle d'une dette n'a pas de sens).
+  const avoirs = categories.reduce((s, c) => s + Math.max(0, c.value), 0);
+  const aDecouvert = categories.some(c => c.value < 0);
+  const libellePart = aDecouvert ? 'des avoirs' : 'du total';
+  const part = (c) => (c.value >= 0 && avoirs > 0) ? `${fmtPct((c.value / avoirs) * 100, { signe: false })} ${libellePart}` : null;
 
   const investmentsGain = portfolios.reduce((s, p) => {
     const ps = computePortfolioStats(p.data);
@@ -118,153 +160,13 @@ function ConsolidatedView({ ctx, onNavigate }) {
 
   const totalGain = (enabled.investments ? investmentsGain : 0) + (enabled.physical ? physicalGainTotal : 0);
   const totalGainPositive = totalGain >= 0;
-  return (
-    <div>
-      <div className="card hero-card" style={{ ...styleCarteDeTete(LISERE_PATRIMOINE), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>Patrimoine total</div>
-          <ModuleBadge module="overview" />
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(totalPatrimoine)} €</div>
-        {(enabled.investments || enabled.physical) && (
-          <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value totale</div>
-              <div className="num" style={{ fontSize: 16, fontWeight: 600, color: totalGainPositive ? '#86efac' : '#fca5a5' }}>
-                {totalGainPositive ? '+' : ''}{fmt(totalGain)} €
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+  const avecPlusValue = enabled.investments || enabled.physical;
 
-      {/* La répartition en UNE carte (21/10/2026, maquette Mockup-Vue-Ensemble-Rubriques, P2) : l'anneau, puis la
-          liste des rubriques, qui en est la légende. Chaque rubrique était une carte à part (≈ 70 px + 12 px d'écart,
-          316 px pour quatre) avec sa couleur répétée quatre fois — liseré, tuile, titre, montant — et un texte coloré
-          illisible pour le cyan, le vert et l'ambre (2,1 à 2,5:1). Désormais les lignes de 60 px du reste de l'app
-          (`.portfolio-list-row`, comme « Mes comptes d'épargne », chevron compris) : texte noir, la couleur ne
-          marque plus que la tuile, avec la nuance d'icône du module (`couleurIcone`, utils.js — la 600 depuis la DEV v1095).
-          La même carte montre aussi l'ÉVOLUTION (21/10/2026, maquette Mockup-Vue-Ensemble-Evolution) : une bascule à
-          deux icônes, au coin, fait passer de l'anneau aux aires empilées, à la même hauteur (240 px) — la liste reste
-          la légende des deux vues. Elle remplace le bouton « Afficher l'évolution » et le second graphique déplié.
-          L'en-tête court sur TOUTE la largeur : sur ordinateur, les deux colonnes du dessous prennent la même hauteur et
-          le graphique s'y centre — avec l'en-tête dans la colonne de gauche, l'anneau et la liste n'avaient pas le même
-          centre (≈ 30 px d'écart, relevé par l'utilisateur). */}
-      <div className="card repartition-card" style={{ marginBottom: 16 }}>
-        <div className="repartition-tete">
-          <div>
-            <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 500, marginBottom: 4 }}>{vue === 'evolution' ? 'ÉVOLUTION' : 'RÉPARTITION'}</div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{vue === 'evolution' ? 'Patrimoine dans le temps' : 'Patrimoine par catégorie'}</h3>
-          </div>
-          <div className="period-toggle bascule-vue" role="group" aria-label="Vue du graphique">
-            <button type="button" className={vue === 'repartition' ? 'active' : ''} aria-pressed={vue === 'repartition'} aria-label="Répartition" title="Répartition" onClick={() => setVue('repartition')}>
-              <Icon name="repartition" size={14} />
-            </button>
-            <button type="button" className={vue === 'evolution' ? 'active' : ''} aria-pressed={vue === 'evolution'} aria-label="Évolution" title="Évolution" onClick={() => setVue('evolution')}>
-              <Icon name="evolution" size={14} />
-            </button>
-          </div>
-        </div>
-        <div className="repartition-corps">
-          <div className="repartition-graphe">
-            {vue === 'evolution' ? (
-              <PatrimoineEvolutionChart
-                snapshots={snapshots}
-                currentSnapshot={{
-                  checking: checkingBalance,
-                  savings: savingsTotal,
-                  investments: investmentsTotal,
-                  physical: physicalTotal,
-                  total: totalPatrimoine,
-                }}
-                enabled={enabled}
-                profile={profile}
-              />
-            ) : (
-              <AnneauRepartition pieData={pieData} totalPatrimoine={totalPatrimoine} />
-            )}
-          </div>
-
-          <div className="repartition-liste">
-            {categories.map(c => (
-              <button key={c.id} className="portfolio-list-row" onClick={() => onNavigate(c.id)} aria-label={`Ouvrir ${c.label}`}>
-                <div className="portfolio-list-icon" style={{ background: fondPastille(c.color), color: couleurIcone(c.color) }}>
-                  <Icon name={c.icon} size={14} />
-                </div>
-                <div className="portfolio-list-main">
-                  <div className="portfolio-list-name">{c.label}</div>
-                  <div className="portfolio-list-sub">{c.sub}</div>
-                </div>
-                <div className="portfolio-list-right">
-                  <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{fmt(c.value)}<span className="currency-muted"> €</span></div>
-                  <div className="portfolio-list-sub num">
-                    {totalPatrimoine > 0 ? ((c.value / totalPatrimoine) * 100).toFixed(2) : '0.00'}%
-                  </div>
-                </div>
-                <span className="portfolio-list-arrow" aria-hidden="true">›</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-//  ANNEAU DE RÉPARTITION
-// ============================================================
-// Un composant à part (22/10/2026) pour avoir SA PROPRE entrée : rendu en ligne dans `ConsolidatedView`, qui reste
-// montée pendant les bascules, il aurait repris l'animation de 300 ms à chaque retour sur l'anneau.
-function AnneauRepartition({ pieData, totalPatrimoine }) {
-  return (
-    <div style={{ position: 'relative', height: 240 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AnneauRepartitionChart pieData={pieData} />
-      </ResponsiveContainer>
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-        <div style={{ fontSize: 11, color: COLORS.muted }}>TOTAL</div>
-        <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{fmtNoDec(totalPatrimoine)} €</div>
-      </div>
-    </div>
-  );
-}
-
-// Le graphique lui-même, rendu PAR `ResponsiveContainer` : c'est là que se décide la durée (cf.
-// `useDureeAnimationGraphique`). ⚠️ Son nom finit par `Chart` À DESSEIN : `ResponsiveContainer` (Recharts 2.12.7) ne
-// passe son `style` — largeur et hauteur 100 %, plafonnées à la taille mesurée — qu'à un enfant dont le nom finit
-// ainsi. Renommé autrement, il perdrait ce style en silence. Même règle pour `EvolutionAiresChart`.
-function AnneauRepartitionChart({ pieData, width, height, style }) {
-  const duree = useDureeAnimationGraphique();
-  return (
-    <PieChart width={width} height={height} style={style}>
-      <Pie data={pieData} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius="62%" outerRadius="90%" paddingAngle={3} stroke="none"
-        animationBegin={0} animationDuration={duree}>
-        {pieData.map(p => <Cell key={p.id} fill={p.color} />)}
-      </Pie>
-      {/* `zIndex` : l'étiquette « TOTAL » du centre est posée APRÈS le graphique
-          dans la page, donc dessinée par-dessus la bulle quand celle-ci tombe au
-          centre — d'où l'effet de bulle « transparente » signalé sur iPhone et sur
-          ordinateur (19/10/2026). La bulle doit passer devant. */}
-      <Tooltip content={<CustomTooltip />} wrapperStyle={{ zIndex: 2 }} />
-    </PieChart>
-  );
-}
-
-// ============================================================
-//  GRAPHIQUE D'ÉVOLUTION (aires empilées par catégorie)
-// ============================================================
-function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile }) {
-  // La période est retenue pour la session (cf. `SESSION_ACCUEIL`), comme la vue.
-  const [period, setPeriodEtat] = useState(SESSION_ACCUEIL.periode);
-  const setPeriod = (p) => { SESSION_ACCUEIL.periode = p; setPeriodEtat(p); };
-
-  // On reconstruit la série en intégrant le mois courant à la volée
-  // (au cas où le snapshot du mois courant n'aurait pas encore été écrit).
+  // La série mensuelle, mois courant intégré à la volée (au cas où son instantané n'aurait pas encore été écrit).
+  const currentSnapshot = { checking: checkingBalance, savings: savingsTotal, investments: investmentsTotal, physical: physicalTotal, total: totalPatrimoine };
   const series = useMemo(() => {
-    const curKey = currentMonthKey();
-    const merged = (snapshots || []).filter(s => s.monthKey !== curKey).slice();
-    merged.push({ monthKey: curKey, ...currentSnapshot });
+    const merged = (snapshots || []).filter(s => s.monthKey !== cur).slice();
+    merged.push({ monthKey: cur, ...currentSnapshot });
     merged.sort((a, b) => a.monthKey.localeCompare(b.monthKey));
     return merged.map(s => ({
       monthKey: s.monthKey,
@@ -276,14 +178,84 @@ function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile
       physical: r2(s.physical || 0),
       total: r2(s.total || 0),
     }));
-  }, [snapshots, currentSnapshot]);
+  }, [snapshots, cur, checkingBalance, savingsTotal, investmentsTotal, physicalTotal, totalPatrimoine]);
 
-  const data = useMemo(() => {
-    if (period === '3') return series.slice(-3);
-    if (period === '12') return series.slice(-12);
-    return series;
-  }, [series, period]);
+  // La carte de tête porte TOUJOURS les douze derniers mois, quelle que soit la période de la section « Évolution ».
+  const douze = series.slice(-12);
+  const avecCourbe = douze.length >= 2;
+  const variation = avecCourbe ? r2(douze[douze.length - 1].total - douze[0].total) : 0;
 
+  const evolution = period === '3' ? series.slice(-3) : period === '12' ? series.slice(-12) : series;
+
+  // Plus d'alerte de valorisation sur l'accueil (15/11/2026, décision de l'utilisateur, ordinateur compris) : elle reste en haut
+  // de la page Investissements. Plus d'encart « Ce mois-ci » non plus (même jour) : la projection est déjà sur la carte du compte
+  // courant, et « à pointer » ne sert à rien à qui pointe au jour le jour. La carte de tête prend toute la largeur.
+
+  const periods = [{ key: '3', label: '3M' }, { key: '12', label: '12M' }, { key: 'all', label: 'Tout' }];
+  const signe = (n) => `${n >= 0 ? '+' : ''}${fmt(n)} €`;
+
+  return (
+    <div>
+      <div className="accueil-haut">
+        <CarteDeTete
+          module="overview" libelle="Patrimoine total" montant={totalPatrimoine}
+          droite={avecCourbe && <span className="ct-pill">{signe(variation)} depuis {monthLabelShort(douze[0].monthKey)}</span>}
+          pied={avecCourbe ? [] : [avecPlusValue && { label: 'Plus-value totale', value: signe(totalGain) }]}
+        >
+          {avecCourbe && <MiniCourbe valeurs={douze.map(p => p.total)} />}
+        </CarteDeTete>
+      </div>
+
+      <section className="section-accueil">
+        <div className="section-tete"><h2>Mes rubriques</h2></div>
+        <div className="pile-rub" style={{ '--n': categories.length }}>
+          {categories.map(c => (
+            <button key={c.id} type="button" className={`carte-rub carte-rub--${c.id}`} style={{ background: CARTE_FONDS[c.id] }}
+              onClick={() => onNavigate(c.id)} aria-label={`Ouvrir ${c.label}`}>
+              {/* Le pourcentage est écrit DEUX fois : sous le montant (téléphone, où les cartes se chevauchent et où seul le haut
+                  de chacune se voit — 15/11/2026) et en pied de carte (ordinateur, cartes côte à côte) ; le CSS n'en montre qu'un. */}
+              <span className="carte-rub-rang">
+                {/* L'info de la rubrique (« 3 comptes », « 2 actifs »…) sous le nom au téléphone, comme le pourcentage sous le
+                    montant (maquette Mockup-Cartes-Accueil-Telephone, piste B, 15/11/2026) ; en pied sur ordinateur. */}
+                <span className="carte-rub-nom"><i><Icon name={c.icon} size={17} /></i>
+                  <span className="carte-rub-nomw"><span>{c.label}</span><span className="carte-rub-sub">{c.sub}</span></span>
+                </span>
+                <span className="carte-rub-droite">
+                  <span className="carte-rub-mt num">{eur(c.value)}</span>
+                  {part(c) && <span className="carte-rub-pc num">{part(c)}</span>}
+                </span>
+              </span>
+              <span className="carte-rub-bas">
+                <span>{c.sub}</span>
+                {part(c) && <span className="num carte-rub-pc-bas">{part(c)}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="section-accueil">
+        <div className="section-tete">
+          <h2>Évolution</h2>
+          <div className="period-toggle" role="group" aria-label="Période">
+            {periods.map(p => (
+              <button key={p.key} type="button" className={period === p.key ? 'active' : ''} aria-pressed={period === p.key} onClick={() => setPeriod(p.key)}>{p.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="card evo-carte">
+          {avecPlusValue && <div className="evo-sous">dont <b className="num">{signe(totalGain)}</b> de plus-value</div>}
+          <PatrimoineEvolutionChart data={evolution} enabled={enabled} profile={profile} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ============================================================
+//  GRAPHIQUE D'ÉVOLUTION (aires empilées par catégorie)
+// ============================================================
+function PatrimoineEvolutionChart({ data, enabled, profile }) {
   // Si on n'a qu'un seul point, l'AreaChart n'a rien à tracer.
   if (data.length < 2) {
     return (
@@ -293,95 +265,45 @@ function PatrimoineEvolutionChart({ snapshots, currentSnapshot, enabled, profile
       </div>
     );
   }
-
+  // Les rubriques ne se dessinent plus (une seule courbe, le total — modernisation C', 14/11/2026), mais la bulle les
+  // détaille toujours, dans l'ORDRE FIXE de l'app — celui de la barre des onglets et des cartes (15/11/2026, décision de
+  // l'utilisateur : l'ordre par montant, utile quand les aires s'empilaient, changeait avec la période).
   const categories = [
-    // Fix : `enabled &&` (objet toujours truthy) incluait le Compte courant
-    // même module désactivé — l'ancien fallback unshift datait d'avant la
-    // possibilité de désactiver le module (v6).
     enabled.checking !== false && { key: 'checking', label: checkingModuleLabel(profile), color: MODULE_COLORS.checking },
     enabled.savings && { key: 'savings', label: 'Épargne', color: MODULE_COLORS.savings },
     enabled.investments && { key: 'investments', label: 'Investissements', color: MODULE_COLORS.investments },
     enabled.physical && { key: 'physical', label: 'Actifs physiques', color: MODULE_COLORS.physical },
   ].filter(Boolean);
-
-  // Empilement trié par TAILLE (moyenne sur la période affichée), la plus
-  // grosse catégorie EN BAS : seule la bande du bas repose sur une ligne
-  // droite (le zéro) et se lit fidèlement — celles du dessus chevauchent
-  // les ondulations des bandes inférieures. Avant ce tri, le Compte
-  // courant (petit et volatil) était en bas et propageait ses dents de
-  // scie à tout l'empilement. Moyenne (et non dernier point) pour un
-  // ordre stable dans la vue. Le tooltip suit le même ordre.
-  const avgByKey = {};
-  for (const c of categories) {
-    avgByKey[c.key] = data.length
-      ? data.reduce((s, d) => s + (d[c.key] || 0), 0) / data.length
-      : 0;
-  }
-  const sortedCategories = [...categories].sort((a, b) => avgByKey[b.key] - avgByKey[a.key]);
-
-  const periods = [
-    { key: '3', label: '3M' },
-    { key: '12', label: '12M' },
-    { key: 'all', label: 'Tout' },
-  ];
-
-  // Rendu DANS la carte « Répartition » depuis le 21/10/2026 : ni carte, ni titre (c'est l'en-tête de la carte qui
-  // dit « Évolution »), ni légende — la liste des rubriques, sous le graphique, en tient lieu. La période se pose au-
-  // dessus du graphique, à droite ; période + graphique = la hauteur réservée à l'anneau (`.repartition-graphe`).
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        <div className="period-toggle">
-          {periods.map(p => (
-            <button
-              key={p.key}
-              className={period === p.key ? 'active' : ''}
-              onClick={() => setPeriod(p.key)}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <ResponsiveContainer width="100%" height={240}>
-        <EvolutionAiresChart data={data} categories={sortedCategories} />
-      </ResponsiveContainer>
-    </div>
+    <RedessinARotation>
+    <ResponsiveContainer width="100%" height={200}>
+      <EvolutionAiresChart data={data} categories={categories} />
+    </ResponsiveContainer>
+    </RedessinARotation>
   );
 }
 
-// Les aires, rendues PAR `ResponsiveContainer` : la durée s'y décide, et le nom finit par `Chart` pour recevoir son
-// `style` (cf. `AnneauRepartitionChart`). Un changement de période les redessine sans les remonter : la transition
-// courte montre ce qui a bougé.
+// La courbe du total, rendue PAR `ResponsiveContainer` : la durée s'y décide, et le nom finit par `Chart` pour
+// recevoir son `style` (cf. le commentaire de `useDureeAnimationGraphique`). Un changement de période la redessine
+// sans la remonter : la transition courte montre ce qui a bougé.
+// La courbe du TOTAL en gris ardoise, la couleur de la carte « Patrimoine total » (15/11/2026, décision de l'utilisateur) :
+// en indigo, elle se lisait comme celle du compte courant, dont la carte est juste au-dessus.
+const COURBE_TOTAL = '#2a2f4a';
 function EvolutionAiresChart({ data, categories, width, height, style }) {
   const duree = useDureeAnimationGraphique();
   return (
-    <AreaChart width={width} height={height} style={style} data={data} margin={{ top: 6, right: 8, left: -10, bottom: 0 }}>
-      <CartesianGrid stroke={COLORS.border} strokeDasharray="3 3" vertical={false} />
-      <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={{ stroke: COLORS.border }} />
-      <YAxis
-        tick={{ fontSize: 11, fill: COLORS.muted }}
-        tickLine={false}
-        axisLine={false}
-        tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`}
-        width={50}
-      />
+    <AreaChart width={width} height={height} style={style} data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+      <defs>
+        <linearGradient id="evo-fond" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor={COURBE_TOTAL} stopOpacity={0.18} />
+          <stop offset="1" stopColor={COURBE_TOTAL} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />
+      <YAxis hide domain={['dataMin', 'dataMax']} />
       <Tooltip content={<EvolutionTooltip categories={categories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
-      {/* Premier <Area> rendu = bande du BAS de l'empilement */}
-      {categories.map(c => (
-        <Area
-          key={c.key}
-          type="monotone"
-          dataKey={c.key}
-          stackId="1"
-          stroke={c.color}
-          strokeWidth={1}
-          fill={c.color}
-          fillOpacity={0.85}
-          animationBegin={0}
-          animationDuration={duree}
-        />
-      ))}
+      <Area type="monotone" dataKey="total" stroke={COURBE_TOTAL} strokeWidth={2.5} fill="url(#evo-fond)"
+        animationBegin={0} animationDuration={duree} />
     </AreaChart>
   );
 }
@@ -397,8 +319,8 @@ function EvolutionTooltip({ active, payload, categories }) {
     <div style={{
       background: COLORS.surface, color: COLORS.text,
       border: `1px solid ${COLORS.border}`,
-      padding: '10px 14px', borderRadius: 10,
-      fontSize: 12.5, boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
+      padding: '10px 14px', borderRadius: 'var(--r-touche)',
+      fontSize: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
       minWidth: 200,
     }}>
       <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.border}` }}>

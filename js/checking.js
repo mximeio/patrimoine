@@ -63,26 +63,13 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
   };
 
   return (
-    <div>
+    <div className="vue-rub">
       {/* HERO consolidé — même structure que le hero Épargne pour cohérence visuelle */}
-      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.checking)), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-            Solde total
-          </div>
-          <ModuleBadge module="checking" />
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6, color: total >= 0 ? '#86efac' : '#fca5a5' }}>
-          {fmt(total)} €
-        </div>
-        <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Nombre de comptes</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600 }}>
-              {accountsWithBalance.length}
-            </div>
-          </div>
-        </div>
+      <div className="colle">
+      <CarteDeTete
+        module="checking" libelle="Solde total" montant={total}
+        pied={[{ label: 'Nombre de comptes', value: accountsWithBalance.length }]}
+      />
       </div>
 
       {/* LIST */}
@@ -95,7 +82,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
         </div>
         <div>
           {accountsWithBalance.map((acc, i) => {
-            const color = PORTFOLIO_PALETTE[i % PORTFOLIO_PALETTE.length];
+            const color = MODULE_COLORS.checking; // teinte de la rubrique, comme la maquette C' (15/11/2026)
             const monthsCount = Object.keys(acc.months || {}).length;
             const hasMonth = !!acc._refKey;
             return (
@@ -105,8 +92,8 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
                 onClick={() => onOpenAccount(acc.id)}
                 aria-label={`Ouvrir ${acc.name || 'compte sans nom'}`}
               >
-                <div className="portfolio-list-icon" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
-                  <Icon name="creditCard" size={14} />
+                <div className="portfolio-list-icon portfolio-list-av" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
+                  {initiales(acc.name)}
                 </div>
                 <div className="portfolio-list-main">
                   <div className="portfolio-list-name">
@@ -118,7 +105,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
                   </div>
                 </div>
                 <div className="portfolio-list-right">
-                  <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>
+                  <div className="num" style={{ fontSize: 14, fontWeight: 500 }}>
                     {fmt(acc._balance)}<span className="currency-muted"> €</span>
                   </div>
                   {hasMonth ? (
@@ -136,13 +123,13 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
         </div>
         <div className="section-footer">
           <button className="btn-add" onClick={() => setShowCreate(true)}>
-            + Ajouter un compte
+            Ajouter un compte
           </button>
         </div>
       </div>
 
       {showCreate && (
-        <Modal title="Nouveau compte courant" onClose={() => setShowCreate(false)}>
+        <Modal title="Nouveau compte courant" icon="creditCard" onClose={() => setShowCreate(false)}>
           <NewCheckingAccountForm
             showToast={showToast}
             onSubmit={handleCreate}
@@ -209,22 +196,18 @@ function NewCheckingAccountForm({ onSubmit, existingNames = [], showToast }) {
       style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
     >
       <div>
-        <label className="label">Nom du compte</label>
+        <label className="label">Nom du compte<AideChamp>Tu pourras configurer les récurrents et les réglages des tickets resto depuis le compte créé.</AideChamp></label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="input"
+          className={`input${isDuplicate ? ' input-erreur' : ''}`}
+          aria-invalid={isDuplicate ? 'true' : undefined}
           placeholder="ex: Boursorama, BNP, ING…"
           required
         />
-        {/* Avertissement de CHAMP, conservé : il paraît pendant la frappe, à côté
-            du champ concerné — ce n'est pas le refus du bouton, qui passe par un toast. */}
-        {isDuplicate && (
-          <div className="field-hint" style={{ color: 'var(--danger-fonce)', marginTop: 4 }}>
-            {`Le nom "${trimmed}" est déjà utilisé.`}
-          </div>
-        )}
+        {/* Erreur de CHAMP (15/11/2026, décision de l'utilisateur) : le champ passe en ROUGE pendant la frappe, sans texte
+            dessous (il décalait la fenêtre) ; l'explication vient en notification si l'on enregistre quand même. */}
       </div>
       <div className="field-grid">
         <div>
@@ -232,13 +215,10 @@ function NewCheckingAccountForm({ onSubmit, existingNames = [], showToast }) {
           <MonthInputPicker value={initialBalanceMonth} onChange={setInitialBalanceMonth} />
         </div>
         <div>
-          <label className="label">Solde initial (€)</label>
-          <AmountInput value={initialBalance} onChange={(n) => setInitialBalance(n)} className="input" placeholder="0.00" />
+          <label className="label">Solde initial</label>
+          <div className="unite-eur"><AmountInput value={initialBalance} onChange={(n) => setInitialBalance(n)} className="input" placeholder="0.00" /></div>
         </div>
       </div>
-      <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>
-        Tu pourras configurer les récurrents et réglages TR depuis le compte créé.
-      </p>
       <button type="submit" className="btn btn-accent btn-lg">Créer</button>
     </form>
   );
@@ -379,6 +359,8 @@ function CheckingView({ ctx, onBack }) {
   const curKey = checking.months[currentMonthLocal] ? currentMonthLocal : sortedKeys[sortedKeys.length - 1];
   const m = checking.months[curKey];
   const stats = computeMonth(checking, curKey);
+  // Le reste projeté du mois précédent diffère-t-il du pointé ? (opérations non pointées) — « (projeté) » et son « ? ».
+  const resteEcart = r2(stats.carryProjected - stats.carry) !== 0;
   const idx = sortedKeys.indexOf(curKey);
   const trEnabled = checking.settings.trEnabled !== false;
   // Mois FIGÉ (v485, maquette Mockup-Mois-Fige-Interactif) : consultation
@@ -584,7 +566,7 @@ function CheckingView({ ctx, onBack }) {
   };
 
   return (
-    <div>
+    <div className="vue-rub">
       {/* Fil d'Ariane SUPPRIMÉ le 15/08/2026 — cf. `investments.js`. Le retour et
           le nom du compte vivent dans la ligne de titre, posés plus haut par
           `useEnteteSousPage`.
@@ -613,21 +595,44 @@ function CheckingView({ ctx, onBack }) {
         titleSlot
       )}
 
-      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.checking)), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            {/* Pas de nom du compte dans la hero card : en multi-mode c'est la
+      {/* Pas de nom du compte dans la hero card : en multi-mode c'est la
                 LIGNE DE TITRE qui identifie le compte ouvert (elle portait le
                 fil d'Ariane jusqu'au 15/08/2026), et la modification du nom passe
                 par Réglages. */}
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-              Solde pointé
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <MonthChip id="hero" variant="hero" label={monthLabel(curKey)} {...chipProps} />
-            <ModuleBadge module="checking" />
-            <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
+      {/* Mois figé : pas de création d'opération. Figer/Défiger et
+                  Supprimer partagent le même groupe (les deux actions
+                  « cycle de vie » du mois) — décision maquette v485. */}
+      {/* Groupe 1 « mouvements du mois » : Nouvelle opération, masquée
+                  si figé. v574.
+                  L'entrée « Tickets resto » (et sa pastille de comptage) a été
+                  RETIRÉE le 14/08/2026 : c'est la CARTE « Tickets resto » de la
+                  grille, juste en dessous, qui ouvre désormais la fenêtre — y
+                  compris sur un mois figé, la carte étant hors du garde
+                  .frozen-month. Décision de l'utilisateur, seul usager de cette
+                  fonction : deux portes vers la même fenêtre n'apportaient rien,
+                  et les deux vivaient de toute façon dans le même bloc défilant
+                  (seul .app-header est sticky). Ne pas la remettre.
+                  ⚠️ Le séparateur suit donc « Nouvelle opération » SEULE : il
+                  testait aussi `trEnabled`, et le garder ainsi afficherait un
+                  trait sans rien au-dessus sur un mois figé. */}
+      {/* Projection EXPLIQUÉE (v517, maquette Mockup-Quatuor-Confort) :
+                tap sur la valeur → détail du calcul déplié dessous. On
+                comprend le rouge en une seconde, sans reconstituer de tête. */}
+      {/* Note affichée SEULEMENT quand elle explique un vrai écart :
+                si le mois précédent est entièrement pointé, reste projeté et
+                reste pointé sont identiques — rien à justifier (v518). */}
+      <div className="colle">
+      <CarteDeTete
+        module="checking" libelle="Solde pointé" montant={stats.balancePointed} sansIcone
+        droite={<><MonthChip id="hero" variant="hero" label={monthLabel(curKey)} {...chipProps} />
+          {/* La projection en PASTILLE (modernisation C', 14/11/2026, haut de la fusion A + C) : le pied de la carte
+              porte désormais le pointage. Toucher la pastille déplie toujours le détail du calcul (v517). */}
+          <button type="button" className="ct-pill ct-pill-btn num proj-value" onClick={() => setProjOpen(o => !o)}
+            aria-expanded={projOpen} title="Voir le détail du calcul">
+            <span className="ct-pill-lib">Projection </span>{eur(stats.balanceProjected)}
+            <span className={`proj-chev${projOpen ? ' open' : ''}`}><Icon name="chevronDown" size={11} /></span>
+          </button>
+          <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
               {/* Mois figé : pas de création d'opération. Figer/Défiger et
                   Supprimer partagent le même groupe (les deux actions
                   « cycle de vie » du mois) — décision maquette v485. */}
@@ -679,125 +684,64 @@ function CheckingView({ ctx, onBack }) {
                 <span style={{ color: frozen ? COLORS.subtle : 'var(--danger-fonce)', display: 'inline-flex' }}><Icon name="trash" size={14} /></span>
                 Supprimer ce mois
               </button>
-            </Dropdown>
-          </div>
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6, color: stats.balancePointed >= 0 ? '#86efac' : '#fca5a5' }}>
-          {eur(stats.balancePointed)}
-        </div>
-        <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Projection fin de mois</div>
-            {/* Projection EXPLIQUÉE (v517, maquette Mockup-Quatuor-Confort) :
-                tap sur la valeur → détail du calcul déplié dessous. On
-                comprend le rouge en une seconde, sans reconstituer de tête. */}
-            <button
-              className="num proj-value"
-              onClick={() => setProjOpen(o => !o)}
-              style={{ color: stats.balanceProjected >= 0 ? '#86efac' : '#fca5a5' }}
-              aria-expanded={projOpen}
-              title="Voir le détail du calcul"
-            >
-              {eur(stats.balanceProjected)}
-              <span className={`proj-chev${projOpen ? ' open' : ''}`}><Icon name="chevronDown" size={11} /></span>
-            </button>
-          </div>
-        </div>
-        {projOpen && (
+            </Dropdown></>}
+        pied={(() => {
+          // « Tout pointé » (piste B, 15/11/2026) : le montant ne s'écrit plus qu'une fois, coche et jauge vertes.
+          // Même règle qu'avant la modernisation : il faut au moins une ligne (`> 0`), et un reste nul au centime près.
+          const cellule = (nom, pointe, total) => {
+            const fait = total > 0 && r2(total - pointe) <= 0;
+            // LE RESTE À POINTER EN PREMIER (16/11/2026, demande de l'utilisateur, _maquettes/Mockup-Reste-A-Pointer) : une case
+            // à finir dit ce qu'il reste (« Sorties à pointer 129.00 € »), à toutes les largeurs — c'était la forme du petit
+            // téléphone depuis le 14/11 ; le détail « pointé / prévu » passe dans une bulle (survol ou toucher, `bulle`).
+            // Case terminée inchangée : « Sorties pointées 3 313.48 € », coche dans l'anneau.
+            // Plus de forme courte « Entrées » au téléphone (16/11/2026, relevé de l'utilisateur sur iPhone) : « Entrées pointées »
+            // n'est pas plus long que « Sorties à pointer », qui tient à côté.
+            if (fait) return { label: `${nom} pointées`, fait, value: `${fmt(total)} €`, fil: 100 };
+            return { label: `${nom} à pointer`, fait, value: `${fmt(r2(Math.max(0, total - pointe)))} €`,
+              fil: total > 0 ? (pointe / total) * 100 : 0,
+              bulle: total > 0 ? `${fmt(pointe)} € pointés sur ${fmt(total)} €` : null };
+          };
+          return [cellule('Entrées', stats.entriesPointed, stats.entriesAll),
+            cellule('Sorties', stats.exitsPointed, stats.exitsAll)];
+        })()}
+        dessous={projOpen && (
           <div className="proj-detail num">
-            <div className="pd-row"><span>Reste de {monthLabel(prevMonthKey(curKey))} (projeté)</span><b>{eur(stats.carryProjected)}</b></div>
-            <div className="pd-row"><span>+ Entrées du mois</span><b>+ {fmt(stats.entriesAll)} €</b></div>
-            <div className="pd-row"><span>− Sorties du mois</span><b>− {fmt(stats.exitsAll)} €</b></div>
-            <div className="pd-row pd-total"><span>= Projection fin de mois</span><b style={{ color: stats.balanceProjected >= 0 ? '#86efac' : '#fca5a5' }}>{eur(stats.balanceProjected)}</b></div>
-            {/* Note affichée SEULEMENT quand elle explique un vrai écart :
-                si le mois précédent est entièrement pointé, reste projeté et
-                reste pointé sont identiques — rien à justifier (v518). */}
-            {stats.carryProjected !== stats.carry && (
-              <div className="pd-note">
-                Ce « Reste de {monthLabel(prevMonthKey(curKey))} » inclut les opérations
-                non pointées du mois dernier — d'où l'écart avec la carte
-                « Reste mois préc. » ({eur(stats.carry)}), qui ne compte que le pointé.
-              </div>
-            )}
+            {/* « (projeté) » et son « ? » SEULEMENT quand le reste projeté diffère du reste pointé (16/11/2026, demande de
+                l'utilisateur, _maquettes/Mockup-Projection-Aide) : mois précédent tout pointé, rien à distinguer. Le « ? »
+                remplace la note de trois lignes (v518) qui expliquait l'écart avec la pastille « Reste mois préc. ». */}
+            <div className="pd-row"><span>Reste {monthLabelDe(prevMonthKey(curKey))}{resteEcart && <> (projeté)<InfoTip iconName="aide" size={14} label="Pourquoi projeté ?" className="aide-champ pd-aide" popClassName="infotip-pop--wrap"
+              content={`Inclut les opérations non pointées ${monthLabelDe(prevMonthKey(curKey))}. Pointé seul : ${eur(stats.carry)}, le montant de la pastille Reste mois préc.`} /></>}</span><b>{eur(stats.carryProjected)}</b></div>
+            <div className="pd-row"><span>+ Entrées du mois</span><b>+{fmt(stats.entriesAll)} €</b></div>
+            <div className="pd-row"><span>− Sorties du mois</span><b>−{fmt(stats.exitsAll)} €</b></div>
+            <div className="pd-row pd-total"><span>= Projection fin de mois</span><b>{eur(stats.balanceProjected)}</b></div>
           </div>
         )}
-      </div>
+      />
 
-      <div className={`stats-grid ${!trEnabled ? 'cols-3' : ''}`}>
-        <div className="stat-card">
-          <div className="stat-card-icon"><Icon name="rotate" size={14} /></div>
-          <div className="stat-card-label">Reste mois préc.</div>
-          <div className={`stat-card-value ${stats.carry >= 0 ? 'value-positive' : 'value-negative'}`}>{eur(stats.carry)}</div>
-          <div className="stat-card-sub">Fin de {monthLabel(prevMonthKey(curKey))}</div>
+      {/* DEUX PASTILLES FINES à la place des quatre cartes chiffrées (modernisation C', 14/11/2026, haut de la
+          fusion A + C) : « Entrées / Sorties à pointer » sont passées dans le pied de la carte de tête, avec leur jauge.
+          La pastille « Tickets resto » reste la SEULE porte vers la fenêtre « Tickets resto payés » depuis cette vue
+          (depuis le retrait de l'entrée du menu ⋯, 14/08/2026 — la recherche l'ouvre aussi par requestOpen('tr')).
+          <button> et non <div onClick> : le seul motif atteignable au clavier.
+          ⚠️ Elle est HORS du garde .frozen-month (qui ne couvre que les deux sections en dessous) : sur un mois figé
+          elle ouvre donc la fenêtre, laquelle gère elle-même la consultation seule. C'est voulu. */}
+      <div className="pastilles-cc">
+        <div className="pastille-cc" title={`Ce qui restait, pointé, fin ${monthLabelDe(prevMonthKey(curKey)).toLowerCase()}`}>
+          <span className="pastille-cc-ico"><Icon name="rotate" size={13} /></span>
+          <span className="pastille-cc-lib"><span className="pcc-long">Reste mois préc.</span><span className="pcc-court">Mois préc.</span></span>
+          <b className="num">{eur(stats.carry)}</b>
         </div>
-        {(() => {
-          const entriesRemaining = r2(stats.entriesAll - stats.entriesPointed);
-          const entriesAllDone = entriesRemaining <= 0 && stats.entriesAll > 0;
-          return (
-            <div className="stat-card">
-              <div className="stat-card-icon income"><Icon name="arrowDown" size={14} /></div>
-              <div className="stat-card-label">Entrées à pointer</div>
-              {entriesAllDone ? (
-                <div className="stat-card-value value-positive">✓ Tout pointé</div>
-              ) : (
-                <div className="stat-card-value value-positive">{eur(entriesRemaining)}</div>
-              )}
-              <div className="stat-card-sub">
-                {entriesAllDone
-                  ? `${fmt(stats.entriesPointed)} € pointés`
-                  : `${fmt(stats.entriesPointed)} € / ${fmt(stats.entriesAll)} €`}
-              </div>
-            </div>
-          );
-        })()}
-        {(() => {
-          const exitsRemaining = r2(stats.exitsAll - stats.exitsPointed);
-          const exitsAllDone = exitsRemaining <= 0 && stats.exitsAll > 0;
-          return (
-            <div className="stat-card">
-              <div className="stat-card-icon expense"><Icon name="arrowUp" size={14} /></div>
-              <div className="stat-card-label">Sorties à pointer</div>
-              {exitsAllDone ? (
-                <div className="stat-card-value value-negative">✓ Tout pointé</div>
-              ) : (
-                <div className="stat-card-value value-negative">{eur(exitsRemaining)}</div>
-              )}
-              <div className="stat-card-sub">
-                {exitsAllDone
-                  ? `${fmt(stats.exitsPointed)} € pointés`
-                  : `${fmt(stats.exitsPointed)} € / ${fmt(stats.exitsAll)} €`}
-              </div>
-            </div>
-          );
-        })()}
-        {/* La SEULE porte vers la fenêtre « Tickets resto payés » depuis cette
-            vue, depuis le retrait de l'entrée du menu ⋯ (14/08/2026) — la
-            recherche globale l'ouvre par ailleurs (requestOpen('tr')).
-            <button> et non <div onClick> : c'est le motif des lignes ouvrables
-            de l'app (SavingsListRow, PortfolioListRow), le seul atteignable au
-            clavier. Le chevron reprend leur `›` textuel, pas une icône — il n'y
-            a pas de chevronRight au catalogue, et il ne faut pas en ajouter un
-            pour ça.
-            ⚠️ Cette carte est HORS du garde .frozen-month (qui ne couvre que les
-            deux sections en dessous) : sur un mois figé elle ouvre donc la
-            fenêtre, laquelle gère elle-même la consultation seule. C'est voulu,
-            et c'est ce que faisait déjà l'entrée du menu qu'elle remplace. */}
         {trEnabled && (
-          <button
-            type="button"
-            className="stat-card stat-card-clickable"
-            onClick={() => setShowTrManage(true)}
-            aria-label="Ouvrir les tickets resto payés"
-          >
-            <div className="stat-card-icon tr-utensils"><Icon name="utensils" size={14} /></div>
-            <div className="stat-card-label">Tickets resto</div>
-            <div className="stat-card-value" style={{ color: 'var(--warning-fonce)' }}>{eur(stats.trTotal)}</div>
-            <div className="stat-card-sub">
-              {eur(stats.trUserShare)} de ma poche
-            </div>
-            <span className="stat-card-arrow" aria-hidden="true">›</span>
+          <button type="button" className="pastille-cc pastille-cc-tr" onClick={() => setShowTrManage(true)} aria-label="Ouvrir les tickets resto payés">
+            <span className="pastille-cc-ico"><Icon name="utensils" size={13} /></span>
+            <span className="pastille-cc-lib"><span className="pcc-long">Tickets resto</span><span className="pcc-court">Tickets</span></span>
+            {/* La part DE MA POCHE (15/11/2026, demande de l'utilisateur) : c'est elle qui sort du compte ; le total du mois est
+                dans la fenêtre que la pastille ouvre. */}
+            <b className="num" title={`De ma poche · total du mois ${eur(stats.trTotal)}`}>{eur(stats.trUserShare)}</b>
+            <span className="pastille-cc-chev" aria-hidden="true">›</span>
           </button>
         )}
+      </div>
       </div>
 
       {/* Mois FIGÉ : verrou d'interface par-dessus le filet updateMonth. Le
@@ -841,7 +785,7 @@ function CheckingView({ ctx, onBack }) {
       </div>
 
       {showTrManage && trEnabled && (
-        <Modal title={`Tickets resto payés — ${monthLabel(curKey)}`} onClose={() => setShowTrManage(false)} noDirtyGuard>
+        <Modal title="Tickets resto payés" icon="utensils" tone="tr" subtitle={monthLabel(curKey)} onClose={() => setShowTrManage(false)} noDirtyGuard>
           {/* Mois figé : consultation seule. MÊME garde que le corps (wrapper
               .frozen-month + capture) — c'est le CSS qui fait le travail ici
               (crayons et bouton d'ajout masqués), le handler n'ayant aucun
@@ -851,16 +795,12 @@ function CheckingView({ ctx, onBack }) {
             className={frozen ? 'frozen-month' : undefined}
             onClickCapture={gardeMoisFige}
           >
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              <div style={{ flex: 1, background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 10, padding: '9px 12px' }}>
-                <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--warning-fonce)', fontWeight: 600 }}>Total du mois</div>
-                <div className="num" style={{ fontSize: 17, fontWeight: 600, color: 'var(--warning-fonce)', marginTop: 2 }}>{eur(stats.trTotal)}</div>
-              </div>
-              <div style={{ flex: 1, background: 'var(--surface-alt, #f8fafc)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px' }}>
-                <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', fontWeight: 600 }}>De ma poche</div>
-                <div className="num" style={{ fontSize: 17, fontWeight: 600, marginTop: 2 }}>{eur(stats.trUserShare)}</div>
-              </div>
-            </div>
+            {/* Deux pastilles fines, comme « Reste mois préc. / Tickets resto » sous la carte du compte (15/11/2026, demande de
+                l'utilisateur : plus discret que le bandeau ambre plein). */}
+            <IndicateursFenetre cellules={[
+              { label: 'Total du mois', value: eur(stats.trTotal) },
+              { label: 'De ma poche', value: eur(stats.trUserShare) },
+            ]} />
             <TrSection
               showToast={showToast}
               items={m.tr || []}
@@ -877,7 +817,7 @@ function CheckingView({ ctx, onBack }) {
       )}
 
       {showRecurring && (
-        <Modal title="Opérations récurrentes" onClose={() => setShowRecurring(false)} size="lg">
+        <Modal title="Opérations récurrentes" icon="arrowLeftRight" subtitle={currentAccount.name || 'Compte courant'} onClose={() => setShowRecurring(false)} size="lg">
           <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
             {checkingDatesEnabled(profile)
               ? "Ces lignes seront pré-remplies à la création d'un nouveau mois. Définis un jour du mois pour qu'il soit reporté automatiquement comme date sur la ligne créée (si le jour n'existe pas dans le mois cible, la date est laissée vide)."
@@ -895,7 +835,7 @@ function CheckingView({ ctx, onBack }) {
       )}
 
       {showReglages && (
-        <Modal title="Réglages" dirty={reglagesDirty} onClose={closeReglages}>
+        <Modal title="Réglages" icon="settings" subtitle={currentAccount.name || 'Compte courant'} dirty={reglagesDirty} onClose={closeReglages}>
           <ReglagesForm
             showToast={showToast}
             checking={checking}
@@ -1094,33 +1034,27 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
         <label className="label">Nom du compte</label>
         <input
           type="text"
-          className="input"
+          className={`input${isDuplicateName ? ' input-erreur' : ''}`}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={isMultiMode ? 'ex: Compte joint, Boursorama, …' : 'Compte principal'}
+          aria-invalid={isDuplicateName ? 'true' : undefined}
         />
-        {isDuplicateName && (
-          <div className="field-hint" style={{ color: 'var(--danger-fonce)' }}>
-            Le nom "{trimmedNameNow}" est déjà utilisé par un autre compte.
-          </div>
-        )}
+        {/* Nom déjà pris : champ en rouge, explication en notification à l'enregistrement (15/11/2026). */}
       </div>
       <div style={{ height: 1, background: COLORS.border, margin: '4px 0' }} />
 
       {/* Section : Solde initial */}
       <div>
-        <h3 className="settings-group-title">Solde initial</h3>
-        <p style={{ fontSize: 12, color: COLORS.muted, margin: '0 0 12px' }}>
-          Le solde reporté au début du premier mois disponible.
-        </p>
+        <h3 className="settings-group-title">Solde initial<AideChamp>Le solde reporté au début du premier mois disponible.</AideChamp></h3>
         <div className="field-grid">
           <div>
             <label className="label">Mois de référence</label>
             <MonthInputPicker value={initMonth} onChange={setInitMonth} />
           </div>
           <div>
-            <label className="label">Solde initial (€)</label>
-            <AmountInput value={initVal} onChange={(n) => setInitVal(n)} className="input" />
+            <label className="label">Solde initial</label>
+            <div className="unite-eur"><AmountInput value={initVal} onChange={(n) => setInitVal(n)} className="input" /></div>
           </div>
         </div>
       </div>
@@ -1130,7 +1064,7 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
       {/* Section : Tickets resto */}
       <div>
         <h3 className="settings-group-title">Tickets resto</h3>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 'var(--r-touche)' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 500 }}>Module activé</div>
             <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
@@ -1145,28 +1079,23 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
         {enabled && (
           <div className="field-grid" style={{ marginTop: 12 }}>
             <div>
-              <label className="label">Valeur d'un TR (€)</label>
-              <AmountInput className="input" value={face} onChange={(n) => setFace(n)} />
-              <div className="field-hint">Montant facial du ticket</div>
+              <label className="label">Valeur d'un TR<AideChamp>Montant facial du ticket.</AideChamp></label>
+              <div className="unite-eur"><AmountInput className="input" value={face} onChange={(n) => setFace(n)} /></div>
             </div>
             <div>
-              <label className="label">Part de ma poche (€)</label>
-              <AmountInput className="input" value={own} onChange={(n) => setOwn(n)} />
-              <div className="field-hint">Part employeur : {eur(employer)} ({fmt(employerPct)} %)</div>
+              <label className="label">Part de ma poche<AideChamp>Part employeur : {eur(employer)} ({fmt(employerPct)} %).</AideChamp></label>
+              <div className="unite-eur"><AmountInput className="input" value={own} onChange={(n) => setOwn(n)} /></div>
             </div>
           </div>
         )}
         {enabled && (
           <div className="field-grid" style={{ marginTop: 12 }}>
             <div>
-              <label className="label">Taux en vigueur depuis</label>
+              <label className="label">Taux en vigueur depuis<AideChamp>Les tickets des mois antérieurs ne seront pas recalculés : leur taux d'époque n'est pas connu.</AideChamp></label>
               <MonthInputPicker
                 value={since}
                 onChange={(k) => { sinceTouched.current = true; setSince(k); }}
               />
-              <div className="field-hint">
-                Les tickets des mois antérieurs ne seront pas recalculés : leur taux d'époque n'est pas connu.
-              </div>
             </div>
             <div />
           </div>
@@ -1175,27 +1104,16 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
 
       <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
 
-      {/* Zone de danger : suppression du compte (mode multi uniquement) */}
+      {/* Zone de danger : suppression du compte (mode multi uniquement) — même zone que l'épargne et les enveloppes
+          (15/11/2026 : plus de filet au-dessus, bouton rouge doux). */}
       {isMultiMode && onDelete && (
-        <>
-          <div style={{ height: 1, background: COLORS.border, margin: '8px 0 4px' }} />
-          <div style={{ marginTop: 4, padding: 12, background: 'var(--danger-light)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger-fonce)' }}>Supprimer ce compte</div>
-              <div style={{ fontSize: 12, color: 'var(--danger-fonce)', opacity: 0.85, marginTop: 2 }}>
-                Tous ses mois, entrées/sorties et TR seront effacés. Action irréversible.
-              </div>
-            </div>
-            <button
-              type="button"
-              className="btn"
-              onClick={onDelete}
-              style={{ background: 'var(--danger-fonce)', color: 'white', borderColor: 'var(--danger-fonce)', flexShrink: 0 }}
-            >
-              <Icon name="trash" size={14} /> Supprimer
-            </button>
-          </div>
-        </>
+        <div className="zone-danger">
+          <b>Supprimer ce compte</b>
+          <small>Tous ses mois, entrées/sorties et TR seront effacés. Action irréversible.</small>
+          <button type="button" className="btn btn-danger" onClick={onDelete}>
+            <Icon name="trash" size={14} /> Supprimer
+          </button>
+        </div>
       )}
     </form>
   );
@@ -1669,7 +1587,7 @@ function MonthInputPicker({ value, onChange, placeholder = 'Choisir un mois', cl
 // ============================================================
 function getCheckingOpDisplay(op) {
   if (op.isTRRefund) {
-    return { iconName: 'utensils', bg: 'var(--warning-light)', color: 'var(--warning-fonce)', amountColor: 'var(--warning-fonce)', variant: 'tr' };
+    return { iconName: 'utensils', bg: 'var(--warning-light)', color: 'var(--warning-fonce)', amountColor: 'var(--tr-clair)', variant: 'tr' };
   }
   if (op.type === 'in') {
     return { iconName: 'arrowDown', bg: 'var(--success-light)', color: couleurIcone(COLORS.success), amountColor: 'var(--success-fonce)', variant: 'income' };
@@ -1907,12 +1825,12 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
   const openEdit = (item) => { setEditing(item); setShowForm(true); };
 
   return (
-    <div className="section-block">
+    <div className={`section-block ops-c${datesMode ? ' mode-dates' : ''}`}>
+      {/* MODERNISATION C' (maquette cartes2.html, écran « compte courant ») : la liste n'est plus dans une carte ; son
+          titre « Opérations » porte l'œil et le bouton « + Nouvelle », qui remplace « + Nouvelle opération » du bas. */}
       <div className="section-header">
-        <div className="section-title">
-          <span className="section-icon checking"><Icon name="arrowLeftRight" size={14} /></span>
-          Entrées et sorties d'argent
-        </div>
+        <h2 className="ops-titre">Opérations</h2>
+        <div className="ops-outils">
         {/* PASTILLE œil+compteur fusionnés (v515, maquette Mockup-Oeil-
             Compteur-Compact, forme B) : LE contrôle unique du masquage.
             TOUJOURS visible sur un mois actif (v516) : on peut ARMER le
@@ -1933,9 +1851,17 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
                 tactile garde l'état courant, sans clignotement au tap. */}
             <span className="eye-ico eye-ico-rest"><Icon name={hideActive ? 'eyeOff' : 'eye'} size={13} /></span>
             <span className="eye-ico eye-ico-hover"><Icon name={hideActive ? 'eye' : 'eyeOff'} size={13} /></span>
+            {/* Libellé sur ordinateur seulement (maquette C') : sur téléphone, l'icône seule tient dans la ligne. */}
+            <span className="ops-eye-lib">{hideActive ? 'Afficher les pointées' : 'Masquer les pointées'}</span>
             {hideActive && pointedCount > 0 && <span className="num">{pointedCount}</span>}
           </button>
         )}
+        {!frozen && (
+          <button type="button" className="btn btn-accent ops-nouvelle" onClick={openCreate}>
+            <Icon name="plus" size={15} /> Nouvelle
+          </button>
+        )}
+        </div>
       </div>
       <div className="tx-list" style={{ '--amt-w': amountColVar(items) }}>
         {(datesMode ? sortItemsBySortKey(items, (it) => it.date || '') : items)
@@ -1983,7 +1909,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
           );
         })}
         {items.length === 0 && (
-          <div className="empty-state" style={{ padding: 20 }}>Aucune opération pour ce mois.</div>
+          <EmptyState icon="list" title="Aucune opération pour ce mois" />
         )}
         {/* Tout est pointé : la liste masquée ne devient jamais un vide
             inquiétant (v509). */}
@@ -1994,15 +1920,14 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
           </div>
         )}
       </div>
-      <div className="section-footer" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button className="btn-add" onClick={openCreate}>+ Nouvelle opération</button>
-        {trEnabled && !hasTR && (
-          <button className="btn-add" onClick={addTrRefund}>+ Tickets resto (auto)</button>
-        )}
-      </div>
+      {trEnabled && !hasTR && (
+        <div className="section-footer" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="btn-add" onClick={addTrRefund}><Icon name="plus" size={14} /> Tickets resto (auto)</button>
+        </div>
+      )}
 
       {showForm && (
-        <Modal title={editing ? 'Modifier une opération' : 'Nouvelle opération'} onClose={() => { setShowForm(false); setEditing(null); }}>
+        <Modal title={editing ? 'Modifier une opération' : 'Nouvelle opération'} icon="creditCard" subtitle={`Compte courant · ${monthLabel(mKey)}`} onClose={() => { setShowForm(false); setEditing(null); }}>
           <OperationForm
             showToast={showToast}
             initial={editing}
@@ -2013,7 +1938,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
             datesMode={datesMode}
             mKey={mKey}
             initialType="out"
-            allowTr={true}
+            allowTr={false}
             onDelete={editing ? () => {
               const label = (editing.label || '').trim() || 'cette ligne';
               const msg = editing.isComposite
@@ -2040,7 +1965,10 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
 // ⚠️ `showToast` est requis depuis le 10/08/2026 : c'est par lui que passent les
 // refus de saisie (cf. `REFUS` dans utils.js). Il descend de `CheckingView` via
 // `OpsSection`/`TrSection` — deux niveaux, aucun n'en disposait avant.
-function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefund, trRefundAmount = 0, datesMode, mKey, initialType = 'out', allowTr = false, showToast }) {
+// `trSeul` (modernisation C', 14/11/2026) : la fenêtre « Nouveau paiement TR », ouverte depuis « Tickets resto payés ».
+// Le type est fixé, donc pas de sélecteur. En MODIFICATION d'un paiement, le sélecteur revient : c'est lui qui permet de
+// déplacer un paiement TR vers les opérations du mois.
+function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefund, trRefundAmount = 0, datesMode, mKey, initialType = 'out', allowTr = false, trSeul = false, showToast }) {
   const isEdit = !!initial;
   const isTRAuto = isEdit && initial.isTRRefund && !initial.isComposite;
   const initIsComposite = !!(initial?.isComposite || (initial?.components || []).length > 0);
@@ -2206,40 +2134,11 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
     <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Sélecteur de type : grille 2 colonnes (Entrée/Sortie), « Paiement TR »
           en pleine largeur sur sa propre ligne. */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {types.map((t) => {
-          const active = type === t.id;
-          return (
-            <button
-              key={t.id} type="button" onClick={() => setType(t.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', textAlign: 'left',
-                border: `1px solid ${active ? t.color : COLORS.border}`,
-                borderRadius: 10,
-                background: active ? t.bg : 'white',
-                cursor: 'pointer', transition: 'all 0.15s',
-                fontFamily: 'inherit',
-                gridColumn: t.id === 'tr' ? '1 / -1' : undefined,
-              }}
-            >
-              <span style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: t.bg, color: t.color,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}><Icon name={t.icon} size={16} /></span>
-              <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: active ? t.color : COLORS.text, lineHeight: 1.2 }}>{t.label}</span>
-                <span style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>{t.desc}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {!trSeul && <ChoixType types={types} value={type} onChange={setType} compact />}
 
       {/* Toggle composite — masqué en mode Paiement TR (composite sans objet). */}
       {!isTr ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 'var(--r-touche)' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 500 }}>Ligne composite</div>
             <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
@@ -2252,7 +2151,7 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
           </label>
         </div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--warning-fonce)', background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 10, padding: '9px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--warning-fonce)', background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 'var(--r-touche)', padding: '9px 12px' }}>
           <Icon name="utensils" size={14} /> Comptabilisé dans les tickets resto du mois.
         </div>
       )}
@@ -2272,7 +2171,7 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
       {/* Date (uniquement si la gestion des dates est activée). */}
       {datesMode && (
         <div>
-          <label className="label">Date (optionnel)</label>
+          <label className="label">Date <span className="aide-c">facultative</span></label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <DateInputPicker value={date} onChange={setDate} />
@@ -2292,34 +2191,35 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
       {/* Montant ou Composantes (en mode TR : toujours montant simple) */}
       {(!isComposite || isTr) ? (
         <div>
-          <label className="label">Montant (€)</label>
+          <label className="label">Montant<AideChamp>{isTRAuto && 'Cette ligne est calculée automatiquement à partir des tickets resto du mois précédent.'}</AideChamp></label>
           {isTr ? (
-            <SignedAmountField
-              value={amount}
-              onChange={setAmount}
-              naturalExpense={false}
-              isTR
-              readOnly={isTRAuto}
-              block
-            />
+            <div className="unite-eur">
+              <SignedAmountField
+                value={amount}
+                onChange={setAmount}
+                naturalExpense={false}
+                isTR
+                readOnly={isTRAuto}
+                block
+              />
+            </div>
           ) : (
-            <AmountInput
-              value={amount}
-              onChange={setAmount}
-              className="input"
-              placeholder="0.00"
-              readOnly={isTRAuto}
-              noNegative
-              title={isTRAuto ? 'Calculé automatiquement à partir des TR du mois précédent' : undefined}
-            />
-          )}
-          {isTRAuto && (
-            <div className="field-hint">Cette ligne est calculée automatiquement à partir des TR du mois précédent.</div>
+            <div className="unite-eur">
+              <AmountInput
+                value={amount}
+                onChange={setAmount}
+                className="input"
+                placeholder="0.00"
+                readOnly={isTRAuto}
+                noNegative
+                title={isTRAuto ? 'Calculé automatiquement à partir des TR du mois précédent' : undefined}
+              />
+            </div>
           )}
         </div>
       ) : (
         <div>
-          <label className="label">Composantes (€)</label>
+          <label className="label">Composantes</label>
           <div className="modal-comp-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {components.map((c, idx) => {
               // Couleur de la composante selon son SIGNE RÉEL : une composante
@@ -2351,25 +2251,24 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
                   className="tx-delete"
                   onClick={() => removeComp(idx)}
                   title="Supprimer la composante"
-                >×</button>
+                  aria-label="Supprimer la composante"
+                ><Icon name="trash" size={17} /></button>
               </div>
               );
             })}
-            <div style={{ display: 'grid', gridTemplateColumns: canAddTRComp ? '1fr 1fr' : '1fr', gap: 8 }}>
-              <button type="button" className="btn-add" onClick={addComp}>+ Composante</button>
+            <div className="ajouts-comp">
+              <button type="button" className="btn-add" onClick={addComp}><Icon name="plus" size={14} /> Composante</button>
               {canAddTRComp && (
-                <button type="button" className="btn-add" onClick={addTrComp}>+ Tickets resto (auto)</button>
+                <button type="button" className="btn-add" onClick={addTrComp}><Icon name="plus" size={14} /> Tickets resto (auto)</button>
               )}
             </div>
           </div>
-          <div className="field-hint" style={{ marginTop: 8 }}>
-            Total calculé : <strong>{eur(compTotal)}</strong>
-          </div>
+          <div className="total-fen"><span>Total calculé</span><b className="num">{eur(compTotal)}</b></div>
         </div>
       )}
 
       <div>
-        <label className="label">Note (optionnel)</label>
+        <label className="label">Note <span className="aide-c">facultative</span></label>
         <div className="note-field">
           <textarea
             ref={noteRef}
@@ -2383,7 +2282,7 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
       </div>
 
       <div className="form-actions">
-        <button type="submit" className="btn btn-accent btn-lg">{isEdit ? 'Modifier' : 'Ajouter'}</button>
+        <button type="submit" className={`btn btn-accent btn-lg${isTr ? ' btn-tr' : ''}`}>{isEdit ? 'Modifier' : 'Ajouter'}</button>
         {isEdit && onDelete && (
           <button type="button" className="btn-delete-line" onClick={onDelete}>
             <Icon name="trash" size={14} /> Supprimer
@@ -2393,6 +2292,9 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
     </form>
   );
 }
+
+// Plus d'ouverture de la modification au clic / toucher du libellé (15/11/2026, décision de l'utilisateur : « il y a un bouton
+// crayon, ce n'est pas pour rien ») — elle datait de la v1140, quand la ligne n'avait plus de crayon. Seul le crayon modifie.
 
 function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, onEdit, onDrop, datesMode, mKey, noDrag = false, fading = false }) {
   // En mode dates OU mois figé (noDrag, v489) : pas de drag handle ni de
@@ -2406,18 +2308,13 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
   const labelText = (item.label || '').trim();
   return (
     <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'} ${item.isTRRefund ? 'auto' : ''} ${fading ? 'fading' : ''}`}>
-      <span ref={handleRef} className={`tx-icon ${variant} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}>
-        {variant === 'income' ? <Icon name="arrowDown" size={12} />
-          : variant === 'expense' ? <Icon name="arrowUp" size={12} />
-          : variant === 'tr' ? <Icon name="utensils" size={12} />
-          : '€'}
-      </span>
+      <span ref={handleRef} className={`tx-icon tx-grip ${variant} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}><Icon name="poignee" size={14} /></span>
       {/* Zone de tap élargie (v538, idée 10) : toute la hauteur de la
           colonne, sans déborder sur la poignée — plus facile au pouce. */}
       <div className="tx-check-hit" onClick={() => onUpdate({ pointed: !item.pointed })} title={item.pointed ? 'Pointé' : 'Prévisionnel'}>
         <div className={`tx-check ${item.pointed ? 'checked' : ''}`} />
       </div>
-      <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
+      <div className="op-main" title={item.label || ''}>
         <span className="op-label">
           {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
         </span>
@@ -2465,16 +2362,11 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
   return (
     <div className={`tx-composite-wrap ${expanded ? 'expanded' : ''} ${item.pointed ? '' : 'unpointed'} ${fading ? 'fading' : ''}`}>
       <div ref={rowRef} data-locate={`op-${item.id}`} className={`tx-row composite-row ${onEdit ? 'with-edit' : ''} ${item.pointed ? '' : 'unpointed'}`}>
-        <span ref={handleRef} className={`tx-icon ${variant || 'expense'} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}>
-          {variant === 'income' ? <Icon name="arrowDown" size={12} />
-            : variant === 'tr' ? <Icon name="utensils" size={12} />
-            : (variant || 'expense') === 'expense' ? <Icon name="arrowUp" size={12} />
-            : '€'}
-        </span>
+        <span ref={handleRef} className={`tx-icon tx-grip ${variant || 'expense'} ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}><Icon name="poignee" size={14} /></span>
         <div className="tx-check-hit" onClick={() => onUpdate({ pointed: !item.pointed })} title={item.pointed ? 'Pointé' : 'Prévisionnel'}>
           <div className={`tx-check ${item.pointed ? 'checked' : ''}`} />
         </div>
-        <div className="op-main" title={item.label || 'Cliquer sur le crayon pour modifier'}>
+        <div className="op-main" title={item.label || ''}>
           <span className="op-label-chevron">
             <span className="op-label">
               {labelText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sans libellé)</span>}
@@ -2530,12 +2422,7 @@ function CompositeComponentRow({ c, parent, variant, scope, list, index, onDrop,
   const compVariant = c.isTRRefund ? 'tr' : signVariant;
   return (
     <div ref={dropRef} className={`composite-comp-row ${withEdit ? 'with-edit' : ''}`}>
-      <span ref={dragRef} className={`tx-icon ${compVariant}${noDrag ? ' no-drag' : ''}`} title={noDrag ? '' : 'Glisser'}>
-        {compVariant === 'income' ? <Icon name="arrowDown" size={12} />
-          : compVariant === 'expense' ? <Icon name="arrowUp" size={12} />
-          : compVariant === 'tr' ? <Icon name="utensils" size={12} />
-          : '€'}
-      </span>
+      <span ref={dragRef} className={`tx-icon tx-grip ${compVariant}${noDrag ? ' no-drag' : ''}`} title={noDrag ? '' : 'Glisser pour réorganiser'}><Icon name="poignee" size={14} /></span>
       <input
         type="text"
         value={c.label || ''}
@@ -2628,7 +2515,7 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
   const openEdit = (item) => { setEditing(item); setShowForm(true); };
 
   return (
-    <div className="section-block">
+    <div className={`section-block${datesMode ? ' mode-dates' : ''}`}>
       {/* v576 : pas d'en-tête interne — TrSection ne vit plus que dans la popup
           « Tickets resto payés — {mois} », dont le titre suffit (même principe
           que la modale des opérations récurrentes). */}
@@ -2647,17 +2534,20 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
             />
           );
         })}
-        {items.length === 0 && <div className="empty-state" style={{ padding: 20 }}>Aucun paiement TR ce mois.</div>}
+        {items.length === 0 && <EmptyState icon="utensils" title="Aucun paiement de tickets resto ce mois" />}
       </div>
       <div className="section-footer">
-        <button className="btn-add" onClick={openCreate}>+ Nouveau paiement TR</button>
+        <button className="btn btn-accent btn-lg btn-tr btn-fen" onClick={openCreate}><Icon name="plus" size={16} /> Nouveau paiement TR</button>
       </div>
 
       {showForm && (
-        <Modal title={editing ? 'Modifier une opération' : 'Nouvelle opération'} onClose={() => { setShowForm(false); setEditing(null); }}>
+        <Modal title={editing ? 'Modifier un paiement TR' : 'Nouveau paiement TR'} icon="utensils" tone="tr" subtitle={`Tickets resto · ${monthLabel(mKey)}`} onClose={() => { setShowForm(false); setEditing(null); }}>
           <OperationForm
             showToast={showToast}
             initial={editing ? { ...editing, type: 'tr' } : null}
+            // Fenêtre TR en création COMME en modification (15/11/2026, demande de l'utilisateur) : plus de sélecteur de type.
+            // ⚠️ Conséquence assumée : un paiement TR ne se déplace plus vers les opérations ; on le supprime et on le ressaisit.
+            trSeul
             onSubmit={submitForm}
             trEnabled={true}
             hasGlobalTRRefund={false}
@@ -2693,7 +2583,7 @@ function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMo
   const labelText = (item.label || '').trim();
   return (
     <div ref={rowRef} data-locate={`tr-${item.id}`} className={`tx-row tr-row ${onEdit ? 'with-edit' : ''}`}>
-      <span ref={handleRef} className={`tx-icon tr ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}><Icon name="utensils" size={12} /></span>
+      <span ref={handleRef} className={`tx-icon tx-grip tr ${dndOff ? 'no-drag' : ''}`} title={dndOff ? '' : 'Glisser pour réorganiser'}><Icon name="poignee" size={14} /></span>
       {/* v577 : plus de cellule fantôme « case à cocher ». La classe .tr-row
           (CSS) retire la colonne de pointage de la grille — inutile hors des
           entrées/sorties (les TR ne se pointent pas), et TR vit dans sa popup. */}

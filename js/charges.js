@@ -69,7 +69,7 @@ function chargeShareOf(charge, personId, nets, peopleCount) {
 // fmt/eur). Indispensable ici : Math.round divergeait de l'affichage sur les
 // demi-centimes (9.995 affiché « 10.00 » mais Math.round(9.99499…) = 9.99).
 // On formate puis on re-parse (en retirant les espaces de milliers d'Intl).
-const roundDisp = (n) => parseFloat(fmt(n).replace(/\s/g, '')) || 0;
+const roundDisp = (n) => lireMontant(fmt(n)) || 0; // lireMontant : fmt rend le vrai moins (14/11/2026)
 
 function scenarioSummary(sc, people) {
   const nets = {};
@@ -101,27 +101,6 @@ function scenarioSummary(sc, people) {
 }
 
 const SPLIT_LABELS = { percent: 'Pourcentage', prorata: 'Prorata', perso: 'Montants' };
-
-// Étiquette d'affichage d'une charge : "50/50", "60/40", "Prorata" ou "Montants".
-function splitLabel(charge, people) {
-  const sp = charge.split || {};
-  if (sp.mode === 'prorata') return 'Prorata';
-  if (sp.mode === 'perso') {
-    // Charge « personnelle » : si une seule personne a un montant > 0,
-    // on l'affiche « Perso · XX » au lieu de « Montants ».
-    const amts = sp.amounts || {};
-    const withAmt = people.filter(p => (Number(amts[p.id]) || 0) > 0);
-    if (withAmt.length === 1) return `Perso · ${initials(withAmt[0].label)}`;
-    return 'Montants';
-  }
-  if (sp.mode === 'percent') {
-    const pct = sp.pct || {};
-    const vals = people.map(p => Math.round(pct[p.id] != null ? Number(pct[p.id]) : 100 / people.length));
-    const even = vals.every(v => v === vals[0]);
-    return even ? '50/50' : '%';
-  }
-  return '50/50'; // legacy 'half'
-}
 
 // Champ montant des Charges : réutilise AmountInput (clavier décimal iOS,
 // accepte la virgule, ne se vide pas pendant la frappe). Composant défini
@@ -161,100 +140,82 @@ const initials = (label) => {
 // ============================================================
 //  ChargeRow — ligne de charge (lecture seule) avec glisser-déposer
 // ============================================================
+// Version 2 de Mockup-Repartition-Charges (15/11/2026) : la ligne d'une charge a la forme d'une ligne d'opération —
+// poignée, libellé, une ligne grise qui dit EN MOTS le partage et le compte (« 50/50 · compte joint », « Maxime L · livret
+// · 6.90 €/mois »), montant souligné en pointillé dont la bulle donne la part de chacun, crayon. Plus d'icône, de
+// pastille « 50/50 » ni de point de couleur. La bulle sert à la souris comme au doigt (même comportement partout).
+function partageEnMots(c, people) {
+  const sp = c.split || {};
+  if (sp.mode === 'prorata') return 'Au prorata';
+  if (sp.mode === 'perso') {
+    const amts = sp.amounts || {};
+    const avec = people.filter(p => (Number(amts[p.id]) || 0) > 0);
+    if (avec.length === 1) return avec[0].label;
+    return 'Montants fixés';
+  }
+  if (sp.mode === 'percent') {
+    const pct = sp.pct || {};
+    const vals = people.map(p => Math.round(pct[p.id] != null ? Number(pct[p.id]) : 100 / people.length));
+    return vals.join('/');
+  }
+  return '50/50'; // ancien mode 'half'
+}
+
 function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
   const dragRef = useDragHandle({ scope: 'charges', list: 'charges', index, item: c });
   const dropRef = useDropTarget({ scope: 'charges', list: 'charges', index, item: c, noNest: true }, onDrop);
-  // Charge « perso » (une seule personne avec un montant) → on affiche le badge
-  // de la personne (initiales colorées) au lieu du tag « Perso · XX ».
-  const sp = c.split || {};
-  const persoWith = sp.mode === 'perso' ? people.filter(p => (Number(sp.amounts?.[p.id]) || 0) > 0) : [];
-  const persoSolo = persoWith.length === 1 ? persoWith[0] : null;
-  const persoIdx = persoSolo ? people.indexOf(persoSolo) : -1;
-  // Équivalent mensuel d'une charge annuelle : on ne l'affiche que si une seule
-  // personne est concernée, si le partage est 50/50, OU si le mode « Montants »
-  // répartit des montants tous égaux entre les personnes concernées (cas
-  // équivalent à un 50/50). Sinon ce total /12 unique n'est pas parlant — ce
-  // sont les parts par personne qui comptent. On le calcule comme la SOMME des
-  // parts mensuelles arrondies → cohérent avec les parts affichées (pas d'écart
-  // d'arrondi avec le total ÷ 12).
-  const persoAmountsEqual = sp.mode === 'perso' && persoWith.length >= 2 &&
-    persoWith.every(p => (Number(sp.amounts?.[p.id]) || 0) === (Number(sp.amounts?.[persoWith[0].id]) || 0));
-  const showMonthlyEquiv = !!persoSolo || splitLabel(c, people) === '50/50' || persoAmountsEqual;
-  const monthlyEquiv = people.reduce((s, p) => s + roundDisp(chargeShareOf(c, p.id, nets, people.length) / 12), 0);
-  // 26/10/2026 : en portrait téléphone, la part de chacun (et l'équivalent mensuel
-  // d'une charge annuelle) est masquée sous le montant — l'afficher sur la ligne la
-  // ferait grandir (+12 pt sous le nom) ou couperait les noms (sous le montant).
-  // TOUCHER le montant l'ouvre dans une bulle, comme le nom d'un support. Mêmes
-  // parts que `charge-split-mini` ci-dessous (par mois pour une annuelle, parts à 0
-  // masquées). Le crayon reste le seul à modifier. Maquette Mockup-Portrait-Complet.
-  const compact = useEcranCompact();
   const annuelle = c.period === 'annual';
+  const total = chargeTotalOf(c);
   const parts = people
     .map((p, i) => ({ p, i, v: chargeShareOf(c, p.id, nets, people.length) / (annuelle ? 12 : 1) }))
     .filter((x) => roundDisp(x.v) !== 0);
-  const partsTexte = parts.map((x) => `${initials(x.p.label)} ${eur(x.v)}`).join(' · ');
-  const parAn = annuelle ? `${eur(chargeTotalOf(c))} par an${showMonthlyEquiv ? `, soit ${eur(monthlyEquiv)}/mois` : ''}` : '';
+  const partsTexte = parts.map((x) => `${x.p.label} ${eur(x.v)}`).join(' · ');
+  // Repères (version A′ de Mockup-Charges-Reperes, 15/11/2026) : des pastilles SANS FOND — un filet clair, le texte en
+  // couleur — pour le partage, la personne qui paie seule, et le compte par lequel la charge passe. Elles disent leur nom :
+  // plus de légende. L'équivalent mensuel d'une charge annuelle reste en texte simple.
+  const sp = c.split || {};
+  const seule = sp.mode === 'perso'
+    ? (() => { const avec = people.filter(p => (Number(sp.amounts?.[p.id]) || 0) > 0); return avec.length === 1 ? avec[0] : null; })()
+    : null;
+  const iSeule = seule ? people.indexOf(seule) : -1;
+  const reperes = (
+    <>
+      {seule
+        ? <span className="ch-tag" style={{ color: personTextAt(iSeule), borderColor: `color-mix(in srgb, ${personColorAt(iSeule)} 35%, #fff)` }}>{seule.label}</span>
+        : <span className="ch-tag">{partageEnMots(c, people) === 'Au prorata' ? 'Prorata' : partageEnMots(c, people) === 'Montants fixés' ? 'Montants' : partageEnMots(c, people)}</span>}
+      {c.joint && <span className="ch-tag ch-tag--joint">Compte joint</span>}
+      {annuelle && c.provision !== false && <span className="ch-tag ch-tag--livret">Livret</span>}
+      {annuelle && <span className="ch-tag-txt">{eur(total / 12)}/mois</span>}
+    </>
+  );
   const bulleParts = (
     <>
       {annuelle && 'Par mois : '}
       {parts.map((x, k) => (
         <React.Fragment key={x.p.id}>
           {k > 0 && ' · '}
-          <span className="csm-name" style={{ color: personTextAt(x.i) }}>{initials(x.p.label)}</span> {eur(x.v)}
+          <span className="csm-name" style={{ color: personTextAt(x.i) }}>{x.p.label}</span> {eur(x.v)}
         </React.Fragment>
       ))}
-      {annuelle && <span className="infotip-sous">{parAn}</span>}
+      {annuelle && <span className="infotip-sous">{eur(total)} par an</span>}
     </>
   );
-  const avecBulle = (total) => (compact && parts.length > 0
-    ? <InfoTip className="charge-montant-tip" popClassName="infotip-pop--wrap" label={`${annuelle ? 'Par mois : ' : ''}${partsTexte}${annuelle ? ` — ${parAn}` : ''}`} content={bulleParts}>{total}</InfoTip>
-    : total);
+  // Le pointillé ne souligne que le CHIFFRE : le « € » reste hors de la bulle, en gris, comme dans les listes d'opérations.
+  const chiffre = `${annuelle ? '' : '−'}${fmt(total)}`; // signe collé (règle du 14/11/2026)
   return (
-    <div ref={dropRef} className="charge-row charge-row--ro">
-      <span ref={dragRef} className="charge-badge" title="Glisser pour réordonner"><Icon name="receipt" size={14} /></span>
-      <div className="charge-main">
-        <span className="charge-name">
-          <span className="charge-name-text">{c.label || '(sans libellé)'}</span>
-          {persoSolo
-            ? <span className="charge-person-tag" style={{ background: personLightAt(persoIdx), color: personTextAt(persoIdx) }} title={`Charge personnelle · ${persoSolo.label}`}>{initials(persoSolo.label)}</span>
-            : <span className="charge-tag">{splitLabel(c, people)}</span>}
-          {c.joint && <span className="charge-vir-dot" title="Incluse dans le virement mensuel" aria-label="Virement mensuel" />}
-          {c.period === 'annual' && c.provision !== false && <span className="charge-prov-dot" title="Provision annuelle (charge annuelle ÷ 12)" aria-label="Provision annuelle" />}
-        </span>
-      </div>
-      <div className="charge-amount-block">
-        {c.period === 'annual' ? (
-          <>
-            {avecBulle(<span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>{eurEl(chargeTotalOf(c))}{showMonthlyEquiv && <span className="charge-monthly-equiv"> · − {eurEl(monthlyEquiv)}/mois</span>}</span>)}
-            <span className="charge-split-mini">
-              {people.map((p, i) => {
-                const sh = chargeShareOf(c, p.id, nets, people.length) / 12;
-                if (roundDisp(sh) === 0) return null; // on masque une part à 0
-                return (
-                  <span key={p.id} className="csm-item">
-                    <span className="csm-name" style={{ color: personTextAt(i) }}>{initials(p.label)}</span> {eur(sh)}
-                  </span>
-                );
-              })}
-            </span>
-          </>
-        ) : (
-          <>
-            {avecBulle(<span className="charge-total-ro" style={{ color: 'var(--danger-fonce)' }}>− {eurEl(chargeTotalOf(c))}</span>)}
-            <span className="charge-split-mini">
-              {people.map((p, i) => {
-                const sh = chargeShareOf(c, p.id, nets, people.length);
-                if (roundDisp(sh) === 0) return null; // on masque une part à 0
-                return (
-                  <span key={p.id} className="csm-item">
-                    <span className="csm-name" style={{ color: personTextAt(i) }}>{initials(p.label)}</span> {eur(sh)}
-                  </span>
-                );
-              })}
-            </span>
-          </>
-        )}
-      </div>
+    <div ref={dropRef} className="ch-ligne">
+      <span ref={dragRef} className="ch-grip" title="Glisser pour réordonner"><Icon name="poignee" size={14} /></span>
+      <span className="ch-nom">
+        <b>{c.label || '(sans libellé)'}</b>
+        <small className="ch-reperes">{reperes}</small>
+      </span>
+      <span className="ch-montant">
+        <span className="ch-montant-val">
+          {parts.length > 0
+            ? <InfoTip className="charge-montant-tip" popClassName="infotip-pop--wrap" label={`${annuelle ? 'Par mois : ' : ''}${partsTexte}`} content={bulleParts}>{chiffre}</InfoTip>
+            : chiffre}
+        </span> <span className="cur">€</span>
+      </span>
       <button className="tx-edit" onClick={onEdit} title="Modifier"><Icon name="pencil" size={13} /></button>
     </div>
   );
@@ -396,7 +357,9 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
       </div>
 
       <div>
-        <label className="label">Répartition</label>
+        <label className="label">Répartition<AideChamp>{people.map((p, i) => (
+          <span key={p.id}>{i > 0 ? ' · ' : 'Part : '}<strong style={{ color: personTextAt(i) }}>{p.label}</strong> {eur(chargeShareOf(tempCharge, p.id, nets, people.length))}</span>
+        ))}</AideChamp></label>
         <div className="seg">
           {['percent', 'prorata', 'perso'].map(m => (
             <button type="button" key={m} className={`seg-btn${mode === m ? ' on' : ''}`} onClick={() => setMode(m)}>{SPLIT_LABELS[m]}</button>
@@ -418,10 +381,12 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
       ) : (
         <>
           <div>
-            <label className="label">{annual ? 'Total annuel (€)' : 'Total mensuel (€)'}</label>
+            <label className="label">{annual ? 'Total annuel (€)' : 'Total mensuel (€)'}<AideChamp>{(annual || mode === 'prorata') && <>
+              {annual && <>Réparti sur 12 mois : ≈ {eur((Number(total) || 0) / 12)} / mois.</>}
+              {annual && mode === 'prorata' && ' '}
+              {mode === 'prorata' && 'Réparti au prorata des salaires nets.'}
+            </>}</AideChamp></label>
             <AmountInput className="input" value={total} onChange={setTotal} placeholder="0.00" />
-            {annual && <div className="field-hint">Réparti sur 12 mois → ≈ {eur((Number(total) || 0) / 12)} / mois.</div>}
-            {mode === 'prorata' && <div className="field-hint">Réparti au prorata des salaires nets.</div>}
           </div>
           {mode === 'percent' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -438,11 +403,6 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
         </>
       )}
 
-      <div className="field-hint">
-        {people.map((p, i) => (
-          <span key={p.id}>{i > 0 ? ' · ' : 'Part : '}<strong style={{ color: personTextAt(i) }}>{p.label}</strong> {eur(chargeShareOf(tempCharge, p.id, nets, people.length))}</span>
-        ))}
-      </div>
 
       <div className="charge-mensuel-row">
         <span>{annual ? 'Provision mensuelle (livret)' : 'Virement mensuel (compte joint)'}</span>
@@ -469,6 +429,58 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
 // ============================================================
 //  Modale Charges
 // ============================================================
+// Fenêtre « Scénario » (version 2, 15/11/2026) : le nom, l'interrupteur « Scénario de référence » et la suppression, comme
+// les Réglages d'une enveloppe. Le scénario de référence ne se retire pas d'ici (il en faut toujours un) : on en choisit un
+// autre.
+function ScenarioForm({ nom, estReference, peutSupprimer, onClose, onSubmit, onDelete, refuserReference }) {
+  const [valeur, setValeur] = useState(nom || '');
+  const [reference, setReference] = useState(!!estReference);
+  return (
+    <Modal title="Scénario" icon="receipt" subtitle="Répartition des charges" onClose={onClose} dirty={valeur !== (nom || '') || reference !== !!estReference}>
+      <form noValidate onSubmit={(e) => { e.preventDefault(); onSubmit(valeur.trim() || 'Sans nom', reference); }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label className="label">Nom du scénario</label>
+          <input type="text" className="input" value={valeur} onChange={(e) => setValeur(e.target.value)} placeholder="ex: Paris, Rennes…" />
+        </div>
+        <div className="settings-groupe">
+          <ModuleToggleRow
+            label="Scénario de référence"
+            hint="Base de la comparaison (★)"
+            enabled={reference}
+            onChange={(v) => { if (!v && estReference) { refuserReference(); return; } setReference(v); }}
+          />
+        </div>
+        {peutSupprimer && (
+          <div className="zone-danger">
+            <b>Supprimer ce scénario</b>
+            <small>Ses charges et ses revenus seront supprimés.</small>
+            <button type="button" className="btn btn-danger" onClick={onDelete}>
+              <Icon name="trash" size={14} /> Supprimer
+            </button>
+          </div>
+        )}
+        <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+      </form>
+    </Modal>
+  );
+}
+
+// Fenêtre « Revenu net » d'une personne, pour le scénario affiché.
+function RevenuForm({ personne, scenario, valeur, onClose, onSubmit }) {
+  const [v, setV] = useState(valeur);
+  return (
+    <Modal title="Revenu net" icon="receipt" subtitle={`${scenario} · ${personne}`} onClose={onClose} dirty={String(v ?? '') !== String(valeur ?? '')}>
+      <form noValidate onSubmit={(e) => { e.preventDefault(); onSubmit(v); }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label className="label">Revenu net mensuel</label>
+          <div className="unite-eur"><AmountInput className="input" value={v} onChange={setV} placeholder="0.00" /></div>
+        </div>
+        <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+      </form>
+    </Modal>
+  );
+}
+
 function ChargesModal({ ctx, onClose }) {
   const [data, setData] = useState(() => {
     const j = ctx.joint || {};
@@ -621,9 +633,18 @@ function ChargesModal({ ctx, onClose }) {
   const railLabels = data.scenarios
     .map(s => (s.name || '(sans nom)') + (s.id === baseScenario.id ? ' ★' : ''))
     .join('|');
-  useSlideIndicator(railRef, railIndRef, '.seg-tab-active', [activeId, view, railLabels], undefined, true);
+  useSlideIndicator(railRef, railIndRef, '.seg-tab-active', [activeId, view, railLabels], view, true);
+  // « COMPARER » N'EST PAS UN ONGLET DU RAIL (15/11/2026, relevé de l'utilisateur) : la pastille se rétractait vers sa gauche
+  // pendant que « Comparer » fonçait, et l'œil y voyait une couleur glisser du scénario jusqu'au bouton. `view` est passé en
+  // `followKey` : à chaque bascule scénario ↔ comparaison, useSlideIndicator colle la pastille SANS transition (son suivi
+  // image par image) — effacée d'un coup vers « Comparer », posée sans grandir au retour. Entre deux scénarios, `view` ne
+  // change pas : elle glisse toujours. ⚠️ Une coupure de transition posée HORS du hook est annulée par son nettoyage (piège
+  // noté dans useSlideIndicator, app.js) — d'où ce paramètre. La classe `.en-comparaison` masque la pastille dès le rendu.
   // null = fermé, 'new' = création, objet charge = édition
   const [editingCharge, setEditingCharge] = useState(null);
+  const [editingScenario, setEditingScenario] = useState(false); // fenêtre « Scénario » (nom, référence, suppression)
+  const [editingRevenu, setEditingRevenu] = useState(null); // id de la personne dont on modifie le revenu net
+  const showToastCharges = ctx.showToast;
 
   // ---- Comparaison ----
   const scMetrics = (s) => {
@@ -648,11 +669,10 @@ function ChargesModal({ ctx, onClose }) {
     const d = (val - baseVal) / baseVal;
     if (Math.abs(d) < 0.0005) return <span className="cmp-delta neu">=</span>;
     const cls = dir === 'neutral' ? 'neu' : (((d > 0) === (dir === 'more-good')) ? 'up' : 'down');
-    const sign = d > 0 ? '+' : '';
     return (
       <span className={`cmp-delta ${cls}`}>
-        <span className="cmpd-exact">{sign}{(d * 100).toFixed(2)} %</span>
-        <span className="cmpd-round">{sign}{(d * 100).toFixed(0)} %</span>
+        <span className="cmpd-exact">{fmtPct(d * 100)}</span>
+        <span className="cmpd-round">{fmtPct(d * 100, { dec: 0 })}</span>
       </span>
     );
   };
@@ -665,13 +685,13 @@ function ChargesModal({ ctx, onClose }) {
   ];
 
   return (
-    <Modal title="Répartition des charges" size="xl" onClose={onClose}>
+    <Modal title="Répartition des charges" icon="receipt" subtitle="Compte partagé" size="xl" onClose={onClose}>
       {/* Barre d'onglets : rail segmented des scénarios (défilant, pastille
           glissante) + « + » (action, hors rail) + « Comparer » épinglé à
           droite — TOUJOURS visible, icône + texte, même sur mobile. */}
       <div className="charges-tabbar">
         <div className="seg-bar" style={{ flex: 1, minWidth: 0 }}>
-          <div className="seg-rail" ref={railRef}>
+          <div className={`seg-rail${view === 'compare' ? ' en-comparaison' : ''}`} ref={railRef}>
             <div className="seg-indicator" ref={railIndRef} />
             {data.scenarios.map(s => (
               <button
@@ -684,7 +704,6 @@ function ChargesModal({ ctx, onClose }) {
                   try { e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' }); } catch (err) {}
                 }}
               >
-                <Icon name="receipt" size={14} />
                 <span>{s.name || '(sans nom)'}{s.id === baseScenario.id ? ' ★' : ''}</span>
               </button>
             ))}
@@ -692,63 +711,41 @@ function ChargesModal({ ctx, onClose }) {
           <button className="seg-add" onClick={() => { if (confirm('Créer un nouveau scénario (copie du scénario courant) ?')) { addScenario(); setView('scenario'); } }} title="Ajouter un scénario" aria-label="Ajouter un scénario">+</button>
           {data.scenarios.length > 1 && (
             <button className={`seg-solo${view === 'compare' ? ' on' : ''}`} onClick={() => setView('compare')} aria-label="Comparer" title="Comparer">
-              <Icon name="chart" size={15} />
               <span>Comparer</span>
             </button>
+          )}
+          {/* « ⋯ » : les réglages du scénario affiché (nom, référence, suppression), dans leur fenêtre — comme les
+              Réglages d'une enveloppe ou d'un livret (version 2, 15/11/2026). */}
+          {view === 'scenario' && (
+            <button type="button" className="seg-solo seg-kebab" onClick={() => setEditingScenario(true)} aria-label="Réglages du scénario" title="Réglages du scénario">⋯</button>
           )}
         </div>
       </div>
 
       {view === 'scenario' ? (
         <>
-          {/* En-tête scénario : nom éditable, référence, suppression */}
-          <div className="charges-scenario-head">
-            <input
-              type="text" className="input scen-name"
-              value={active.name} onChange={(e) => renameScenario(e.target.value)} placeholder="Nom du scénario"
-            />
-            <div className="charges-head-actions">
-              <button
-                className={`btn-icon star-btn${isBaseline ? ' on' : ''}`}
-                onClick={() => setData(d => ({ ...d, baselineScenarioId: active.id }))}
-                title={isBaseline ? 'Scénario de référence' : 'Définir comme référence pour la comparaison'}
-                aria-label="Scénario de référence"
-              >★</button>
-              {data.scenarios.length > 1 && (
-                <button className="btn-icon btn-icon-danger" onClick={deleteScenario} title="Supprimer ce scénario">
-                  <Icon name="trash" size={15} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Revenus nets */}
+          {/* Revenus nets : une ligne par personne, le crayon ouvre la fenêtre « Revenu net » (on ne saisit rien
+              directement dans une liste — règle de l'app). */}
           <h3 className="settings-group-title">Revenus nets</h3>
-          <div className="inc-row">
+          <div className="ch-liste">
             {people.map((p, i) => (
-              <div key={p.id} className="inc-fld">
-                <span className="inc-ava" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
-                <span className="inc-name">{p.label}</span>
-                <div className="inc-lbl">Revenu net</div>
-                <div className="inc-amt">
-                  <AmountInput
-                    value={active.incomes?.[p.id]?.net}
-                    onChange={(v) => setIncome(p.id, 'net', v)}
-                    className="inc-amt-input num"
-                    style={{ width: `${Math.max(3, String(Math.round(active.incomes?.[p.id]?.net || 0)).length) + 0.5}ch` }}
-                  />
-                  <span className="cur">€</span>
-                </div>
+              <div key={p.id} className="ch-ligne ch-ligne--revenu">
+                <span className="ch-av" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
+                <span className="ch-nom"><b>{p.label}</b></span>
+                <span className="ch-montant"><span className="ch-montant-val ch-montant-val--neutre">{fmt(Number(active.incomes?.[p.id]?.net) || 0)}</span> <span className="cur">€</span></span>
+                <button className="tx-edit" onClick={() => setEditingRevenu(p.id)} title="Modifier"><Icon name="pencil" size={13} /></button>
               </div>
             ))}
           </div>
 
-          {/* Charges — deux tables (mensuelles / annuelles), édition via sous-modale.
+          {/* Charges — deux listes (mensuelles / annuelles), édition via sous-modale.
               On garde l'index d'origine dans active.charges pour le glisser-déposer. */}
           {(() => {
             const indexed = (active.charges || []).map((c, index) => ({ c, index }));
             const monthly = indexed.filter(x => x.c.period !== 'annual');
             const annual = indexed.filter(x => x.c.period === 'annual');
+            const totalMensuel = monthly.reduce((t, x) => t + chargeTotalOf(x.c), 0);
+            const totalAnnuel = annual.reduce((t, x) => t + chargeTotalOf(x.c), 0);
             const renderRow = ({ c, index }) => (
               <ChargeRow
                 key={c.id}
@@ -761,118 +758,63 @@ function ChargesModal({ ctx, onClose }) {
                 onDrop={onChargeDrop}
               />
             );
-            const emptyMsg = (txt) => <div style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-muted)' }}>{txt}</div>;
+            const emptyMsg = (txt) => <div className="ch-vide">{txt}</div>;
             return (
               <>
-                <h3 className="settings-group-title">Charges mensuelles</h3>
-                <div className="settings-card" style={{ padding: 0 }}>
-                  <div className="charge-list">
-                    {monthly.length ? monthly.map(renderRow) : emptyMsg('Aucune charge mensuelle pour ce scénario.')}
-                  </div>
-                  <div className="charge-list-footer">
-                    <button className="btn-add" onClick={() => setEditingCharge('new')}>+ Ajouter une charge mensuelle</button>                  </div>
+                <h3 className="settings-group-title">Charges mensuelles<span className="ch-total">{eurEl(totalMensuel)}</span></h3>
+                <div className="ch-liste">
+                  {monthly.length ? monthly.map(renderRow) : emptyMsg('Aucune charge mensuelle pour ce scénario.')}
                 </div>
+                <button className="btn-add ch-ajout" onClick={() => setEditingCharge('new')}>Ajouter une charge mensuelle</button>
 
-                <h3 className="settings-group-title">Charges annuelles</h3>
-                <div className="settings-card" style={{ padding: 0 }}>
-                  <div className="charge-list">
-                    {annual.length ? annual.map(renderRow) : emptyMsg('Aucune charge annuelle. Elles sont réparties automatiquement sur 12 mois.')}
-                  </div>
-                  <div className="charge-list-footer">
-                    <button className="btn-add" onClick={() => setEditingCharge('new-annual')}>+ Ajouter une charge annuelle</button>                  </div>
+                <h3 className="settings-group-title">Charges annuelles<AideChamp>Réparties sur 12 mois ; celles marquées « livret » sont provisionnées chaque mois sur le livret.</AideChamp><span className="ch-total">par mois : {eurEl(totalAnnuel / 12)}</span></h3>
+                <div className="ch-liste">
+                  {annual.length ? annual.map(renderRow) : emptyMsg('Aucune charge annuelle.')}
                 </div>
+                <button className="btn-add ch-ajout" onClick={() => setEditingCharge('new-annual')}>Ajouter une charge annuelle</button>
               </>
             );
           })()}
 
-          {/* Légende globale du code couleur des ronds. */}
-          <div className="charges-legend-global">
-            <span><span className="charge-vir-dot" /> Virement mensuel (compte joint)</span>
-            <span><span className="charge-prov-dot" /> Provision mensuelle (livret)</span>
-          </div>
-
-          {/* Synthèse propre au scénario */}
-          <h3 className="settings-group-title">Synthèse — {active.name}</h3>
-          <div className="pcards">
-            {people.map((p, i) => (
-              <div key={p.id} className="pcard">
-                <span className="pc-ava" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
-                <div className="pc-name">{p.label}</div>
-                <div className="pcard-hero">
-                  <div className="pcard-hero-label">Il reste</div>
-                  <div className="pcard-hero-val" style={{ color: sum.restant[p.id] >= 0 ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}>{eurEl(sum.restant[p.id])}</div>
+          {/* Synthèse : une carte grise par personne, comme « Mettre à jour les valeurs ». */}
+          <h3 className="settings-group-title">Synthèse — {active.name}<AideChamp>La provision du livret est arrondie aux 5 € supérieurs, le PEA aux 5 € inférieurs, et le tampon garde au moins 300 € sur le compte courant.</AideChamp></h3>
+          {people.map((p, i) => {
+            // Répartition de « Il reste » (déjà net du virement et de la provision, qui sont dans « À payer »).
+            //  - Provision : arrondie au 5 SUPÉRIEUR (v526 — l'ancienne dizaine au plus proche pouvait SOUS-provisionner).
+            //  - Le DÉPASSEMENT (provision arrondie − exacte) est retiré du reste avant le partage PEA/Tampon : chaque euro
+            //    n'apparaît qu'une seule fois (variante « B » validée).
+            //  - Tampon : au moins TAMPON_MIN → on arrondit le PEA À L'INFÉRIEUR, par crans de 5 (v527).
+            const restant = sum.restant[p.id];
+            const virement = sum.virement[p.id];
+            const provisionExact = sum.provision[p.id] || 0;
+            const provision = Math.ceil(provisionExact / 5) * 5;
+            const alloue = r2(restant - r2(provision - provisionExact));
+            const TAMPON_MIN = 300;
+            const pea = Math.max(0, Math.floor((alloue - TAMPON_MIN) / 5) * 5);
+            const tampon = r2(alloue - pea);
+            return (
+              <div key={p.id} className="ch-carte">
+                <div className="ch-carte-tete">
+                  <span className="ch-av ch-av--petit" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
+                  <b>{p.label}</b>
+                  <span className="ch-reste" style={{ color: restant >= 0 ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}><small>Il reste</small>{eurEl(restant)}</span>
                 </div>
-                <div className="pcard-sub">
-                  À payer <b>{eurEl(sum.aPayer[p.id])}</b>
-                  {' · '}<span className="charge-vir-dot" /> <b>{eurEl(sum.virement[p.id])}</b>
-                  {sum.provision[p.id] > 0 && <>{' · '}<span className="charge-prov-dot" /> <b>{eurEl(sum.provision[p.id])}</b></>}
-                </div>
-                {(() => {
-                  // Répartition de « Il reste » (déjà net du virement et de la
-                  // provision, qui sont dans « À payer »).
-                  //  - Provision : arrondie au 5 SUPÉRIEUR (v526 — l'ancienne
-                  //    dizaine au plus proche pouvait SOUS-provisionner :
-                  //    223,08 affiché 220). Virement rond, jamais en dessous
-                  //    du besoin, dépassement ≤ 4,99.
-                  //  - Le DÉPASSEMENT (provision arrondie − exacte) est retiré
-                  //    du reste avant le partage PEA/Tampon : chaque euro
-                  //    n'apparaît qu'une seule fois, la somme des lignes colle
-                  //    au centime à l'argent réel (variante « B » validée).
-                  //  - Tampon : au moins TAMPON_MIN → on arrondit le PEA À L'INFÉRIEUR.
-                  //  - PEA : cran de 5 (v527 — avant : 50, qui laissait dormir
-                  //    jusqu'à 45 € sur le compte commun). Règle unique de la
-                  //    carte : tout s'arrondit à 5 près — le Livret vers le
-                  //    HAUT (besoin), le PEA vers le BAS (le tampon d'abord).
-                  //    Tampon résultant : entre 300 et 304,99.
-                  const restant = sum.restant[p.id];
-                  const virement = sum.virement[p.id];
-                  const provisionExact = sum.provision[p.id] || 0;
-                  const provision = Math.ceil(provisionExact / 5) * 5;
-                  const alloue = r2(restant - r2(provision - provisionExact));
-                  const TAMPON_MIN = 300;
-                  const pea = Math.max(0, Math.floor((alloue - TAMPON_MIN) / 5) * 5);
-                  const tampon = r2(alloue - pea);
-                  return (
-                    <div className="pcard-alloc">
-                      {virement > 0 && (
-                        <div className="pcard-alloc-row">
-                          <span className="charge-vir-dot" />
-                          <span className="pcard-alloc-lbl">Virement mensuel (compte joint)</span>
-                          <span className="pcard-alloc-val">{eurEl(virement)}</span>
-                        </div>
-                      )}
-                      {provision > 0 && (
-                        <div className="pcard-alloc-row">
-                          <span className="charge-prov-dot" />
-                          <span className="pcard-alloc-lbl">Provision mensuelle (livret)</span>
-                          <span className="pcard-alloc-val">{eurEl(provision)}</span>
-                        </div>
-                      )}
-                      <div className="pcard-alloc-row">
-                        <span className="charge-pea-dot" />
-                        <span className="pcard-alloc-lbl">PEA</span>
-                        <span className="pcard-alloc-val">{eurEl(pea)}</span>
-                      </div>
-                      <div className="pcard-alloc-row">
-                        <span className="charge-tampon-dot" />
-                        <span className="pcard-alloc-lbl">Tampon (compte courant)</span>
-                        <span className="pcard-alloc-val">{eurEl(tampon)}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                {virement > 0 && <div className="ch-carte-l"><span>Virement au compte joint</span><span>{eurEl(virement)}</span></div>}
+                {provision > 0 && <div className="ch-carte-l"><span>Provision sur le livret</span><span>{eurEl(provision)}</span></div>}
+                <div className="ch-carte-l"><span>PEA</span><span>{eurEl(pea)}</span></div>
+                <div className="ch-carte-l"><span>Tampon sur le compte courant</span><span>{eurEl(tampon)}</span></div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </>
       ) : (
-        /* ---- Vue Comparaison : une carte par personne, scénarios en lignes ---- */
+        /* ---- Vue Comparaison : une carte grise par personne, scénarios en lignes ---- */
         <div className="cmp-d1">
           {people.map((p, i) => (
-            <div key={p.id} className="cmpp">
-              <div className="cmpp-head">
-                <span className="cmpp-ava" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
-                <span className="cmpp-name">{p.label}</span>
+            <div key={p.id} className="ch-carte cmpp">
+              <div className="ch-carte-tete">
+                <span className="ch-av ch-av--petit" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
+                <b>{p.label}</b>
               </div>
               <div className="cmpp-scroll">
                 <table className="cmpp-tab">
@@ -905,10 +847,40 @@ function ChargesModal({ ctx, onClose }) {
         </div>
       )}
 
+      {editingScenario && (
+        <ScenarioForm
+          nom={active.name}
+          estReference={isBaseline}
+          peutSupprimer={data.scenarios.length > 1}
+          onClose={() => setEditingScenario(false)}
+          onSubmit={(nom, reference) => {
+            renameScenario(nom);
+            if (reference && !isBaseline) setData(d => ({ ...d, baselineScenarioId: active.id }));
+            setEditingScenario(false);
+          }}
+          onDelete={() => { setEditingScenario(false); deleteScenario(); }}
+          refuserReference={() => refuser(showToastCharges, 'Choisis un autre scénario comme référence : il en faut toujours un.')}
+        />
+      )}
+
+      {editingRevenu && (() => {
+        const p = people.find(x => x.id === editingRevenu);
+        if (!p) return null;
+        return (
+          <RevenuForm
+            personne={p.label}
+            scenario={active.name}
+            valeur={active.incomes?.[p.id]?.net}
+            onClose={() => setEditingRevenu(null)}
+            onSubmit={(v) => { setIncome(p.id, 'net', v); setEditingRevenu(null); }}
+          />
+        );
+      })()}
+
       {editingCharge !== null && (() => {
         const isNew = editingCharge === 'new' || editingCharge === 'new-annual';
         return (
-        <Modal title={isNew ? 'Nouvelle charge' : 'Modifier la charge'} onClose={() => setEditingCharge(null)}>
+        <Modal title={isNew ? 'Nouvelle charge' : 'Modifier la charge'} icon="receipt" subtitle="Répartition des charges" onClose={() => setEditingCharge(null)}>
           <ChargeForm
             initial={isNew ? null : editingCharge}
             defaultPeriod={editingCharge === 'new-annual' ? 'annual' : 'monthly'}

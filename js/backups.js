@@ -1253,11 +1253,7 @@ function BackupsCard({ ctx }) {
 
   return (
     <div className="settings-card">
-      <h2>Sauvegardes</h2>
-      <p className="muted">
-        Instantané de tes données personnelles, restaurable. Une sauvegarde automatique
-        est posée chaque semaine à l'ouverture ; les {BACKUP_KEEP} dernières sont conservées.
-      </p>
+      <h2>Sauvegardes<AideChamp>Instantané de tes données personnelles, restaurable. Une sauvegarde automatique est posée chaque semaine à l'ouverture ; les {BACKUP_KEEP} dernières sont conservées.</AideChamp></h2>
 
       {/* 🔴 « À JOUR » N'EST PLUS INCONDITIONNEL — corrigé le 03/09/2026.
           Cette étiquette affichait « À jour » dès qu'UNE sauvegarde existait,
@@ -1519,7 +1515,7 @@ function ReplaceConfirmModal({ ctx, backup, payload: payloadImport, label, mode 
   const euro = (v) => fmtNoDec(v) + ' €';
 
   return (
-    <Modal title={estImport ? 'Importer un fichier' : 'Restaurer une sauvegarde'} size="md" noDirtyGuard onClose={onClose}>
+    <Modal title={estImport ? 'Importer un fichier' : 'Restaurer une sauvegarde'} icon="download" tone="neutre" subtitle="Paramètres · Données" size="md" noDirtyGuard onClose={onClose}>
       <div className="restore-confirm">
         <p className="rc-lead">
           {estImport

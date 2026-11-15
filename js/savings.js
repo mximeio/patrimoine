@@ -53,11 +53,11 @@ function SavingsView({ ctx }) {
             hint="Crée ton premier compte d'épargne pour démarrer."
           />
           <div className="section-footer">
-            <button className="btn-add" onClick={() => setShowCreate(true)}>+ Créer un compte d'épargne</button>
+            <button className="btn-add" onClick={() => setShowCreate(true)}>Créer un compte d'épargne</button>
           </div>
         </div>
         {showCreate && (
-          <Modal title="Nouveau compte d'épargne" onClose={() => setShowCreate(false)}>
+          <Modal title="Nouveau compte d'épargne" icon="piggy" subtitle="Épargne" onClose={() => setShowCreate(false)}>
             <NewSavingsForm showToast={showToast} onSubmit={handleCreate} />
           </Modal>
         )}
@@ -97,38 +97,26 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
   const totalInterest = savings.reduce((s, a) => s + computeSavingsStats(a).interets, 0);
 
   return (
-    <div>
+    <div className="vue-rub">
       {/* HERO */}
-      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.savings)), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-            Solde total
-          </div>
-          <ModuleBadge module="savings" />
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(totalBalance)} €</div>
-        <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Nombre de comptes</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600 }}>{savings.length}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Intérêts perçus</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600, color: '#67e8f9' }}>+ {fmt(totalInterest)} €</div>
-          </div>
-        </div>
+      <div className="colle">
+      <CarteDeTete
+        module="savings" libelle="Solde total" montant={totalBalance}
+        pied={[
+          { label: 'Nombre de comptes', value: savings.length },
+          { label: 'Intérêts perçus', value: `+${fmt(totalInterest)} €` },
+        ]}
+      />
       </div>
 
-      {/* LIST — chaque livret reçoit une couleur indexée (comme les
-          portefeuilles) via PORTFOLIO_PALETTE, en se basant sur l'ordre
-          ORIGINAL de la collection (pas l'ordre de tri par solde),
-          pour que la couleur d'un livret reste stable. */}
+      {/* LIST — tous les livrets à la teinte de la rubrique (maquette C', 15/11/2026). */}
       <div className="section-block">
         <div className="section-header">
           <div className="section-title">
             <span className="section-icon savings"><Icon name="piggy" size={14} /></span>
             Mes comptes d'épargne
           </div>
+          <span className="section-aide">{savings.length}</span>
         </div>
         <div>
           {sortByNumber(savings, s => computeSavingsBalance(s)).map(s => {
@@ -144,12 +132,12 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
           })}
         </div>
         <div className="section-footer">
-          <button className="btn-add" onClick={() => setShowCreate(true)}>+ Ajouter un compte d'épargne</button>
+          <button className="btn-add" onClick={() => setShowCreate(true)}>Ajouter un compte d'épargne</button>
         </div>
       </div>
 
       {showCreate && (
-        <Modal title="Nouveau compte d'épargne" onClose={() => setShowCreate(false)}>
+        <Modal title="Nouveau compte d'épargne" icon="piggy" subtitle="Épargne" onClose={() => setShowCreate(false)}>
           <NewSavingsForm showToast={showToast} onSubmit={onCreate} />
         </Modal>
       )}
@@ -158,21 +146,21 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
 }
 
 // Ligne d'un livret dans la vue consolidée, calque sur PortfolioListRow.
-// La couleur de l'icône est indexée sur PORTFOLIO_PALETTE pour que chaque
-// livret ait sa propre teinte (comme les portefeuilles d'investissement).
+// L'avatar prend la teinte de la rubrique (plus une couleur par livret depuis le 15/11/2026).
 // Sous-titre : date de la dernière opération (la liste interne est
 // triée par date desc → la 1ère est la plus récente).
 function SavingsListRow({ saving, colorIndex, onClick }) {
   const balance = computeSavingsBalance(saving);
-  const color = PORTFOLIO_PALETTE[(colorIndex >= 0 ? colorIndex : 0) % PORTFOLIO_PALETTE.length];
+  // Avatar à la teinte de la RUBRIQUE, comme la maquette C' (15/11/2026, décision de l'utilisateur) — une couleur par livret avant.
+  const color = MODULE_COLORS.savings;
   // Recherche de la date la plus récente parmi les opérations du livret.
   const lastOp = (saving.operations || [])
     .filter(o => !!o.date)
     .reduce((latest, o) => (!latest || o.date > latest.date) ? o : latest, null);
   return (
     <button className="portfolio-list-row" data-locate={`saving-${saving.id}`} onClick={onClick} aria-label={`Ouvrir ${saving.name}`}>
-      <div className="portfolio-list-icon" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
-        <Icon name="piggy" size={14} />
+      <div className="portfolio-list-icon portfolio-list-av" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
+        {initiales(saving.name)}
       </div>
       <div className="portfolio-list-main">
         <div className="portfolio-list-name">{saving.name}</div>
@@ -183,7 +171,7 @@ function SavingsListRow({ saving, colorIndex, onClick }) {
         </div>
       </div>
       <div className="portfolio-list-right">
-        <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{fmt(balance)}<span className="currency-muted"> €</span></div>
+        <div className="num" style={{ fontSize: 14, fontWeight: 500 }}>{fmt(balance)}<span className="currency-muted"> €</span></div>
       </div>
       <span className="portfolio-list-arrow" aria-hidden="true">›</span>
     </button>
@@ -220,9 +208,8 @@ function NewSavingsForm({ onSubmit, showToast }) {
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="ex: Livret A (Boursorama)" required />
       </div>
       <div>
-        <label className="label">Solde initial (€)</label>
-        <AmountInput value={balance} onChange={(n) => setBalance(n)} className="input" placeholder="0.00" />
-        <div className="field-hint">Le solde affiché sera calculé : ce solde initial + tes opérations (versements, retraits, intérêts).</div>
+        <label className="label">Solde initial<AideChamp>Le solde affiché sera calculé : ce solde initial + tes opérations (versements, retraits, intérêts).</AideChamp></label>
+        <div className="unite-eur"><AmountInput value={balance} onChange={(n) => setBalance(n)} className="input" placeholder="0.00" /></div>
       </div>
       {/* Grisé tant que le nom est vide — aligné sur la création d'un compte
           courant (`!trimmed || isDuplicate`), la référence de l'app. Sans ça le
@@ -330,7 +317,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
   const editingOp = editingOpId ? (saving.operations || []).find(o => o.id === editingOpId) : null;
 
   return (
-    <div>
+    <div className="vue-rub">
       {/* Fil d'Ariane SUPPRIMÉ le 15/08/2026 — cf. le même commentaire dans
           `investments.js`. Le retour et le nom vivent dans la ligne de titre. */}
 
@@ -338,17 +325,13 @@ function SavingsDetailView({ ctx, saving, onBack }) {
           ⚠️ Ce commentaire annonçait un « nom éditable in-place » : c'était FAUX
           depuis longtemps — la classe posée était `hero-name-static`, et le
           renommage passe par Réglages. Corrigé le 15/08/2026 en retirant le nom. */}
-      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.savings)), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          {/* Libellé du montant, comme les autres hero cards — cf. le commentaire
+      {/* Libellé du montant, comme les autres hero cards — cf. le commentaire
               détaillé dans `investments.js`. Le nom du livret vit dans la ligne
               de titre depuis le 15/08/2026. */}
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-            Solde
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <ModuleBadge module="savings" />
-            <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
+      <div className="colle">
+      <CarteDeTete
+        module="savings" libelle="Solde" montant={balance}
+        droite={<Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
               <button className="dropdown-item" onClick={() => setModal('add')}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
                 Nouvelle opération
@@ -358,16 +341,16 @@ function SavingsDetailView({ ctx, saving, onBack }) {
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="settings" size={14} /></span>
                 Réglages
               </button>
-            </Dropdown>
-          </div>
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(balance)} €</div>
-        <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Intérêts perçus</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600, color: '#67e8f9' }}>+ {fmt(stats.interets)} €</div>
-          </div>
-        </div>
+            </Dropdown>}
+        pied={[
+          { label: 'Intérêts perçus', value: `+${fmt(stats.interets)} €` },
+          // 2ᵉ cellule de la maquette C' (15/11/2026) : la date de la dernière opération datée du livret.
+          { label: 'Dernière opération', court: 'Dernière op.', value: (() => {
+            const d = (saving.operations || []).map(o => o.date).filter(Boolean).sort().pop();
+            return d ? fmtDateNumeric(d) : '—';
+          })() },
+        ]}
+      />
       </div>
 
       {/* OPÉRATIONS RÉCENTES (8 dernières) + lien "Voir toutes" */}
@@ -377,24 +360,24 @@ function SavingsDetailView({ ctx, saving, onBack }) {
             <span className="section-icon savings"><Icon name="piggy" size={14} /></span>
             Opérations récentes
           </div>
-          {sortedOps.length > 8 && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setModal('history-ops')}>
-              Voir toutes ({sortedOps.length})
-            </button>
-          )}
+          {/* Comme le compte courant (15/11/2026, demande de l'utilisateur) : « + Nouvelle » en haut à droite, « Voir toutes »
+              passe sous la liste. */}
+          <div className="ops-outils">
+            <button type="button" className="btn btn-accent ops-nouvelle" onClick={() => setModal('add')}><Icon name="plus" size={15} /> Nouvelle</button>
+          </div>
         </div>
         <div>
           {sortedOps.slice(0, 8).map(op => {
             const d = getSavingsOpDisplay(op);
             return (
-              <div key={op.id} data-locate={`sop-${op.id}`} className="op-row" style={{ gridTemplateColumns: '24px 1fr auto 24px' }}>
+              <div key={op.id} data-locate={`sop-${op.id}`} className="op-row">
                 <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
                 <div className="op-main">
                   <span className="op-label">{d.label}</span>
                   <span className="op-date">{fmtDateNumeric(op.date)}</span>
                 </div>
                 <div className="num op-amount" style={{ color: d.amountColor }}>
-                  {d.sign} {fmt(d.amount)}<span className="currency-muted"> €</span>
+                  {d.sign}{fmt(d.amount)}<span className="currency-muted"> €</span>
                 </div>
                 <button className="tx-edit" onClick={() => setEditingOpId(op.id)} title="Modifier">
                   <Icon name="pencil" size={12} />
@@ -406,18 +389,20 @@ function SavingsDetailView({ ctx, saving, onBack }) {
             <EmptyState icon="piggy" title="Aucune opération" hint="Ajoute un versement, un retrait ou des intérêts pour démarrer l'historique." />
           )}
         </div>
-        <div className="section-footer">
-          <button className="btn-add" onClick={() => setModal('add')}>+ Nouvelle opération</button>
-        </div>
+        {sortedOps.length > 8 && (
+          <div className="section-footer">
+            <button className="btn-add" onClick={() => setModal('history-ops')}>Voir toutes les opérations ({sortedOps.length})</button>
+          </div>
+        )}
       </div>
 
       {modal === 'add' && (
-        <Modal title="Nouvelle opération" onClose={() => setModal(null)}>
+        <Modal title="Nouvelle opération" icon="piggy" subtitle={saving.name} onClose={() => setModal(null)}>
           <SavingsOperationForm showToast={showToast} defaultType="in" onSubmit={handleAddOp} />
         </Modal>
       )}
       {modal === 'history-ops' && (
-        <Modal title="Toutes les opérations" onClose={() => setModal(null)} size="lg">
+        <Modal title="Toutes les opérations" icon="piggy" subtitle={saving.name} onClose={() => setModal(null)} size="lg">
           <SavingsHistoryOpsTable
             ops={sortedOps}
             onEdit={(op) => setEditingOpId(op.id)}
@@ -426,7 +411,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
         </Modal>
       )}
       {editingOp && (
-        <Modal title="Modifier l'opération" onClose={() => setEditingOpId(null)}>
+        <Modal title="Modifier l'opération" icon="piggy" subtitle={saving.name} onClose={() => setEditingOpId(null)}>
           <SavingsOperationForm
             showToast={showToast}
             initial={editingOp}
@@ -436,7 +421,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
         </Modal>
       )}
       {modal === 'configure' && (
-        <Modal title="Réglages" onClose={closeReglages}>
+        <Modal title="Réglages" icon="settings" subtitle={saving.name} onClose={closeReglages}>
           <SavingsConfigureForm
             showToast={showToast}
             saving={saving}
@@ -496,29 +481,16 @@ function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyCh
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" required />
       </div>
       <div>
-        <label className="label">Solde initial (€)</label>
-        <AmountInput value={initialBalance} onChange={(n) => setInitialBalance(n)} className="input" />
-        <div className="field-hint">
-          Point de départ pour le calcul du solde affiché. Toutes les opérations enregistrées s'y ajoutent.
-        </div>
+        <label className="label">Solde initial<AideChamp>Point de départ pour le calcul du solde affiché. Toutes les opérations enregistrées s'y ajoutent.</AideChamp></label>
+        <div className="unite-eur"><AmountInput value={initialBalance} onChange={(n) => setInitialBalance(n)} className="input" /></div>
       </div>
       <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
 
-      {/* Zone supprimer */}
-      <div style={{ height: 1, background: COLORS.border, margin: '6px 0 0' }} />
-      <div style={{ marginTop: 6, padding: 12, background: 'var(--danger-light)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger-fonce)' }}>Supprimer ce compte d'épargne</div>
-          <div style={{ fontSize: 12, color: 'var(--danger-fonce)', opacity: 0.85, marginTop: 2 }}>
-            Toutes les opérations seront perdues à jamais. Action irréversible.
-          </div>
-        </div>
-        <button
-          type="button"
-          className="btn"
-          onClick={onDelete}
-          style={{ background: 'var(--danger-fonce)', color: 'white', borderColor: 'var(--danger-fonce)', flexShrink: 0 }}
-        >
+      {/* Zone de suppression au style C', comme celle d'une enveloppe (15/11/2026). */}
+      <div className="zone-danger">
+        <b>Supprimer ce compte d'épargne</b>
+        <small>Toutes les opérations seront perdues à jamais. Action irréversible.</small>
+        <button type="button" className="btn btn-danger" onClick={onDelete}>
           <Icon name="trash" size={14} /> Supprimer
         </button>
       </div>
@@ -575,14 +547,14 @@ function SavingsHistoryOpsTable({ ops, onEdit, onDelete }) {
       {ops.map(op => {
         const d = getSavingsOpDisplay(op);
         return (
-          <div key={op.id} className="op-row" style={{ gridTemplateColumns: '24px 1fr auto 24px' }}>
+          <div key={op.id} className="op-row">
             <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
             <div className="op-main">
               <span className="op-label">{d.label}</span>
               <span className="op-date">{fmtDateNumeric(op.date)}</span>
             </div>
             <div className="num op-amount" style={{ color: d.amountColor }}>
-              {d.sign} {fmt(d.amount)} €
+              {d.sign}{fmt(d.amount)} €
             </div>
             <button className="tx-edit" onClick={() => onEdit(op)} title="Modifier">
               <Icon name="pencil" size={12} />
@@ -662,52 +634,20 @@ function SavingsOperationForm({ initial, defaultType, onSubmit, onDelete, showTo
   return (
     <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Sélecteur de type — grille 2 colonnes, mimétique avec
-          AddOperationForm des Investissements. Avec 3 items, le dernier
-          (Intérêts) prend toute la largeur via grid-column: span 2. */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {types.map((t, idx) => {
-          const active = type === t.id;
-          // Dernier item d'une liste impaire → pleine largeur
-          const isLastOdd = idx === types.length - 1 && (types.length % 2 === 1);
-          return (
-            <button
-              key={t.id} type="button" onClick={() => setType(t.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', textAlign: 'left',
-                border: `1px solid ${active ? t.color : COLORS.border}`,
-                borderRadius: 10,
-                background: active ? t.bg : 'white',
-                cursor: 'pointer', transition: 'all 0.15s',
-                fontFamily: 'inherit',
-                gridColumn: isLastOdd ? 'span 2' : 'auto',
-              }}
-            >
-              <span style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: t.bg, color: t.color,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}><Icon name={t.icon} size={16} /></span>
-              <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: active ? t.color : COLORS.text, lineHeight: 1.2 }}>{t.label}</span>
-                <span style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>{t.desc}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+          AddOperationForm des Investissements — `ChoixType` (ui.js) depuis le 15/11/2026, trois colonnes. */}
+      <ChoixType types={types} value={type} onChange={setType} />
 
       <div>
         <label className="label">Date</label>
         <DateInputPicker value={date} onChange={setDate} />
       </div>
       <div>
-        <label className="label">Libellé (optionnel)</label>
+        <label className="label">Libellé <span className="aide-c">facultatif</span></label>
         <input type="text" value={label} onChange={e => setLabel(e.target.value)} className="input" placeholder={labelPlaceholder} />
       </div>
       <div>
-        <label className="label">{amountLabel}</label>
-        <AmountInput value={amount} onChange={setAmount} className="input" placeholder="0.00" />
+        <label className="label">{amountLabel.replace(' (€)', '')}</label>
+        <div className="unite-eur"><AmountInput value={amount} onChange={setAmount} className="input" placeholder="0.00" /></div>
       </div>
       <div className="form-actions">
         <button type="submit" className="btn btn-accent btn-lg">{initial ? 'Modifier' : 'Enregistrer'}</button>

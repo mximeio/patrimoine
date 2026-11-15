@@ -56,7 +56,10 @@ const ModalDirtyContext = React.createContext(null);
 // garde « modifications non enregistrées » : c'est une zone d'ACTIONS, pas de
 // saisie. Un champ qu'on y placerait un jour échapperait donc à cette garde —
 // il faudrait alors passer par `dirty` contrôlé.
-function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, dirty, footer }) {
+// En-tête C' (modernisation, 15/11/2026) : `icon` (nom d'icône) pose une pastille de la couleur de la rubrique ouverte
+// (`data-rubrique`, ou `tone="tr"` pour l'ambre des tickets resto), `subtitle` une ligne grise sous le titre. Les deux sont
+// optionnels : une fenêtre qui ne les passe pas garde son titre seul.
+function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, dirty, footer, icon, subtitle, tone }) {
   // Confirmation avant fermeture si le contenu a été modifié sans enregistrer.
   // dirtyRef passe à true au 1er input/change ; on ne confirme QUE si la modale
   // contient un <form> (les listes, la lecture seule « Toutes les opérations »,
@@ -110,7 +113,15 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
     const wasLockedBefore = window.__modalLockCount > 0;
     window.__modalLockCount++;
     let scrollY = 0;
-    if (!wasLockedBefore) {
+    // 🔴 Le gel par `position: fixed` n'est utile qu'au TACTILE (iOS fait défiler le fond sous la fenêtre). Sur ordinateur
+    // (souris), il déplaçait tout ce qui est en `position: sticky` — la colonne de la carte de tête sautait de 68 px ou
+    // sortait de l'écran (mesuré le 15/11/2026). Là, on se contente de masquer le défilement de la page.
+    const tactile = !(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+    if (!wasLockedBefore && !tactile) {
+      window.__modalLockMode = 'souris';
+      document.documentElement.style.overflow = 'hidden';
+    } else if (!wasLockedBefore) {
+      window.__modalLockMode = 'tactile';
       scrollY = window.scrollY;
       window.__modalLockScrollY = scrollY;
       document.body.style.overflow = 'hidden';
@@ -126,7 +137,11 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
     return () => {
       document.removeEventListener('keydown', onKey);
       window.__modalLockCount = Math.max(0, window.__modalLockCount - 1);
-      if (window.__modalLockCount === 0) {
+      if (window.__modalLockCount === 0 && window.__modalLockMode === 'souris') {
+        document.documentElement.style.overflow = '';
+        delete window.__modalLockMode;
+      } else if (window.__modalLockCount === 0) {
+        delete window.__modalLockMode;
         const restoredY = window.__modalLockScrollY || 0;
         document.body.style.overflow = '';
         document.body.style.position = '';
@@ -201,8 +216,12 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
     >
       <div className="modal" style={{ maxWidth: size === 'xl' ? 880 : size === 'lg' ? 680 : 500 }}>
         <div className="modal-header">
-          <h3 className="modal-title">{title}</h3>
-          <button className="btn-icon" onClick={attemptClose} aria-label="Fermer">✕</button>
+          {icon && <span className={`modal-ico${tone ? ` modal-ico--${tone}` : ''}`} aria-hidden="true"><Icon name={icon} size={18} /></span>}
+          <div className="modal-titres">
+            <h3 className="modal-title">{title}</h3>
+            {subtitle && <small className="modal-sous">{subtitle}</small>}
+          </div>
+          <button className="btn-icon modal-x" onClick={attemptClose} aria-label="Fermer">✕</button>
         </div>
         <div
           className="modal-body"
@@ -391,7 +410,8 @@ function InfoTip({ iconName = 'target', size = 13, label, content = null, classN
       title="" /* v599 : neutralise l'info-bulle système héritée du parent (ex. le title du libellé d'opération) — la bulle blanche suffit */
       onMouseEnter={() => { if (hoverable()) { cancelClose(); openTip(true); } }}
       onMouseLeave={() => { if (hoverable()) scheduleClose(); }}
-      onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openTip(); }}
+      // preventDefault : posé dans un <label> qui enveloppe un interrupteur (rangées des Paramètres), le toucher basculait l'option.
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); open ? setOpen(false) : openTip(); }}
     >
       {children || <span className="infotip-ico"><Icon name={iconName} size={size} /></span>}
       {open && pos && ReactDOM.createPortal(
@@ -444,6 +464,17 @@ function InfoTip({ iconName = 'target', size = 13, label, content = null, classN
   );
 }
 
+
+// Le « ? » d'aide d'un champ (15/11/2026, décision de l'utilisateur : version B de `_maquettes/Mockup-Aides-Champs`) : posé
+// sur la ligne du libellé, il remplace TOUT texte d'aide sous un champ — explications fixes comme chiffres calculés (« Part
+// employeur… »). La bulle est EXACTEMENT celle des notes du compte courant (`InfoTip` + `infotip-pop--wrap`) : survol à la souris,
+// toucher sur téléphone. Ne s'affiche que s'il y a un texte.
+// ⚠️ Les messages d'ERREUR (« Ce nom est déjà utilisé ») ne passent jamais par ici : ils restent sous le champ, en rouge.
+function AideChamp({ children, label = 'Aide' }) {
+  if (children == null || children === false || children === '') return null;
+  return <InfoTip iconName="aide" size={15} label={label} content={children} className="aide-champ" popClassName="infotip-pop--wrap" />;
+}
+
 function Icon({ name, size = 16, color }) {
   const props = {
     width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
@@ -453,6 +484,8 @@ function Icon({ name, size = 16, color }) {
   const paths = {
     list: <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>,
     // Recentré (DEV v1095) : encre 0,6 unité trop haut.
+    // La POIGNÉE de glisser-déposer (modernisation C', 15/11/2026) : six points, deux colonnes de trois.
+    poignee: <g fill="currentColor" stroke="none"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></g>,
     pencil: <g transform="translate(0 0.6)"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></g>,
     comment: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>,
     lock: <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
@@ -463,6 +496,7 @@ function Icon({ name, size = 16, color }) {
     // ⚠️ Il REMPLACE `arrowLeft`, qui ne servait qu'aux trois fils d'Ariane et
     // part avec eux — ne pas réintroduire une seconde façon de dire « retour ».
     chevronLeft: <polyline points="15 18 9 12 15 6"/>,
+    chevronRight: <polyline points="9 18 15 12 9 6"/>,
     // Les quatre icônes de rubrique ont été uniformisées le 21/10/2026, mesurées sur la grille de 24 : l'encre
     // allait de 12,8 % (barres) à 33,6 % (pièce), elle va de 21,8 à 30,1 %, tout est centré. Barres posées sur
     // un axe (14 × 18 → 20 × 20), pièce réduite d'un cran (rayon 10 → 9), tirelire recentrée (décalée de 1,2
@@ -503,6 +537,7 @@ function Icon({ name, size = 16, color }) {
     // Icône d'information (DEV v1098) : appelée par la fenêtre de restauration (« elle ne contient pas la répartition
     // des charges ») mais jamais dessinée — la ligne s'affichait avec un vide à la place. Dessin de lucide « info ».
     info: <><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>,
+    aide: <><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></>,
     // Recentrée (DEV v1095) : encre 0,5 unité trop haut.
     check: <g transform="translate(0 0.5)"><polyline points="20 6 9 17 4 12"/></g>,
     layers: <><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>,
@@ -645,6 +680,21 @@ function useEcranCompact() {
   return compact;
 }
 
+// Un graphique (Recharts) REDESSINÉ à chaque passage portrait ↔ paysage : au doigt, l'infobulle ouverte d'un toucher reste
+// affichée, à la position calculée pour l'ANCIENNE largeur — revenue en portrait, elle sortait de l'écran et poussait toute la
+// page sur le côté (relevé sur iPhone le 15/11/2026). Changer la clé remonte le graphique : l'infobulle se ferme.
+// Déclencheur : la LARGEUR de la fenêtre (événement `resize`), que toute rotation change — et que le défilement d'iOS (barre
+// d'adresse qui se replie) ne change pas : il ne touche que la hauteur. Ce n'est pas un second `matchMedia` abonné (§10).
+function RedessinARotation({ children }) {
+  const [largeur, setLargeur] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const surResize = () => setLargeur((l) => (l === window.innerWidth ? l : window.innerWidth));
+    window.addEventListener('resize', surResize);
+    return () => window.removeEventListener('resize', surResize);
+  }, []);
+  return <React.Fragment key={largeur}>{children}</React.Fragment>;
+}
+
 // En-tête de SOUS-PAGE (15/08/2026) — la vue de détail déclare son nom et son
 // retour ; la coquille (`app.js`) rend la ligne de titre en conséquence. Remplace
 // les TROIS fils d'Ariane (compte courant, épargne, investissements), supprimés
@@ -691,7 +741,7 @@ function nomSupportUneLigne(etf, compact = false) {
 function CustomTooltip({ active, payload, label, suffix = '€' }) {
   if (!active || !payload || !payload.length) return null;
   return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '10px 14px', boxShadow: '0 8px 24px rgba(15,23,42,0.10)', fontSize: 13 }}>
+    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 'var(--r-touche)', padding: '10px 14px', boxShadow: '0 8px 24px rgba(15,23,42,0.10)', fontSize: 13 }}>
       {label && <div style={{ fontWeight: 600, marginBottom: 6, color: COLORS.text }}>{label}</div>}
       {payload.map((e, i) => (
         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: COLORS.text }}>
@@ -725,7 +775,7 @@ function LogoPatrimoine({ size = 48 }) {
 
 function ConfigError() {
   return (
-    <div style={{ maxWidth: 600, margin: '60px auto', padding: 32, background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: 14 }}>
+    <div style={{ maxWidth: 600, margin: '60px auto', padding: 32, background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: 'var(--r-contenant)' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, marginTop: 0, color: 'var(--danger-fonce)' }}>Configuration Firebase manquante</h1>
       <p style={{ color: COLORS.muted, lineHeight: 1.6 }}>
         Renseigne ta configuration Firebase dans <code>js/config.js</code> (constante <code>FIREBASE_CONFIG</code>).
@@ -783,6 +833,176 @@ function ModuleBadge({ module, size = 32, iconSize = 16 }) {
   );
 }
 
+// ── LA CARTE DE TÊTE « C' » (modernisation du design, 14/11/2026 — BACKLOG.md, fiche « la modernisation du design ») ──
+// Pleine de la couleur de sa rubrique, 136 px de haut sur toutes les vues, et toujours la même structure : l'intitulé
+// (avec, à droite, les commandes de la carte), le grand montant, puis la rangée des petits chiffres calée en bas.
+// Elle remplace les huit cartes sombres, qui portaient chacune leurs couleurs en ligne. `styleCarteDeTete`, `lisereUni`
+// et `ModuleBadge` restent définis plus haut (le smoke test les attend), mais plus aucune vue ne les rend.
+// Maquette de référence : _maquettes/Mockup-Modernisation-Design/cartes2.html (la hauteur de 136 px y est choisie face à 156).
+const CARTE_FONDS = {
+  overview: 'linear-gradient(150deg, #2a2f4a, #0b1020)',
+  checking: 'linear-gradient(150deg, #4f46e5, #3730a3)',
+  savings: 'linear-gradient(150deg, #0e7490, #155e75)',
+  investments: 'linear-gradient(150deg, #047857, #065f46)',
+  physical: 'linear-gradient(150deg, #f2b33d, #e09a1a)',
+};
+// Le grand montant, découpé : partie entière en gras, centimes et « € » plus petits et plus clairs.
+// L'espace fine des milliers (U+202F) est étroite (0,1 em en Manrope, à peine plus en Inter), et l'interlettrage serré du gros montant
+// l'avale (« 42613 ») : ici seulement, elle devient une espace insécable pleine (0,2 em).
+function MontantTete({ value }) {
+  const s = eur(value).replace(/ /g, ' ');
+  const m = /^(.*)(\.\d{2})\s*€$/.exec(s);
+  if (!m) return <span>{s}</span>;
+  return <><span>{m[1]}</span><span className="ct-dec">{m[2]}</span><span className="ct-dec ct-eur">€</span></>;
+}
+// `pied` : une liste de cellules { label, court?, value, fil? } (court = intitulé du portrait téléphone, où trois
+// cellules se partagent ~330 px ; fil = jauge de 0 à 100) ; `droite` : les commandes de l'intitulé ;
+// `children` : ce qui se déplie sous la carte (le détail de la projection du compte courant).
+// `sansIcone` : la carte du compte courant porte déjà la pastille de projection et le « ⋯ » ; l'icône, décorative, y
+// laissait la pastille collée à l'intitulé à 390 pt (relevé sur iPhone le 15/11/2026). La maquette ne l'y met pas.
+// `dessous` : ce qui se DÉPLIE sous la carte (le détail de la projection). Il vit hors du corps de la carte, dont la hauteur
+// est fixe : sans ça, la rangée du bas remontait de ~7 px à l'ouverture (relevé de l'utilisateur, 15/11/2026).
+// `children` reste DANS le corps (la courbe de l'accueil, posée en bas).
+// JAUGE DU PIED (14/11/2026, piste A de _maquettes/Mockup-Mini-Camemberts, choisie par l'utilisateur) : un anneau de 28 px
+// devant le texte au lieu de la barre de 3 px sous le montant. LA BARRE EST GARDÉE EN RÉSERVE, à la demande de l'utilisateur :
+// repasser cette constante à 'barre' la remet telle qu'elle était (rendu et CSS `.ct-fil` conservés, coche après l'intitulé).
+const JAUGE_TETE = 'anneau';
+// L'anneau : piste à 22 % de la couleur du texte, part pointée pleine (sens des aiguilles d'une montre, départ à midi) ;
+// tout pointé : anneau plein vert menthe et coche dedans (elle quitte l'intitulé).
+function AnneauTete({ part, fait }) {
+  const d = 28, ep = 4, r = (d - ep) / 2, c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, part || 0)) / 100;
+  const coul = fait ? '#6ee7b7' : 'currentColor';
+  return (
+    <svg className="ct-anneau" width={d} height={d} viewBox={`0 0 ${d} ${d}`} role="img" aria-label={fait ? 'tout pointé' : `${Math.round(p * 100)} % pointé`}>
+      <circle cx={d / 2} cy={d / 2} r={r} fill="none" stroke="currentColor" strokeOpacity="0.22" strokeWidth={ep} />
+      {p > 0 && <circle cx={d / 2} cy={d / 2} r={r} fill="none" stroke={coul} strokeWidth={ep} strokeLinecap={p >= 1 ? 'butt' : 'round'}
+        strokeDasharray={`${(c * p).toFixed(2)} ${c.toFixed(2)}`} transform={`rotate(-90 ${d / 2} ${d / 2})`} />}
+      {fait && <path d="M8.7 14.6l3.6 3.6 7-7.8" fill="none" stroke="#6ee7b7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+    </svg>
+  );
+}
+function CarteDeTete({ module, libelle, droite, montant, pied, children, dessous, sansIcone = false }) {
+  const cellules = (pied || []).filter(Boolean);
+  // Plus d'icône dans aucune carte de tête (15/11/2026, comme la maquette C' et à la demande de l'utilisateur) : retirée
+  // d'abord du compte courant, où elle serrait la pastille de projection. `sansIcone` reste accepté, sans effet.
+  const icone = null;
+  return (
+    <div className={`card carte-tete carte-tete--${module}`} style={{ background: CARTE_FONDS[module] || CARTE_FONDS.overview }}>
+      {/* Le reflet et l'anneau décoratifs vivent dans ce calque, SEUL rogné : la carte, elle, laisse dépasser le menu « ⋯ »
+          et le calendrier du mois (coupés sur iPhone tant que la carte rognait tout, relevé du 15/11/2026). */}
+      <span className="ct-deco" aria-hidden="true" />
+      <div className="ct-corps">
+      <div className="ct-l1">
+        <span className="ct-lib">{libelle}</span>
+        <div className="ct-droite">
+          {droite}
+          {icone && <span className="ct-ico"><Icon name={icone} size={15} /></span>}
+        </div>
+      </div>
+      <div className="num ct-montant"><MontantTete value={montant} /></div>
+      {cellules.length > 0 && (
+        <div className="ct-pied">
+          {cellules.map((c, i) => {
+            const aJauge = c.fil !== undefined && c.fil !== null;
+            const anneau = aJauge && JAUGE_TETE === 'anneau';
+            // `reste` / `labelReste` : ce qui s'affiche quand la case est trop étroite pour « pointé / prévu » à côté de
+            // l'anneau (petit téléphone, < 140 px de texte, requête de conteneur) : le reste à pointer, un seul montant.
+            const reste = anneau && c.reste;
+            const cls = `ct-cel${anneau ? ' ct-cel--anneau' : ''}`;
+            const corps = (<>
+                {anneau && <AnneauTete part={c.fil} fait={c.fait} />}
+                <div className="ct-cel-tx">
+                  {/* `fait` : la cellule est terminée (tout pointé) — avec la barre, coche verte après l'intitulé et jauge
+                      pleine en vert (piste B de _maquettes/Mockup-Tout-Pointe, 15/11/2026) ; avec l'anneau, la coche est dedans. */}
+                  <small className={c.fait && !anneau ? 'ct-cel-fait' : undefined}>
+                    <span className={reste ? 'ct-plein' : undefined}>
+                      {c.court ? <><span className="ct-long">{c.label}</span><span className="ct-court">{c.court}</span></> : c.label}
+                    </span>
+                    {reste && <span className="ct-reste">{c.labelReste}</span>}
+                    {c.fait && !anneau && <span className="ct-coche" role="img" aria-label="tout pointé">✓</span>}
+                  </small>
+                  <b className="num">{reste ? <><span className="ct-plein">{c.value}</span><span className="ct-reste">{c.reste}</span></> : c.value}</b>
+                  {aJauge && !anneau && <div className={`ct-fil${c.fait ? ' ct-fil--fait' : ''}`}><i style={{ width: Math.max(0, Math.min(100, c.fil)) + '%' }} /></div>}
+                </div>
+              </>);
+            // `bulle` (16/11/2026) : le détail de la case, au survol ou au toucher de TOUTE la case — « 3 184.48 € pointés sur
+            // 3 313.48 € » sous « Sorties à pointer 129.00 € ». La case devient alors le déclencheur textuel d'InfoTip.
+            if (c.bulle) return (
+              <InfoTip key={i} label={`${c.label} ${c.value} — ${c.bulle}`} content={c.bulle} className={`${cls} ct-cel-bulle`} popClassName="infotip-pop--wrap">{corps}</InfoTip>
+            );
+            return (
+              <div key={i} className={cls}>{corps}</div>
+            );
+          })}
+        </div>
+      )}
+      {children}
+      </div>
+      {dessous}
+    </div>
+  );
+}
+
+// Les deux lettres d'un avatar de liste (modernisation C', 15/11/2026) : « PEA (XTB) » → « PE », « Livret A » → « LI ».
+// Les lettres du nom seulement, sans les signes ; « ? » si le nom n'en a pas.
+function initiales(nom) {
+  const lettres = String(nom || '').replace(/[^\p{L}\p{N}]/gu, '');
+  return (lettres.slice(0, 2) || '?').toUpperCase();
+}
+
+// LE CHOIX DU TYPE D'UNE OPÉRATION (modernisation C', 15/11/2026) : une rangée de boutons radio. `compact` (Entrée /
+// Sortie) : icône et libellé sur une ligne ; sinon une grille de trois colonnes, libellé et précision (`desc`). Chaque
+// type garde sa couleur (`color`, `bg`), posée en variables CSS. Remplace les quatre grilles écrites en ligne.
+function ChoixType({ types, value, onChange, compact = false }) {
+  return (
+    <div className={`types-c${compact ? ' types-c--compact' : ''}`} role="radiogroup" aria-label="Type"
+      style={{ '--n': Math.min(types.length, 3) }}>
+      {types.map(t => (
+        <button key={t.id} type="button" role="radio" aria-checked={value === t.id} onClick={() => onChange(t.id)}
+          style={{ '--t': t.color, '--tp': t.bg }}>
+          {compact ? <><Icon name={t.icon} size={16} /><span>{t.label}</span></>
+            : <><b>{t.label}</b>{t.desc && <small>{t.desc}</small>}</>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+
+// Les chiffres de tête d'une FENÊTRE (tickets resto payés, actif) : des pastilles grises à deux étages — l'intitulé en petit,
+// le montant dessous —, la famille des pastilles fines du compte courant, en plus haut (15/11/2026, demande de l'utilisateur :
+// plus discret que le bandeau plein de couleur, et rien de coupé). `cellules` : [{ label, court?, value, classe? }] ; `court`
+// = intitulé au téléphone (≤ 420 px) ; `classe` = couleur du montant (value-positive / value-negative).
+function IndicateursFenetre({ cellules }) {
+  return (
+    <div className="ind-fen">
+      {cellules.filter(Boolean).map((c, i) => (
+        <div key={i} className="ind-fen-cel">
+          <small>{c.court ? <><span className="pcc-long">{c.label}</span><span className="pcc-court">{c.court}</span></> : c.label}</small>
+          <b className={`num${c.classe ? ' ' + c.classe : ''}`}>{c.value}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// LE BANDEAU D'INDICATEURS DES FENÊTRES (modernisation C', 14/11/2026) : les chiffres de tête d'une fenêtre, sur le fond
+// de la couleur de sa rubrique — la même famille que la carte de tête, en petit. `fond` : une clé de CARTE_FONDS, ou
+// 'tr' pour l'ambre des tickets resto. `cellules` : [{ label, value }].
+// Même ambre clair que les actifs physiques depuis le 15/11/2026 (le brun #a95b00 faisait sombre) ; texte foncé en CSS.
+const FOND_TR = 'linear-gradient(150deg, #f2b33d, #e09a1a)';
+function BandeauIndicateurs({ fond, cellules }) {
+  const liste = (cellules || []).filter(Boolean);
+  return (
+    <div className={`bandeau-ind bandeau-ind--${fond}`} style={{ background: fond === 'tr' ? FOND_TR : (CARTE_FONDS[fond] || CARTE_FONDS.overview) }}>
+      {liste.map((c, i) => (
+        <div key={i} className="bandeau-ind-cel"><small>{c.label}</small><b className="num">{c.value}</b></div>
+      ))}
+    </div>
+  );
+}
+
 function EmptyState({ icon, title, hint }) {
   return (
     <div className="empty-state">
@@ -832,7 +1052,7 @@ function AmountInput({
 
   const handleChange = (e) => {
     // On garde uniquement chiffres, séparateurs, signe moins
-    let v = e.target.value.replace(/[^\d.,\-]/g, '');
+    let v = e.target.value.replace(/\u2212/g, '-').replace(/[^\d.,\-]/g, ''); // le vrai moins (collé, 14/11/2026) vaut un « - »
     // stripSign : le signe est géré ailleurs (bouton ±). On détecte un « - »
     // tapé pour le signaler (2e arg de onChange) puis on le RETIRE du champ
     // → le champ n'affiche jamais que la magnitude.
@@ -961,7 +1181,7 @@ function SignedAmountField({ value, onChange, naturalExpense = true, isTR = fals
   const signClass = isTR ? 'sgn-tr' : (isCredit ? 'sgn-in' : 'sgn-out');
   // Couleur du montant pilotée par le BOUTON (l'intention), pas par le signe de
   // la valeur → bascule rouge↔vert immédiate, même champ vide ou à 0.
-  const fieldColor = isTR ? 'var(--warning-fonce)' : (isCredit ? 'var(--success-fonce)' : 'var(--danger-fonce)');
+  const fieldColor = isTR ? 'var(--tr-clair)' : (isCredit ? 'var(--success-fonce)' : 'var(--danger-fonce)');
 
   const handleAmountChange = (n, hadMinus) => {
     if (hadMinus) { setNeg(true); emit(n, true); }

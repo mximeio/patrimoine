@@ -62,11 +62,11 @@ function InvestmentsView({ ctx }) {
             hint="Crée ta première enveloppe pour suivre tes investissements."
           />
           <div className="section-footer">
-            <button className="btn-add" onClick={() => setShowCreate(true)}>+ Créer une enveloppe</button>
+            <button className="btn-add" onClick={() => setShowCreate(true)}>Créer une enveloppe</button>
           </div>
         </div>
         {showCreate && (
-          <Modal title="Nouvelle enveloppe" onClose={() => setShowCreate(false)}>
+          <Modal title="Nouvelle enveloppe" icon="chart" subtitle="Investissements" onClose={() => setShowCreate(false)}>
             <NewPortfolioForm showToast={showToast} onSubmit={handleCreate} />
           </Modal>
         )}
@@ -146,41 +146,12 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
   const positive = consolidated.totalGain >= 0;
 
   return (
-    <div>
+    <div className="vue-rub">
       {/* HERO */}
-      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.investments)), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-            Valeur totale
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <ModuleBadge module="investments" />
-            <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
-              <button className="dropdown-item" onClick={() => setMajGroupee(true)}>
-                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="refresh" size={14} /></span>
-                Mettre à jour les valeurs
-              </button>
-            </Dropdown>
-          </div>
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(consolidated.totalValue)} €</div>
-        <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-          <div>
-            {/* « dont … de div. » : les dividendes en portrait téléphone, où le chiffre
-                « Dividendes perçus » est masqué (il ferait passer la ligne en deux et
-                grandir la carte de tête). Exact : la plus-value les inclut
-                (compute.js). « div. » est abrégé pour tenir sur une ligne à 375 pt,
-                même à quatre chiffres. Maquette Mockup-Portrait-Complet (26/10/2026). */}
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value{consolidated.hasDistributing && consolidated.totalDividends > 0 && <span className="hero-div-dont">, dont {fmt(consolidated.totalDividends)} € de div.</span>}</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600, color: positive ? '#86efac' : '#fca5a5' }}>
-              {positive ? '+' : ''}{fmt(consolidated.totalGain)} €
-              {consolidated.totalPurchased > 0 && (
-                <> · {positive ? '+' : ''}{consolidated.totalGainPct.toFixed(2)}%</>
-              )}
-            </div>
-          </div>
-          <div>
-            {/* « Investi » SEUL depuis le 14/08/2026 — le « / versé » est retiré.
+      {/* Comme la maquette C' (cartes2.html) : le pied porte Plus-value, Investi et CASH NON INVESTI ; les dividendes
+                montent dans la pastille du pourcentage (« +13.37 % · +1.65 € de div. »), seulement s'il y en a. Le
+                « dont … de div. » du portrait (26/10/2026) est retiré : le pied ne passe jamais à la ligne. */}
+      {/* « Investi » SEUL depuis le 14/08/2026 — le « / versé » est retiré.
                 Décision de l'utilisateur, sur deux motifs : la carte « Cash non
                 investi » juste en dessous porte l'information utile (combien dort),
                 et le module Actifs physiques n'affiche lui aussi que « Investi ».
@@ -196,65 +167,36 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
                 plus-value et les dividendes sont déjà à 2 décimales — cette ligne
                 était la seule arrondie à l'unité, et elle affichait « 25 845 /
                 25 845 € » pour deux nombres pourtant différents. */}
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Investi</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600 }}>
-              {fmt(consolidated.totalInvested)} €
-            </div>
-          </div>
-          {consolidated.hasDistributing && (
-            <div className="hero-dividends-stat">
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Dividendes perçus</div>
-              <div className="num" style={{ fontSize: 16, fontWeight: 600, color: '#67e8f9' }}>
-                +{fmt(consolidated.totalDividends)} €
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <div className="colle">
+      <CarteDeTete
+        module="investments" libelle="Valeur totale" montant={consolidated.totalValue}
+        droite={<>{consolidated.totalPurchased > 0 && <span className="ct-pill">{fmtPct(consolidated.totalGainPct)}{consolidated.hasDistributing && consolidated.totalDividends > 0 && <span className="ct-pill-div">{'\u00a0· +'}{fmt(consolidated.totalDividends)} € de div.</span>}</span>}<Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
+              <button className="dropdown-item" onClick={() => setMajGroupee(true)}>
+                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="refresh" size={14} /></span>
+                Mettre à jour les valeurs
+              </button>
+            </Dropdown></>}
+        pied={[
+          { label: 'Plus-value', value: `${positive ? '+' : ''}${fmt(consolidated.totalGain)} €` },
+          { label: 'Investi', value: `${fmt(consolidated.totalInvested)} €` },
+          { label: 'Cash non investi', court: 'Cash', value: `${fmt(consolidated.cashRemaining)} €` },
+        ]}
+      />
 
-      {/* STAT CARDS */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-card-icon"><Icon name="layers" size={14} /></div>
-          <div className="stat-card-label">Enveloppes</div>
-          <div className="stat-card-value num">{portfolios.length}</div>
-          <div
-            className="stat-card-sub"
-            style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-            title={portfoliosByValue.map(p => p.name).join(', ')}
-          >
-            {portfoliosByValue.map(p => shortName(p.name)).slice(0, 3).join(', ') + (portfolios.length > 3 ? '…' : '')}
+      {/* MODERNISATION C' (15/11/2026, maquette cartes2.html) : les quatre cartes chiffrées sont retirées — la plus-value
+          et le cash sont dans la carte de tête, le nombre d'enveloppes en tête de liste. Il reste ce qui demande d'agir :
+          l'alerte de valorisation, avec la même règle que l'ancienne carte « À rafraîchir » (la plus ancienne, au-delà de
+          30 jours, quand les enveloppes ne sont pas toutes à la même date). */}
+      {staleWarn && (
+        <div className="alerte-valo alerte-valo--page">
+          <span className="alerte-valo-ico"><Icon name="calendar" size={16} /></span>
+          <div>
+            <b>Valorisation à rafraîchir</b>
+            <p title={oldestNamesFull || undefined}>{oldestNames}, il y a {staleDays} jours.</p>
+            <button type="button" className="btn btn-accent" onClick={() => setMajGroupee(true)}>Mettre à jour</button>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon income"><Icon name="trendUp" size={14} /></div>
-          <div className="stat-card-label">+/- value</div>
-          <div className={`stat-card-value num ${positive ? 'value-positive' : 'value-negative'}`}>
-            {positive ? '+' : ''}{fmt(consolidated.totalGain)} €
-          </div>
-          <div className="stat-card-sub">{consolidated.totalPurchased > 0 ? `${positive ? '+' : ''}${consolidated.totalGainPct.toFixed(2)} %` : '—'}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-icon tr"><Icon name="coin" size={14} /></div>
-          <div className="stat-card-label">Cash non investi</div>
-          <div className="stat-card-value num">{fmt(consolidated.cashRemaining)} €</div>
-          <div className="stat-card-sub">{consolidated.totalDeposited > 0 ? (consolidated.cashRemaining / consolidated.totalDeposited * 100).toFixed(2) : '0.00'} % du versé</div>
-        </div>
-        <div className="stat-card">
-          <div className={`stat-card-icon ${staleWarn ? 'tr-utensils' : 'stale-neutral'}`}><Icon name="calendar" size={14} /></div>
-          <div className="stat-card-label">{allSameDate ? 'Valorisations' : 'À rafraîchir'}</div>
-          <div className="stat-card-value num" style={staleWarn ? { color: 'var(--warning-fonce)' } : undefined}>
-            {oldestUpdate ? fmtDateNumeric(oldestUpdate.d) : '—'}
-            {staleWarn && <span className="stale-tag">{staleDays} j</span>}
-          </div>
-          <div
-            className="stat-card-sub"
-            style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-            title={oldestNamesFull || undefined}
-          >
-            {!oldestUpdate ? 'Aucune valorisation' : allSameDate ? 'Toutes les enveloppes' : oldestNames}
-          </div>
-        </div>
+      )}
       </div>
 
       {/* LIST */}
@@ -264,6 +206,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
             <span className="section-icon invest"><Icon name="layers" size={14} /></span>
             Mes enveloppes
           </div>
+          <span className="section-aide">{portfolios.length}</span>
         </div>
         <div>
           {sortByNumber(portfolios, p => computePortfolioStats(p.data).totalValue).map((p, i) => (
@@ -277,12 +220,12 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
           ))}
         </div>
         <div className="section-footer">
-          <button className="btn-add" onClick={() => setShowCreate(true)}>+ Ajouter une enveloppe</button>
+          <button className="btn-add" onClick={() => setShowCreate(true)}>Ajouter une enveloppe</button>
         </div>
       </div>
 
       {showCreate && (
-        <Modal title="Nouvelle enveloppe" onClose={() => setShowCreate(false)}>
+        <Modal title="Nouvelle enveloppe" icon="chart" subtitle="Investissements" onClose={() => setShowCreate(false)}>
           <NewPortfolioForm showToast={showToast} onSubmit={onCreate} />
         </Modal>
       )}
@@ -298,14 +241,16 @@ function PortfolioListRow({ portfolio, colorIndex, total, onClick }) {
   // cohérent avec ce qui est affiché dans le hero et dans la liste.
   const weight = total > 0 ? (stats.totalValue / total) * 100 : 0;
   const positive = stats.totalGain >= 0;
-  const color = PORTFOLIO_PALETTE[colorIndex % PORTFOLIO_PALETTE.length];
+  // Avatar à la teinte de la RUBRIQUE, comme la maquette C' (15/11/2026, décision de l'utilisateur) : il prenait une couleur
+  // par enveloppe (PORTFOLIO_PALETTE). Le point de couleur de la fenêtre « Mettre à jour les valeurs » est retiré aussi (DEV v1202).
+  const color = MODULE_COLORS.investments;
   const etfCount = (portfolio.data?.etfs || []).length;
   const lastDate = portfolio.data?.currentValuesDate;
 
   return (
     <button className="portfolio-list-row" data-locate={`pf-${portfolio.id}`} onClick={onClick} aria-label={`Ouvrir ${portfolio.name}`}>
-      <div className="portfolio-list-icon" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
-        <Icon name="chart" size={14} />
+      <div className="portfolio-list-icon portfolio-list-av" style={{ background: fondPastille(color), color: couleurIcone(color) }}>
+        {initiales(portfolio.name)}
       </div>
       <div className="portfolio-list-main">
         <div className="portfolio-list-name">{portfolio.name}</div>
@@ -315,16 +260,16 @@ function PortfolioListRow({ portfolio, colorIndex, total, onClick }) {
         </div>
       </div>
       <div className="portfolio-list-right">
-        <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{fmt(stats.totalValue)}<span className="currency-muted"> €</span></div>
+        <div className="num" style={{ fontSize: 14, fontWeight: 500 }}>{fmt(stats.totalValue)}<span className="currency-muted"> €</span></div>
         {stats.totalPurchased > 0 || stats.totalGain !== 0 ? (
           <div className="num" style={{ fontSize: 12, color: positive ? 'var(--success-fonce)' : 'var(--danger-fonce)', marginTop: 2 }}>
             {positive ? '+' : ''}{fmt(stats.totalGain)} €
             {stats.totalPurchased > 0 && (
-              <> · {positive ? '+' : ''}{stats.totalGainPct.toFixed(2)} %</>
+              <> · {fmtPct(stats.totalGainPct)}</>
             )}
           </div>
         ) : (
-          <div className="num" style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>— · —</div>
+          <div className="num" style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>—</div> /* enveloppe sans support : un seul tiret — rien à mesurer, pas un zéro mesuré (15/11/2026, décision de l'utilisateur, qui revient sur « 0.00 € · 0.00 % » ; « — · — » avant) */
         )}
       </div>
       <span className="portfolio-list-arrow" aria-hidden="true">›</span>
@@ -357,9 +302,8 @@ function NewPortfolioForm({ onSubmit, showToast }) {
   return (
     <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <label className="label">Nom de l'enveloppe</label>
+        <label className="label">Nom de l'enveloppe<AideChamp>Tu pourras ajouter et configurer les supports une fois l'enveloppe créée.</AideChamp></label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="ex: PEA (XTB)" required />
-        <div className="field-hint">Tu pourras ajouter et configurer les supports une fois l'enveloppe créée.</div>
       </div>
       {/* Grisé tant que le nom est vide — aligné sur la création d'un compte
           courant (`!trimmed || isDuplicate`), la référence de l'app. Sans ça le
@@ -469,7 +413,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   };
 
   return (
-    <div>
+    <div className="vue-rub">
       {/* Le fil d'Ariane a été SUPPRIMÉ le 15/08/2026 : il insérait une ligne
           entre le titre de rubrique et la hero card, soit 36 px de saut vertical
           mesurés à l'ouverture. Le retour et le nom vivent désormais dans la
@@ -477,9 +421,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
           composant). Ne pas le réintroduire. */}
 
       {/* HERO */}
-      <div className="card hero-card" style={{ ...styleCarteDeTete(lisereUni(MODULE_COLORS.investments)), marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          {/* Un LIBELLÉ qui dit ce qu'est le montant, comme toutes les hero cards
+      {/* Un LIBELLÉ qui dit ce qu'est le montant, comme toutes les hero cards
               de l'app. Le NOM de l'enveloppe était affiché ici jusqu'au
               15/08/2026 : il est désormais dans la ligne de titre, juste
               au-dessus, donc le répéter coûtait une ligne pour ne rien apprendre.
@@ -492,12 +434,16 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
               ⚠️ Ne pas citer ici les libellés des autres écrans : une première
               version de ce commentaire les énumérait, et ils ont changé le jour
               même. Le CHANGELOG porte le tableau complet. */}
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500 }}>
-            Valeur
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <ModuleBadge module="investments" />
-            <Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
+      {/* Même « dont … de div. » que la vue Investissements (motif écrit là-bas). */}
+      {/* Même décision que le hero de la vue Investissements (14/08/2026), où
+                le motif complet est écrit — ne pas le dupliquer ici.
+                ⚠️ Sur CETTE page, « Versé » et « Investi » ont chacun leur carte
+                juste en dessous : elles sont passées à `fmt` en même temps, sinon le
+                même nombre s'afficherait à deux précisions à quelques centimètres. */}
+      <div className="colle">
+      <CarteDeTete
+        module="investments" libelle="Valeur" montant={stats.totalValue}
+        droite={<>{stats.totalPurchased > 0 && <span className="ct-pill">{fmtPct(stats.totalGainPct)}{stats.hasDistributing && stats.totalDividends > 0 && <span className="ct-pill-div">{'\u00a0· +'}{fmt(stats.totalDividends)} € de div.</span>}</span>}<Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
               <button className="dropdown-item" onClick={() => setModal('add')}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
                 Nouvelle opération
@@ -521,87 +467,29 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="settings" size={14} /></span>
                 Réglages
               </button>
-            </Dropdown>
-          </div>
-        </div>
-        <div className="num hero-value-big" style={{ marginTop: 6 }}>{fmt(stats.totalValue)} €</div>
-        <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
-          <div>
-            {/* Même « dont … de div. » que la vue Investissements (motif écrit là-bas). */}
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Plus-value{stats.hasDistributing && stats.totalDividends > 0 && <span className="hero-div-dont">, dont {fmt(stats.totalDividends)} € de div.</span>}</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600, color: positive ? '#86efac' : '#fca5a5' }}>
-              {positive ? '+' : ''}{fmt(stats.totalGain)} €
-              {stats.totalPurchased > 0 && (
-                <> · {positive ? '+' : ''}{stats.totalGainPct.toFixed(2)}%</>
-              )}
-            </div>
-          </div>
-          <div>
-            {/* Même décision que le hero de la vue Investissements (14/08/2026), où
-                le motif complet est écrit — ne pas le dupliquer ici.
-                ⚠️ Sur CETTE page, « Versé » et « Investi » ont chacun leur carte
-                juste en dessous : elles sont passées à `fmt` en même temps, sinon le
-                même nombre s'afficherait à deux précisions à quelques centimètres. */}
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Investi</div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 600 }}>
-              {fmt(stats.totalInvested)} €
-            </div>
-          </div>
-          {stats.hasDistributing && (
-            <div className="hero-dividends-stat">
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Dividendes perçus</div>
-              <div className="num" style={{ fontSize: 16, fontWeight: 600, color: '#67e8f9' }}>
-                +{fmt(stats.totalDividends)} €
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+            </Dropdown></>}
+        pied={[
+          { label: 'Plus-value', value: `${positive ? '+' : ''}${fmt(stats.totalGain)} €` },
+          { label: 'Investi', value: `${fmt(stats.totalInvested)} €` },
+          { label: 'Cash non investi', court: 'Cash', value: `${fmt(stats.cashRemaining)} €` },
+        ]}
+      />
 
-      {/* STAT CARDS — ordre posé le 14/08/2026 : UTILITÉ DÉCROISSANTE, la carte de
-          fraîcheur restant en dernier (seule convention d'ordre de l'app, partagée
-          avec la vue liste). Il était auparavant cash → versé → investi, où le total
-          se trouvait au milieu et où l'ordre ne disait rien.
-          🔴 NE PAS LE RELIRE COMME UN CALCUL. `Investi + Cash` ne vaut `Versé` que
-          sans dividende, sans vente et sans retrait — la relation exacte est
-          `Investi + Cash = Versé + dividendes + plus-value réalisée − retraits`
-          (cf. `cashRemaining`, compute.js). L'égalité est DÉJÀ fausse dans une
-          enveloppe qui touche un dividende, donc un ordre qui suggérerait une
-          addition mentirait précisément là. C'est ce qui a fait écarter les deux
-          ordres « en équation » proposés à la conception.
-          ⚠️ ÉCART CONNU ET ACCEPTÉ : « Cash non investi » est ici en 2ᵉ position et
-          en 3ᵉ sur la vue liste. Arbitrage de l'utilisateur (14/08/2026) après avoir
-          vu les deux côte à côte : garder la carte la plus actionnable en haut vaut
-          mieux qu'une position identique d'une page à l'autre. **Ne pas « aligner »
-          les deux vues en croyant réparer un oubli.**
-          ⚠️ `fmt` sur les trois montants : le hero affiche « Investi » à 2 décimales
-          et le répète à l'identique ici. Une carte laissée à l'unité ferait cohabiter
-          deux précisions sur le même écran — et pour l'investi, sur le MÊME nombre. */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-card-icon income"><Icon name="trendUp" size={14} /></div>
-          <div className="stat-card-label">Investi</div>
-          <div className="stat-card-value num">{fmt(stats.totalInvested)} €</div>
-          <div className="stat-card-sub">{stats.sortedOperations.filter(o => o.type === 'purchase').length} achat(s)</div>
+      {/* MODERNISATION C' (15/11/2026) : « Investi » et « Cash non investi » sont dans la carte de tête ; restent deux
+          pastilles fines, « Versé » et « Màj » — celle-ci ouvre la mise à jour des valeurs. */}
+      <div className="pastilles-cc">
+        <div className="pastille-cc" title={`${stats.sortedOperations.filter(o => o.type === 'deposit').length} versement(s)`}>
+          <span className="pastille-cc-ico"><Icon name="arrowDown" size={13} /></span>
+          <span className="pastille-cc-lib">Versé</span>
+          <b className="num">{eur(stats.totalDeposited)}</b>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon tr"><Icon name="coin" size={14} /></div>
-          <div className="stat-card-label">Cash non investi</div>
-          <div className="stat-card-value num">{fmt(stats.cashRemaining)} €</div>
-          <div className="stat-card-sub">{stats.totalDeposited > 0 ? (stats.cashRemaining / stats.totalDeposited * 100).toFixed(2) : '0.00'} % du versé</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-icon income"><Icon name="arrowDown" size={14} /></div>
-          <div className="stat-card-label">Versé</div>
-          <div className="stat-card-value num">{fmt(stats.totalDeposited)} €</div>
-          <div className="stat-card-sub">{stats.sortedOperations.filter(o => o.type === 'deposit').length} versement(s)</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-icon expense"><Icon name="calendar" size={14} /></div>
-          <div className="stat-card-label">Dernière MaJ</div>
-          <div className="stat-card-value num">{data.currentValuesDate ? fmtDateNumeric(data.currentValuesDate) : '—'}</div>
-          <div className="stat-card-sub">{data.currentValuesDate ? 'Valorisations' : 'Pas encore valorisé'}</div>
-        </div>
+        <button type="button" className="pastille-cc pastille-cc-ouvre" onClick={() => setModal('values')} aria-label="Mettre à jour les valeurs">
+          <span className="pastille-cc-ico"><Icon name="calendar" size={13} /></span>
+          <span className="pastille-cc-lib">Màj</span>
+          <b className="num">{data.currentValuesDate ? fmtDateNumeric(data.currentValuesDate) : '—'}</b>
+          <span className="pastille-cc-chev" aria-hidden="true">›</span>
+        </button>
+      </div>
       </div>
 
       {/* SUPPORTS DÉTENUS */}
@@ -611,6 +499,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
             <span className="section-icon invest"><Icon name="list" size={14} /></span>
             Supports détenus
           </div>
+          <span className="section-aide">{stats.positions.length}</span>
         </div>
         <div>
           {sortByNumber(stats.positions, p => p.current).map(p => (
@@ -655,14 +544,14 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
 
       {/* MODALES */}
       {modal === 'add' && (
-        <Modal title="Nouvelle opération" onClose={() => setModal(null)}>
+        <Modal title="Nouvelle opération" icon="chart" subtitle={portfolio.name} onClose={() => setModal(null)}>
           <AddOperationForm showToast={showToast} data={data} onSubmit={async (newData) => {
             if (await handleUpdateData(newData)) { setModal(null); showToast('Opération ajoutée', 'success'); }
           }} />
         </Modal>
       )}
       {modal === 'values' && (
-        <Modal title="Mettre à jour les valeurs" dirty={valuesDirty}
+        <Modal title="Mettre à jour les valeurs" icon="calendar" subtitle={portfolio.name} dirty={valuesDirty}
           onClose={() => { setValuesDirty(false); setModal(null); }}>
           <UpdateValuesForm
             showToast={showToast}
@@ -689,7 +578,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         />
       )}
       {modal === 'history-ops' && (
-        <Modal title="Toutes les opérations" onClose={() => setModal(null)} size="lg">
+        <Modal title="Toutes les opérations" icon="chart" subtitle={portfolio.name} onClose={() => setModal(null)} size="lg">
           <HistoryOpsTable
             stats={stats}
             data={data}
@@ -706,7 +595,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         const opToEdit = data.operations.find(o => o.id === editingOpId);
         if (!opToEdit) { setEditingOpId(null); return null; }
         return (
-          <Modal title="Modifier l'opération" onClose={() => setEditingOpId(null)}>
+          <Modal title="Modifier l'opération" icon="chart" subtitle={portfolio.name} onClose={() => setEditingOpId(null)}>
             <AddOperationForm
               showToast={showToast}
               data={data}
@@ -745,7 +634,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         );
       })()}
       {modal === 'configure' && (
-        <Modal title="Réglages" dirty={configureDirty} onClose={closeConfigure} size="lg">
+        <Modal title="Réglages" icon="settings" subtitle={portfolio.name} dirty={configureDirty} onClose={closeConfigure} size="lg">
           <PortfolioConfigureForm
             showToast={showToast}
             data={data}
@@ -827,8 +716,8 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
           écran a mis du temps à éteindre. */}
       <div>
         <h3 className="settings-group-title">Versements</h3>
+        <div className="settings-groupe">
         <ModuleToggleRow
-          icon="percent"
           label="Calculer mes versements"
           hint="Ajoute au menu ⋯ un calcul du nombre de parts à acheter pour coller à tes cibles."
           enabled={!!draft.contributionPlanner}
@@ -838,6 +727,7 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
             if (onPersistData) onPersistData(neuf);
           }}
         />
+        </div>
       </div>
 
       <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
@@ -848,20 +738,11 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
           déjà en base. La phrase transforme le piège en information. */}
 
       {/* Zone de danger : suppression du portefeuille */}
-      <div style={{ height: 1, background: COLORS.border, margin: '6px 0 0' }} />
-      <div style={{ marginTop: 6, padding: 12, background: 'var(--danger-light)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger-fonce)' }}>Supprimer cette enveloppe</div>
-          <div style={{ fontSize: 12, color: 'var(--danger-fonce)', opacity: 0.85, marginTop: 2 }}>
-            Toutes les opérations seront perdues à jamais. Action irréversible.
-          </div>
-        </div>
-        <button
-          type="button"
-          className="btn"
-          onClick={onDelete}
-          style={{ background: 'var(--danger-fonce)', color: 'white', borderColor: 'var(--danger-fonce)', flexShrink: 0 }}
-        >
+      {/* Zone de suppression C' (maquette, 15/11/2026) : cadre au liseré rouge, titre, avertissement, bouton en dessous. */}
+      <div className="zone-danger">
+        <b>Supprimer cette enveloppe</b>
+        <small>Toutes les opérations seront perdues à jamais. Action irréversible.</small>
+        <button type="button" className="btn btn-danger" onClick={onDelete}>
           <Icon name="trash" size={14} /> Supprimer
         </button>
       </div>
@@ -875,7 +756,7 @@ function SupportRow({ position, lastDate }) {
   // v592 : cible de répartition (optionnelle) → icône cible grise + bulle
   // (survol desktop / tap mobile) affichant la cible et l'écart en points.
   const hasTarget = position.target != null && position.target !== '';
-  const targetTip = hasTarget ? `Cible ${fmt(position.target)} %` : '';
+  const targetTip = hasTarget ? `Cible ${fmt(position.target)} %` : '';
   // v593 : nom complet (nom exact) si la place le permet, nom court sinon —
   // décidé en CSS (media-query) : desktop + paysage = complet ; portrait = court.
   // 🔴 LE CALCUL A ÉTÉ RETIRÉ D'ICI le 11/08/2026 : c'était la troisième copie de
@@ -897,7 +778,7 @@ function SupportRow({ position, lastDate }) {
     <>
       <NomSupport etf={position} />
       <LibelleSupport etf={position} className="" prefixe=" — "
-        style={{ fontWeight: 400, color: COLORS.muted, fontSize: 11.5 }} />
+        style={{ fontWeight: 400, color: COLORS.muted, fontSize: 12 }} />
     </>
   );
   return (
@@ -905,8 +786,10 @@ function SupportRow({ position, lastDate }) {
       {/* ⚠️ L'initiale reste celle de `supportName` (ticker ou nom court), pas du
           nom principal affiché : elle doit rester stable et courte, et le nom
           complet commence souvent par le même mot. */}
-      <span className="support-icon" style={{ background: fondPastille(position.color || COLORS.muted), color: couleurIcone(position.color || COLORS.muted) }}>
-        {supportName(position).charAt(0)}
+      {/* Avatar VERT, la couleur de la rubrique, comme la maquette C' (15/11/2026, demande de l'utilisateur) : la couleur
+          propre du support ne sert plus qu'aux graphiques de répartition, où elle distingue les parts. */}
+      <span className="support-icon" style={{ background: fondPastille(MODULE_COLORS.investments), color: couleurIcone(MODULE_COLORS.investments) }}>
+        {initiales(position.ticker || supportName(position))}
       </span>
       <div className="support-main">
         <div className="support-name">
@@ -931,7 +814,7 @@ function SupportRow({ position, lastDate }) {
               ne sont comparés à rien — un raisonnement cas par cas que l'utilisateur a
               écarté au profit d'une règle globale, après un audit des 17 fichiers.
               Il n'y a plus AUCUN `toFixed(1)` dans le code. */}
-          {position.weight.toFixed(2)} %
+          {fmtPct(position.weight, { signe: false })}
           {hasTarget && <>{' '}<InfoTip iconName="target" label={targetTip} /></>}
           {lastDate ? ` · ${fmtDateNumeric(lastDate)}` : ''}
           {isDist && position.dividendsReceived > 0 && (
@@ -944,7 +827,7 @@ function SupportRow({ position, lastDate }) {
         <div className="support-gain num" style={{ color: isUp ? 'var(--success-fonce)' : 'var(--danger-fonce)' }}>
           {isUp ? '+' : ''}{fmt(position.gain)} €
           {position.purchased > 0 && (
-            <> · {isUp ? '+' : ''}{position.gainPct.toFixed(2)} %</>
+            <> · {fmtPct(position.gainPct)}</>
           )}
         </div>
       </div>
@@ -958,13 +841,14 @@ function SupportsAllocationCard({ stats, onHide }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
           <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 500 }}>ALLOCATION</div>
-          <h3 style={{ margin: '2px 0 0', fontSize: 16, fontWeight: 600 }}>Répartition par support</h3>
+          <h3 style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 700 }}>Répartition par support</h3>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={onHide} title="Masquer ce graphique">
           <Icon name="eyeOff" size={12} /> Masquer
         </button>
       </div>
       <div style={{ position: 'relative', minHeight: 220 }}>
+        <RedessinARotation>
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
             <Pie data={stats.positions} dataKey="current" nameKey="id" cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={3} stroke="none">
@@ -973,6 +857,7 @@ function SupportsAllocationCard({ stats, onHide }) {
             <Tooltip content={<CustomTooltip />} />
           </PieChart>
         </ResponsiveContainer>
+        </RedessinARotation>
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
           <div style={{ fontSize: 11, color: COLORS.muted }}>TOTAL</div>
           <div className="num" style={{ fontSize: 20, fontWeight: 600 }}>{fmtNoDec(stats.totalCurrent)} €</div>
@@ -989,7 +874,7 @@ function SupportsAllocationCard({ stats, onHide }) {
             <LibelleSupport etf={p} className="" style={{ color: COLORS.muted, fontSize: 12 }} />
             <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
               <span className="num" style={{ fontWeight: 600 }}>{fmt(p.current)} €</span>
-              <span className="num" style={{ color: COLORS.muted, fontSize: 12, minWidth: 50, textAlign: 'right' }}>{p.weight.toFixed(2)} %</span>
+              <span className="num" style={{ color: COLORS.muted, fontSize: 12, minWidth: 50, textAlign: 'right' }}>{fmtPct(p.weight, { signe: false })}</span>
             </span>
           </div>
         ))}
@@ -1009,23 +894,25 @@ function OperationsJournal({ stats, onShowAll, onAdd, onEdit, onDelete }) {
           <span className="section-icon invest"><Icon name="list" size={14} /></span>
           Opérations récentes
         </div>
-        {total > 0 && (
-          <button className="btn btn-secondary btn-sm" onClick={onShowAll}>Voir toutes ({total})</button>
-        )}
+        {/* Comme le compte courant (15/11/2026, demande de l'utilisateur) : « + Nouvelle » en haut à droite, « Voir toutes »
+            passe sous la liste. */}
+        <div className="ops-outils">
+          <button type="button" className="btn btn-accent ops-nouvelle" onClick={onAdd}><Icon name="plus" size={15} /> Nouvelle</button>
+        </div>
       </div>
       <div>
         {recent.map(op => {
           const d = getOpDisplay(op, nameOf);
           const isTransfer = op.isTransfer;
           return (
-            <div key={op.id} className="op-row" style={{ gridTemplateColumns: '24px 1fr auto 24px' }}>
+            <div key={op.id} className="op-row">
               <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
               <div className="op-main">
                 <span className="op-label">{d.label}</span>
                 <span className="op-date">{fmtDate(op.date)}</span>
               </div>
               <div className="num op-amount" style={{ color: d.amountColor }}>
-                {d.sign} {fmt(d.amount)}<span className="currency-muted"> €</span>{d.amountSuffix || ''}
+                {d.sign}{fmt(d.amount)}<span className="currency-muted"> €</span>{d.amountSuffix || ''}
               </div>
               {isTransfer ? (
                 <span style={{ fontSize: 11, color: 'var(--info-fonce)', textAlign: 'center' }} title="Virement interne">⇄</span>
@@ -1041,9 +928,11 @@ function OperationsJournal({ stats, onShowAll, onAdd, onEdit, onDelete }) {
           <EmptyState icon="list" title="Aucune opération" hint="Ajoute un versement ou un achat pour commencer." />
         )}
       </div>
-      <div className="section-footer">
-        <button className="btn-add" onClick={onAdd}>+ Ajouter une opération</button>
-      </div>
+      {total > 0 && (
+        <div className="section-footer">
+          <button className="btn-add" onClick={onShowAll}>Voir toutes les opérations ({total})</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1258,34 +1147,7 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
   return (
     <form noValidate onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Sélecteur de type — grille 2 cols */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {types.map(t => {
-          const active = opType === t.id;
-          return (
-            <button
-              key={t.id} type="button" onClick={() => setOpType(t.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', textAlign: 'left',
-                border: `1px solid ${active ? t.color : COLORS.border}`,
-                borderRadius: 10,
-                background: active ? t.bg : 'white',
-                cursor: 'pointer', transition: 'all 0.15s',
-              }}
-            >
-              <span style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: t.bg, color: t.color,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}><Icon name={t.icon} size={16} /></span>
-              <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: active ? t.color : COLORS.text, lineHeight: 1.2 }}>{t.label}</span>
-                <span style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>{t.desc}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <ChoixType types={types} value={opType} onChange={setOpType} />
 
       {/* Date — toujours */}
       <div><label className="label">Date</label><DateInputPicker value={date} onChange={setDate} /></div>
@@ -1293,7 +1155,7 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
       {/* Support — pour tous sauf deposit */}
       {needsEtf && (
         <div>
-          <label className="label">Support</label>
+          <label className="label">Support<AideChamp>{opType === 'dividend' && 'Seuls les supports configurés comme distribuants apparaissent ici.'}</AideChamp></label>
           <select value={etf} onChange={e => setEtf(e.target.value)} className="input" required>
             {/* 🔴 Le nom COMPLET après le tiret, plus le nom court — demande de
                 l'utilisateur du 11/08/2026 : c'est ici qu'on choisit un support,
@@ -1312,36 +1174,30 @@ function AddOperationForm({ data, initial, onSubmit, onDelete, showToast }) {
               </option>
             ))}
           </select>
-          {opType === 'dividend' && (
-            <div className="field-hint">Seuls les supports configurés comme distribuants apparaissent ici.</div>
-          )}
         </div>
       )}
 
       {/* Montant — pour deposit / purchase / dividend / sale */}
       {needsAmount && (
         <div>
-          <label className="label">{amountLabel}</label>
-          <AmountInput value={amount} onChange={(n) => setAmount(n)} className="input" placeholder="0.00" />
-          {opType === 'dividend' && <div className="field-hint">Le cash sera crédité sur le compte (sans gonfler le "versé").</div>}
+          <label className="label">{amountLabel.replace(' (€)', '')}<AideChamp>{opType === 'dividend' && 'Le cash sera crédité sur le compte (sans gonfler le « versé »).'}</AideChamp></label>
+          <div className="unite-eur"><AmountInput value={amount} onChange={(n) => setAmount(n)} className="input" placeholder="0.00" /></div>
         </div>
       )}
 
       {/* Coût d'acquisition vendu — uniquement pour sale */}
       {opType === 'sale' && (
         <div>
-          <label className="label">Coût d'acquisition de la part vendue (€)</label>
-          <AmountInput value={costBasis} onChange={(n) => setCostBasis(n)} className="input" placeholder="0.00" />
-          <div className="field-hint">Combien tu avais investi pour la part que tu revends. La différence avec le montant récupéré devient ton gain réalisé.</div>
+          <label className="label">Coût d'acquisition de la part vendue<AideChamp>Combien tu avais investi pour la part que tu revends. La différence avec le montant récupéré devient ton gain réalisé.</AideChamp></label>
+          <div className="unite-eur"><AmountInput value={costBasis} onChange={(n) => setCostBasis(n)} className="input" placeholder="0.00" /></div>
         </div>
       )}
 
       {/* Valeur de marché — uniquement pour gift */}
       {opType === 'gift' && (
         <div>
-          <label className="label">Valeur de marché à la réception (€)</label>
-          <AmountInput value={marketValue} onChange={(n) => setMarketValue(n)} className="input" placeholder="0.00" />
-          <div className="field-hint">Stockée pour l'historique. Le coût d'acquisition reste à 0 € (tu n'as rien déboursé).</div>
+          <label className="label">Valeur de marché à la réception<AideChamp>Stockée pour l'historique. Le coût d'acquisition reste à 0 € (tu n'as rien déboursé).</AideChamp></label>
+          <div className="unite-eur"><AmountInput value={marketValue} onChange={(n) => setMarketValue(n)} className="input" placeholder="0.00" /></div>
         </div>
       )}
 
@@ -1529,7 +1385,8 @@ function UpdateAllValuesModal({ ctx, onClose }) {
     <div className="maj-actions">
       {/* ⚠️ Delta AVANT le montant, comme sur les lignes et les sous-totaux depuis le
           13/08/2026 : « pour que les deltas soient toujours avant » (utilisateur). */}
-      <div className="maj-total"><span>Total général</span>
+      {/* Le total des fenêtres (maquette C' : .total-fen), delta avant le montant. */}
+      <div className="total-fen"><span>Total général</span>
         <b className="num">{modifiees.length > 0 && <DeltaMontant valeur={deltaGeneral} />}{fmt(totalGeneral)} €</b>
       </div>
       {/* Note PERMANENTE — indépendante de l'état du bouton, donc sans mouvement.
@@ -1550,9 +1407,8 @@ function UpdateAllValuesModal({ ctx, onClose }) {
   return (
     // dirty CONTRÔLÉ : il retombe à faux si l'on retape la valeur d'origine,
     // ce que l'heuristique générique de Modal ne sait pas faire.
-    <Modal title="Mettre à jour les valeurs" size="lg" dirty={modifiees.length > 0} onClose={onClose}>
+    <Modal title="Mettre à jour les valeurs" icon="calendar" subtitle="Investissements" size="lg" dirty={modifiees.length > 0} onClose={onClose}>
       {ordonnees.map((p, i) => {
-        const couleur = PORTFOLIO_PALETTE[i % PORTFOLIO_PALETTE.length];
         const etfs = (p.data && p.data.etfs) || [];
         const ouverte = !!ouvertes[p.id];
         const modifiee = estModifiee(p.id);
@@ -1571,7 +1427,6 @@ function UpdateAllValuesModal({ ctx, onClose }) {
             <button type="button" className="maj-env-head" aria-expanded={ouverte}
               onClick={() => setOuvertes(o => ({ ...o, [p.id]: !o[p.id] }))}>
               <span className="maj-env-id" style={{ flex: 1 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: couleur, flex: 'none' }} />
                 <span className="maj-env-nom">{p.name}</span>
               </span>
               {/* Repliée, la ligne porte le montant ET son delta — comme le
@@ -1580,7 +1435,9 @@ function UpdateAllValuesModal({ ctx, onClose }) {
                   09/08/2026 : le delta vivait sur la ligne de meta supprimée.
                   La carte n'ayant plus qu'un étage, l'ensemble est centré en
                   hauteur sans rien demander. */}
-              {!ouverte && (
+              {/* Maquette C' (fenValeurs, 15/11/2026) : le sous-total vit TOUJOURS en tête, repliée comme dépliée —
+                  il ne change plus de place (règle de l'utilisateur du 09/08/2026), et le pied « Sous-total » disparaît. */}
+              {etfs.length > 0 && (
                 <span className="maj-env-montant num">
                   <span>{fmt(sousTotal(p))} €</span>
                   {deltaNode}
@@ -1593,9 +1450,12 @@ function UpdateAllValuesModal({ ctx, onClose }) {
                 {etfs.map(e => (
                   <div key={e.id} className="maj-sup">
                     <span className="maj-sup-lbl">
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
-                      <NomSupport etf={e} Balise="b" />
-                      <LibelleSupport etf={e} prefixe=" — " />
+                      {/* Maquette C' : pas de pastille de couleur sur la ligne du support ; le nom sur une ligne, le libellé
+                          secondaire DESSOUS (ils ne se disputent plus la largeur). */}
+                      <span className="maj-sup-t">
+                        <NomSupport etf={e} Balise="b" />
+                        <LibelleSupport etf={e} />
+                      </span>
                       <DeltaMontant valeur={deltaDuSupport(p, e)} />
                     </span>
                     <input className="input num" inputMode="decimal" enterKeyHint="next"
@@ -1605,12 +1465,6 @@ function UpdateAllValuesModal({ ctx, onClose }) {
                   </div>
                 ))}
                 {!etfs.length && <div className="maj-vide">Aucun support</div>}
-                {!!etfs.length && (
-                  <div className="maj-sous-total">
-                    <span>Sous-total</span>
-                    <b className="num">{deltaNode}{fmt(sousTotal(p))} €</b>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1690,9 +1544,10 @@ function UpdateValuesForm({ data, onSubmit, onDirtyChange, showToast }) {
         {(data.etfs || []).map(e => (
           <div key={e.id} className="maj-sup">
             <span className="maj-sup-lbl">
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: e.color, flex: 'none' }} />
-              <NomSupport etf={e} Balise="b" />
-              <LibelleSupport etf={e} prefixe=" — " />
+              <span className="maj-sup-t">
+                <NomSupport etf={e} Balise="b" />
+                <LibelleSupport etf={e} />
+              </span>
               <DeltaMontant valeur={deltaDuSupportSeul(e)} />
             </span>
             <input
@@ -1760,7 +1615,7 @@ function getOpDisplay(op, nameOf) {
     case 'gift':
       return {
         iconName: 'gift', bg: '#fdf2f8', color: couleurIcone('#ec4899'),
-        label: `Réception gratuite ${etfLbl}`,
+        label: `Réception ${etfLbl}`, // « Réception » seul, comme « Achat » (demande de l'utilisateur, 15/11/2026)
         amount: op.marketValue || 0, sign: '', amountColor: 'var(--rose-fonce)',
         amountSuffix: ' (valeur)', isInformative: true,
       };
@@ -1800,14 +1655,14 @@ function HistoryOpsTable({ stats, data, onEdit, onDelete }) {
         const d = getOpDisplay(op, nameOf);
         const isTransfer = op.isTransfer;
         return (
-          <div key={op.id} className="op-row" style={{ gridTemplateColumns: '24px 1fr auto 24px' }}>
+          <div key={op.id} className="op-row">
             <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
             <div className="op-main">
               <span className="op-label">{d.label}</span>
               <span className="op-date">{fmtDate(op.date)}</span>
             </div>
             <div className="num op-amount" style={{ color: d.amountColor }}>
-              {d.sign} {fmt(d.amount)} €{d.amountSuffix || ''}
+              {d.sign}{fmt(d.amount)} €{d.amountSuffix || ''}
             </div>
             {/* Action : crayon pour modifier (la suppression est dans la modale) ;
                 ⇄ pour les virements internes auto (non éditables). */}
@@ -2075,6 +1930,8 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
     setVersement(propre);
   };
 
+  const [refusPrix, setRefusPrix] = useState(false); // après un refus « aucun prix » : les champs vides en rouge
+
   // ---- Étape 1 → 2 : on ÉCRIT les valeurs, puis on répartit -----------------
   const validerLesValeurs = async () => {
     if (busy) return;
@@ -2083,6 +1940,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
     // Refus DUR seulement s'il n'y a rien à répartir : sans un seul prix, il n'y
     // a pas de plan possible.
     if (sansPrix.length === avecCible.length) {
+      setRefusPrix(true); // les champs de prix vides passent en rouge (règle des erreurs, DEV v1208)
       return refuser(showToast, REFUS.prixObligatoire);
     }
     // Le passage à l'étape 2, commun aux deux voies (avec ou sans écriture).
@@ -2197,7 +2055,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
   const coche = valeursAJour ? <Icon name="check" size={13} /> : null;
 
   return (
-    <Modal title="Calculer un versement" size="lg" dirty={aSaisi} onClose={onClose}>
+    <Modal title="Calculer un versement" icon="chart" size="lg" dirty={aSaisi} onClose={onClose}>
       {rienASaisir && (
         <EmptyState icon="percent" title="Aucun support à répartir"
           hint="Ajoute un support et fixe sa cible dans les Réglages de l'enveloppe." />
@@ -2241,7 +2099,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
             <>
               {cibleTotale !== 100 && (
                 <div className="cp-cibles">
-                  Cibles à {fmt(cibleTotale)} % au total : {fmt(Math.min(100, cibleTotale))} % de l'assiette
+                  Cibles à {fmt(cibleTotale)} % au total : {fmt(Math.min(100, cibleTotale))} % de l'assiette
                   {' '}sera investie, le reste demeure en cash.
                 </div>
               )}
@@ -2253,7 +2111,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
                   {/* En portrait téléphone, l'intitulé court garde l'unité (26/10/2026) :
                       « Valeur (€) » et « Prix (€) » tiennent sur une ligne, les longs non. */}
                   <span><span className="cp-th-long">Valeur actuelle (€)</span><span className="cp-th-court">Valeur (€)</span></span>
-                  <span><span className="cp-th-long">Prix d'une part (€)</span><span className="cp-th-court">Prix (€)</span></span>
+                  <span><span className="cp-th-long">Prix d'une part (€)</span><span className="cp-th-court">Prix (€)</span><AideChamp>Le prix d'une part est demandé pour chaque support qui porte une cible non nulle. La valorisation et sa date ne sont enregistrées que si une valeur a changé.</AideChamp></span>
                 </div>
                 {etfs.map((e) => {
                   const saisie = valeurSaisie(valeurAffichee(e));
@@ -2262,7 +2120,8 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
                   return (
                     <div key={e.id} className="cp-tableau-ligne">
                       <span className="cp-lbl">
-                        <span className="cp-pastille" style={{ background: e.color || COLORS.accent }} />
+                        {/* Plus de point de couleur à l'étape 1 (15/11/2026, décision de l'utilisateur) : on y saisit des
+                            valeurs, le point n'y servait pas. L'étape 2 garde les siens. */}
                         <b>{supportName(e)}</b>
                         <span className="cp-lbl-sec"><LibelleSupport etf={e} prefixe=" — " /></span>
                         {/* Le delta se lit SUR LA LIGNE du support, pas seulement
@@ -2273,7 +2132,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
                         onFocus={selectionnerAuFocus}
                         onChange={(ev) => setValeurs((v) => ({ ...v, [e.id]: nettoyerMontant(ev.target.value) }))} />
                       {aUneCible(e) ? (
-                        <input type="text" inputMode="decimal" className="input num" value={prixAffiche(e)}
+                        <input type="text" inputMode="decimal" className={`input num${refusPrix && (valeurSaisie(prixAffiche(e)) || 0) <= 0 ? ' input-erreur' : ''}`} value={prixAffiche(e)}
                           onFocus={selectionnerAuFocus}
                           onChange={(ev) => setPrix((p) => ({ ...p, [e.id]: nettoyerMontant(ev.target.value) }))} />
                       ) : (
@@ -2310,10 +2169,6 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
                 </div>
               ))}
 
-              <div className="cp-note">
-                Le prix d'une part est demandé pour chaque support qui porte une cible non nulle.
-                La valorisation et sa date ne sont enregistrées que si une valeur a changé.
-              </div>
               <button type="button" className="btn btn-accent btn-lg" disabled={busy} onClick={validerLesValeurs}>
                 {busy ? 'Enregistrement…' : 'Valider et continuer'}
               </button>
@@ -2451,7 +2306,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
                           ⚠️ Le `title` garde le mot accessible au survol : l'icône est
                           parlante, mais elle n'est pas du texte. */}
                       <span className="cp-cible" title="Cible de répartition">
-                        <Icon name="target" size={12} />{fmt(step.target)} %
+                        <Icon name="target" size={12} />{fmt(step.target)} %
                       </span>
                       {/* 🔴 LE PRIX AFFICHÉ EST LE PRIX DÉDUIT dès qu'un montant est
                           forcé — « si je modifie le montant final, c'est que je viens
@@ -2505,7 +2360,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
                       </div>
                       <div className="cp-bilan">
                         <div className="cp-bilan-pct num">
-                          {fmt(step.pctAfter)} %
+                          {fmt(step.pctAfter)} %
                           {/* ⚠️ VERT au-dessus de la cible, AMBRE en dessous — ce
                               n'est PAS la convention des montants signés de l'app
                               (vert = hausse) : ici on ne juge pas une variation,
@@ -2590,7 +2445,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
                     </div>
                   ) : plan.complete && plan.reserve > 0 ? (
                     <div className="cp-etat cp-etat--vert">
-                      {fmt(Math.min(100, cibleTotale))} % de l'assiette investie, comme tes cibles le demandent —
+                      {fmt(Math.min(100, cibleTotale))} % de l'assiette investie, comme tes cibles le demandent —
                       {' '}<b className="num">{fmt(plan.left)} €</b> restent en cash.
                     </div>
                   ) : plan.complete ? (
