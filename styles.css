@@ -1766,6 +1766,9 @@ input[type="month"] {
 .carte-rub--physical { color: #2b1d00; }
 .carte-rub--physical .carte-rub-nom i { background: rgba(43,29,0,0.10); }
 .evo-carte { padding: 14px 14px 10px !important; }
+/* Les étiquettes du premier et du dernier mois sont CENTRÉES sur leur point (DEV v1274) : elles débordent de quelques px du
+   graphique, dans la marge de la carte (14 px) — le SVG ne doit pas les couper. */
+.evo-carte .recharts-surface { overflow: visible; }
 .evo-sous { color: var(--text-muted); font-size: 13px; font-weight: 400; margin: 0 0 4px; }
 .evo-sous b { color: var(--text); font-weight: 600; }
 @media (min-width: 900px) {

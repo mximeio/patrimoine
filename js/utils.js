@@ -221,6 +221,47 @@ const monthKey = (year, monthIdx) => `${year}-${String(monthIdx + 1).padStart(2,
 const parseMonth = (key) => { const [y, m] = key.split('-').map(Number); return { year: y, monthIdx: m - 1 }; };
 const monthLabel = (key) => { const { year, monthIdx } = parseMonth(key); return `${FRENCH_MONTHS[monthIdx]} ${year}`; };
 const monthLabelShort = (key) => { const { year, monthIdx } = parseMonth(key); return `${FRENCH_MONTHS_SHORT[monthIdx]} ${String(year).slice(2)}`; };
+// L'AXE DES MOIS DU GRAPHIQUE « ÉVOLUTION » (DEV v1274, échelle décidée par l'utilisateur, _maquettes/Mockup-Axe-Evolution).
+// Avant, Recharts collait la 1re et la dernière étiquette aux bords et retirait celles qui les chevauchaient : des trous
+// irréguliers (en PROD, juin et octobre manquaient sur 7 mois). L'échelle, du plus détaillé au plus espacé — on prend le premier
+// palier dont TOUTES les étiquettes tiennent (centrées sur leur point, `ecartMin` px au moins entre deux) :
+//   tous les mois · un sur 2 · un sur 3 · un sur 4 · un sur 6 · chaque année (janvier) · une sur 2 · une sur 5 · une sur 10…
+// Ancrée sur le CALENDRIER : « un sur k » = mois dont le rang continu (an × 12 + mois) est multiple de k — pour 2, 3, 4, 6
+// (diviseurs de 12), toujours les mêmes mois de l'année (janv., mars, mai… ; les trimestres ; janv., mai, sept. ; janv., juil.) ;
+// les années, multiples de k (2028, 2030 ; 2030, 2035). Les écarts sont donc toujours égaux, et RIEN NE BOUGE quand un mois
+// s'ajoute. Prix assumé : le premier et le dernier mois ne sont écrits que s'ils tombent sur un mois étiqueté (la bulle donne
+// toujours le mois exact). Aux paliers des mois, l'année (« 26 ») s'écrit en petit sous la 1re étiquette et sous chaque janvier.
+// Pure : `mesurer(texte)` rend la largeur en px (canvas dans l'app, doublure dans les tests). Rend { palier, etiquettes:
+// [{ i, texte, an }] } — `i` = rang du point dans `keys` (« AAAA-MM »).
+const PALIERS_AXE_MOIS = [1, 2, 3, 4, 6];
+const PALIERS_AXE_ANNEES = [1, 2, 5, 10, 20, 50];
+function etiquettesAxeMois(keys, largeur, mesurer, ecartMin = 10) {
+  const n = keys.length;
+  if (!n) return { palier: 'aucun', etiquettes: [] };
+  const pas = n > 1 ? largeur / (n - 1) : 0;
+  const pts = keys.map((k, i) => { const { year, monthIdx } = parseMonth(k); return { i, year, m: monthIdx, rang: year * 12 + monthIdx }; });
+  const tient = (choix) => {
+    for (let j = 0; j < choix.length - 1; j++) {
+      const a = choix[j], b = choix[j + 1];
+      if ((b.i * pas - mesurer(b.texte) / 2) - (a.i * pas + mesurer(a.texte) / 2) < ecartMin) return false;
+    }
+    return true;
+  };
+  for (const k of PALIERS_AXE_MOIS) {
+    const choix = pts.filter(p => p.rang % k === 0).map(p => ({ i: p.i, texte: FRENCH_MONTHS_SHORT[p.m], an: null, m: p.m, year: p.year }));
+    if (!choix.length || !tient(choix)) continue;
+    choix.forEach((e, j) => { if (j === 0 || e.m === 0) e.an = String(e.year).slice(2); delete e.m; delete e.year; });
+    return { palier: k === 1 ? 'mois' : `mois/${k}`, etiquettes: choix };
+  }
+  let dernier = null;
+  for (const k of PALIERS_AXE_ANNEES) {
+    const choix = pts.filter(p => p.m === 0 && p.year % k === 0).map(p => ({ i: p.i, texte: String(p.year), an: null }));
+    dernier = { palier: `annees/${k}`, etiquettes: choix };
+    if (tient(choix)) return dernier;
+  }
+  return dernier;
+}
+
 // « de Juin 2026 », mais « d'Avril 2026 » : l'élision devant voyelle. Seuls
 // Avril, Août et Octobre sont concernés — d'où le test sur la 1ʳᵉ lettre
 // plutôt qu'une liste, qui se périmerait à la moindre retouche des libellés.

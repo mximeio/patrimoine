@@ -289,8 +289,37 @@ function PatrimoineEvolutionChart({ data, enabled, profile }) {
 // La courbe du TOTAL en gris ardoise, la couleur de la carte « Patrimoine total » (15/11/2026, décision de l'utilisateur) :
 // en indigo, elle se lisait comme celle du compte courant, dont la carte est juste au-dessus.
 const COURBE_TOTAL = '#2a2f4a';
+// La largeur d'un texte de l'axe, mesurée au canvas dans la police de l'app (11 px) — pour `etiquettesAxeMois` (utils.js).
+let CANVAS_AXE = null;
+function mesurerTexteAxe(texte) {
+  if (!CANVAS_AXE) {
+    CANVAS_AXE = document.createElement('canvas').getContext('2d');
+    CANVAS_AXE.font = `11px ${getComputedStyle(document.body).fontFamily}`;
+  }
+  return CANVAS_AXE.measureText(texte).width;
+}
+// L'étiquette d'un mois : le nom, et l'année en petit dessous quand l'échelle la porte (1re étiquette, janvier).
+function TickAxeMois({ x, y, payload, parLibelle }) {
+  const e = parLibelle && parLibelle.get(payload.value);
+  if (!e) return null;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text dy={12} textAnchor="middle" fontSize={11} fill={COLORS.muted}>{e.texte}</text>
+      {e.an && <text dy={25} textAnchor="middle" fontSize={10} fill={COLORS.muted}>{e.an}</text>}
+    </g>
+  );
+}
 function EvolutionAiresChart({ data, categories, width, height, style }) {
   const duree = useDureeAnimationGraphique();
+  // L'axe des mois : l'échelle de `etiquettesAxeMois` (utils.js), recalculée à chaque largeur et à chaque période.
+  const axe = useMemo(() => {
+    if (!width || !data || data.length < 2) return null;
+    // 12 px visés entre deux noms : le texte dessiné par le SVG est un peu plus large que la mesure du canvas (9 px relevés pour
+    // 10 visés, DEV v1274).
+    const r = etiquettesAxeMois(data.map(d => d.monthKey), width, mesurerTexteAxe, 12);
+    const parLibelle = new Map(r.etiquettes.map(e => [data[e.i].label, e]));
+    return { ticks: r.etiquettes.map(e => data[e.i].label), parLibelle, avecAn: r.etiquettes.some(e => e.an) };
+  }, [data, width]);
   return (
     <AreaChart width={width} height={height} style={style} data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
       <defs>
@@ -299,7 +328,9 @@ function EvolutionAiresChart({ data, categories, width, height, style }) {
           <stop offset="1" stopColor={COURBE_TOTAL} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />
+      {axe
+        ? <XAxis dataKey="label" ticks={axe.ticks} interval={0} tick={<TickAxeMois parLibelle={axe.parLibelle} />} tickLine={false} axisLine={false} height={axe.avecAn ? 34 : 22} />
+        : <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />}
       <YAxis hide domain={['dataMin', 'dataMax']} />
       <Tooltip content={<EvolutionTooltip categories={categories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
       <Area type="monotone" dataKey="total" stroke={COURBE_TOTAL} strokeWidth={2.5} fill="url(#evo-fond)"
