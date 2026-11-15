@@ -685,7 +685,7 @@ function ChargesModal({ ctx, onClose }) {
   ];
 
   return (
-    <Modal title="Répartition des charges" icon="receipt" subtitle="Compte partagé" size="xl" onClose={onClose}>
+    <Modal liste title="Répartition des charges" icon="receipt" subtitle="Compte partagé" size="xl" onClose={onClose}>
       {/* Barre d'onglets : rail segmented des scénarios (défilant, pastille
           glissante) + « + » (action, hors rail) + « Comparer » épinglé à
           droite — TOUJOURS visible, icône + texte, même sur mobile. */}

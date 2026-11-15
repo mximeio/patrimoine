@@ -3166,7 +3166,17 @@ button.stat-card {
      flottants partagent la même ligne d'appui — l'ancien calage
      (8px + safe-area ≈ 42px) laissait la sheet 12px plus haute que la
      barre depuis le placement « Instagram » (~30px). */
-  bottom: var(--ligne-appui);
+  /* FORME C (16/11/2026, _maquettes/Mockup-Feuille-Bas, choix de l'utilisateur, d'après Spotify) : posée à 8 px des TROIS
+     bords (elle descend sous la ligne d'appui de la barre), coins du haut --r-contenant, coins du BAS concentriques à ceux
+     de l'écran (rayon de l'écran − 8). Le navigateur ne donne pas ce rayon : on le déduit de la marge du bas de l'iPhone —
+     34 px sur un iPhone à écran arrondi → 54 px (calé sur l'iPhone 17 Pro Max de l'utilisateur, coins ≈ 62 ; un peu plus
+     rond que l'écran sur un iPhone aux coins de 55) ; 0 sur un écran carré ou un ordinateur → 18 (coins ordinaires).
+     Seule exception à la règle 12 / 18 : ce qui touche le bord de l'écran suit la forme de l'écran. */
+  --r-feuille-bas: clamp(var(--r-contenant), calc(env(safe-area-inset-bottom, 0px) * 1.6), 54px);
+  /* Coins du HAUT calqués sur Spotify (mesurés sur la capture de l'utilisateur : 34 pt en haut, 54 en bas, 8 du bord) ;
+     même déduction : 34 sur un iPhone à écran arrondi, 18 ailleurs. */
+  --r-feuille-haut: clamp(var(--r-contenant), env(safe-area-inset-bottom, 0px), 34px);
+  bottom: 8px;
   z-index: 61;
   /* Tout en BLANC opaque, cartes délimitées par le liseré var(--border) —
      c'est le langage des cards partout ailleurs dans l'app (stat-cards,
@@ -3174,9 +3184,10 @@ button.stat-card {
      backdrop assombri, le verre n'y apporterait rien. */
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-contenant);
+  border-radius: var(--r-feuille-haut) var(--r-feuille-haut) var(--r-feuille-bas) var(--r-feuille-bas);
   box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.2);
-  padding: 8px 16px 16px;
+  /* le bas du contenu reste au-dessus de la barre d'accueil de l'iPhone (la feuille descend jusqu'à 8 px du bord) */
+  padding: 8px 16px max(16px, var(--ligne-appui));
   animation: sheetUp 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sheet-handle {
@@ -4427,6 +4438,86 @@ button.stat-card {
   html.pwa-standalone .modal-header { padding: 14px 16px; }
 }
 
+/* La poignée n'existe qu'au téléphone en portrait (le composant ne la rend pas ailleurs) ; filet si elle restait affichée. */
+.feuille-poignee { display: none; }
+
+/* === FENÊTRES EN FEUILLE DU BAS — lot 2 (16/11/2026, choix de l'utilisateur, fiche du BACKLOG et _maquettes/Mockup-Fenetres-Feuille)
+   Au téléphone en PORTRAIT, une fenêtre COURTE (un formulaire : `Modal` sans `longue`) n'est plus une carte centrée : elle se pose
+   en feuille flottante en bas, à 8 px des bords, comme la feuille « ⋯ » (forme C) — coins du haut 34 et du bas 54 sur un iPhone à
+   écran arrondi (déduits de la zone sûre du bas : le navigateur ne donne pas le rayon de l'écran), 18 ailleurs. Elle prend la
+   hauteur de son contenu et ne monte jamais sous la barre d'état ; au-delà, son contenu défile dedans.
+   BOUTONS — B4 coins de 12 (tranché) : la rangée du bouton principal (et de la poubelle) à --marge-boutons du bord de la feuille,
+   dessous ET sur les côtés — 26 px sur un iPhone à barre d'accueil (zone sûre 34 − les 8 de la feuille), 16 ailleurs. Les champs
+   restent à 16 ; les boutons gardent leurs coins de 12.
+   PLEINE HAUTEUR (`modal-overlay--pleine`) : la forme d'une feuille agrandie par sa poignée (`--grande`) ; `Modal pleine` l'impose
+   d'emblée, mais plus aucune fenêtre ne le fait depuis la DEV v1256 (« tout à 60 % », choix de l'utilisateur). La fenêtre monte jusque sous la barre d'état (6 px
+   sous elle), se colle aux bords et au bas, seuls ses coins du haut s'arrondissent ; son contenu finit au-dessus de la barre
+   d'accueil. Toutes les autres, listes comprises, sont des feuilles flottantes qui grandissent avec leur contenu.
+   Paysage et ordinateur : inchangés. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .modal-overlay.modal-overlay--feuille {
+    padding: max(14px, env(safe-area-inset-top, 0px)) 8px 8px;
+    align-items: flex-end;
+    /* Clavier ouvert : la feuille ne le suit PAS (option 1, DEV v1273) — iOS fait glisser tout l'écran, sans saut. La version
+       « logée au-dessus du clavier » (v1268-v1272) sautait au changement de champ : cf. Modal (ui.js) et le CHANGELOG. */
+  }
+  .modal-overlay--feuille .modal {
+    --r-feuille-haut: clamp(var(--r-contenant), env(safe-area-inset-bottom, 0px), 34px);
+    --r-feuille-bas: clamp(var(--r-contenant), calc(env(safe-area-inset-bottom, 0px) * 1.6), 54px);
+    --marge-boutons: max(16px, calc(env(safe-area-inset-bottom, 0px) - 8px));
+    border-radius: var(--r-feuille-haut) var(--r-feuille-haut) var(--r-feuille-bas) var(--r-feuille-bas);
+    max-height: calc(100dvh - max(14px, env(safe-area-inset-top, 0px)) - 8px);
+    animation: sheetUp 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .modal-overlay--feuille .modal-body { padding-bottom: var(--marge-boutons); transition: padding-bottom 0.2s ease; }
+  /* CLAVIER OUVERT (DEV v1267) : iOS remonte la feuille au-dessus du clavier — ses coins du bas passent à 34 comme ceux du haut,
+     et les boutons du bas à 16 px, alignés sur les champs ; clavier fermé, retour à 54 et 26. Classe posée par `Modal`. */
+  .modal-overlay--feuille .modal { transition: border-radius 0.2s ease; }
+  .modal-overlay--feuille.modal-overlay--clavier .modal { border-radius: var(--r-feuille-haut); --marge-boutons: 16px; }
+  .modal-overlay--feuille .modal-body .form-actions { transition: margin 0.2s ease; }
+  .modal-overlay.modal-overlay--pleine {
+    padding: calc(max(14px, env(safe-area-inset-top, 0px)) + 6px) 0 0;
+    align-items: stretch;
+  }
+  .modal-overlay--pleine .modal {
+    --r-feuille-haut: clamp(var(--r-contenant), env(safe-area-inset-bottom, 0px), 34px);
+    border-radius: var(--r-feuille-haut) var(--r-feuille-haut) 0 0;
+    height: auto; max-height: none;
+    animation: sheetUp 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .modal-overlay--pleine .modal-body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+  /* La POIGNÉE (lot 4) : visible seulement quand le contenu dépasse la feuille ; touchée ou tirée, elle agrandit ou réduit,
+     jamais ne ferme. Zone de toucher élargie sans déplacer le dessin. L'en-tête sert aussi de prise (touch-action: none). */
+  .feuille-poignee { display: block; flex: none; position: relative; width: 40px; height: 5px; margin: 9px auto 0; padding: 0;
+    border: 0; border-radius: 3px; background: var(--border-strong); cursor: grab; touch-action: none; }
+  .feuille-poignee::before { content: ""; position: absolute; inset: -12px -40px; }
+  .modal-overlay .feuille-poignee + .modal-header { touch-action: none; }
+  /* LA RECHERCHE — forme A (DEV v1262, _maquettes/Mockup-Recherche-Feuille) : en haut, sous la barre d'état, 8 px des bords,
+     coins des feuilles ; elle ne descend jamais sous le clavier. L'overlay prend la zone VISIBLE (`--vv-haut` / `--vv-h` / `--vv-ecart`, posées
+     par `SearchModal` d'après `visualViewport`) : clavier ouvert, la fenêtre s'arrête 8 px au-dessus de sa barre ; clavier masqué,
+     elle peut aller jusqu'à 8 px du bas. Coins de 34 à l'ouverture, avec le clavier ; quand le clavier S'EN VA, ceux du bas
+     passent à 54, comme une feuille en grand (`--sans-clavier`, posée par `SearchModal` seulement après avoir vu le clavier
+     ouvert : sinon l'instant où il monte faisait changer le coin sous les yeux — DEV v1263-v1264). */
+  .search-overlay {
+    top: var(--vv-haut, 0px); bottom: auto; height: var(--vv-h, 100dvh);
+    padding: max(14px, env(safe-area-inset-top, 0px)) 8px calc(8px + var(--vv-ecart, 0px));
+  }
+  .search-modal {
+    --r-feuille-haut: clamp(var(--r-contenant), env(safe-area-inset-bottom, 0px), 34px);
+    --r-feuille-bas: clamp(var(--r-contenant), calc(env(safe-area-inset-bottom, 0px) * 1.6), 54px);
+    max-width: none; max-height: 100%;
+    border-radius: var(--r-feuille-haut);
+  }
+  .search-overlay--sans-clavier .search-modal {
+    border-radius: var(--r-feuille-haut) var(--r-feuille-haut) var(--r-feuille-bas) var(--r-feuille-bas);
+  }
+  .modal-overlay--feuille .modal-body .form-actions,
+  .modal-overlay--feuille .modal-body .btn.btn-lg:not(.form-actions .btn) {
+    margin-left: calc(var(--marge-boutons) - 16px);
+    margin-right: calc(var(--marge-boutons) - 16px);
+  }
+}
+
 /* ============================================================
    iOS 27, PWA standalone, portrait : titre flou en haut de l'écran
    ------------------------------------------------------------
@@ -4565,7 +4656,8 @@ button.stat-card {
   /* Bottom sheet : recadrée en largeur (pleine largeur = absurde en paysage).
      Son bas suit --ligne-appui comme la barre : plus large (430 contre 380) et
      plus haute, elle la recouvre entièrement, comme en portrait. */
-  .bottom-sheet { left: 0; right: 0; margin: 0 auto; width: min(430px, calc(100% - 16px)); }
+  /* Forme C : en paysage, la feuille centrée ne touche pas les coins de l'écran → elle garde sa ligne d'appui et des coins ordinaires. */
+  .bottom-sheet { left: 0; right: 0; margin: 0 auto; width: min(430px, calc(100% - 16px)); bottom: var(--ligne-appui); --r-feuille-bas: var(--r-contenant); --r-feuille-haut: var(--r-contenant); }
 }
 
 /* ============================================================

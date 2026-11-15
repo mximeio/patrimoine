@@ -785,7 +785,7 @@ function CheckingView({ ctx, onBack }) {
       </div>
 
       {showTrManage && trEnabled && (
-        <Modal title="Tickets resto payés" icon="utensils" tone="tr" subtitle={monthLabel(curKey)} onClose={() => setShowTrManage(false)} noDirtyGuard>
+        <Modal liste title="Tickets resto payés" icon="utensils" tone="tr" subtitle={monthLabel(curKey)} onClose={() => setShowTrManage(false)} noDirtyGuard>
           {/* Mois figé : consultation seule. MÊME garde que le corps (wrapper
               .frozen-month + capture) — c'est le CSS qui fait le travail ici
               (crayons et bouton d'ajout masqués), le handler n'ayant aucun
@@ -817,7 +817,7 @@ function CheckingView({ ctx, onBack }) {
       )}
 
       {showRecurring && (
-        <Modal title="Opérations récurrentes" icon="arrowLeftRight" subtitle={currentAccount.name || 'Compte courant'} onClose={() => setShowRecurring(false)} size="lg">
+        <Modal liste title="Opérations récurrentes" icon="arrowLeftRight" subtitle={currentAccount.name || 'Compte courant'} onClose={() => setShowRecurring(false)} size="lg">
           <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
             {checkingDatesEnabled(profile)
               ? "Ces lignes seront pré-remplies à la création d'un nouveau mois. Définis un jour du mois pour qu'il soit reporté automatiquement comme date sur la ligne créée (si le jour n'existe pas dans le mois cible, la date est laissée vide)."

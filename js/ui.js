@@ -59,7 +59,48 @@ const ModalDirtyContext = React.createContext(null);
 // En-tête C' (modernisation, 15/11/2026) : `icon` (nom d'icône) pose une pastille de la couleur de la rubrique ouverte
 // (`data-rubrique`, ou `tone="tr"` pour l'ambre des tickets resto), `subtitle` une ligne grise sous le titre. Les deux sont
 // optionnels : une fenêtre qui ne les passe pas garde son titre seul.
-function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, dirty, footer, icon, subtitle, tone }) {
+// `pleine` (16/11/2026, chantier « les fenêtres en feuille du bas ») : ouvrir d'emblée en PLEINE HAUTEUR au téléphone en portrait
+// (sous la barre d'état, collée aux bords et au bas, coins du haut seuls). Le lot 3 la posait sur quatre fenêtres ; depuis la
+// DEV v1256, sur décision de l'utilisateur (« tout à 60 % »), AUCUNE ne la porte : toutes s'ouvrent en feuille flottante à la
+// hauteur de leur contenu (plafonnée à 60 %) et la poignée les passe en pleine hauteur. Prop gardée en réserve. Ordinateur et
+// paysage : inchangés (styles.css « FENÊTRES EN FEUILLE »).
+// LA ZONE VISIBLE ET LE CLAVIER D'iOS (DEV v1268) — partagé par `SearchModal` (search.js, chargé après), qui s'y loge, et `Modal`,
+// qui n'en lit que l'état du clavier depuis la DEV v1273 (option 1 : les feuilles ne suivent plus le clavier).
+// Pose sur l'élément `--vv-haut` / `--vv-h` (la zone que le clavier laisse visible, `visualViewport`) et `--vv-ecart`, et dit au rappel si le
+// clavier est ouvert. ⚠️ La v1267 comparait `visualViewport.height` à `window.innerHeight` : sur l'iPhone de l'utilisateur, le
+// clavier n'était JAMAIS vu (les deux hauteurs raccourcissent ensemble — relevé sur ses captures). La référence est désormais la
+// PLUS GRANDE hauteur visible vue depuis l'ouverture ; une rotation (largeur qui change) la remet à zéro.
+// DEUX SAUTS CORRIGÉS (DEV v1270, vus image par image sur la vidéo de l'utilisateur) :
+//  1. en changeant de champ, iOS fait glisser l'écran ; on le suivait à l'image suivante (requestAnimationFrame) et toute la
+//     feuille descendait de ~13 px pendant une image. On recale désormais DANS l'événement, sans attendre ;
+//  2. le clavier des lettres (barre de suggestions) est ~18 px plus haut que le pavé numérique : la feuille changeait de taille
+//     en passant du libellé au montant. Tant que le clavier reste ouvert, on garde la PLUS PETITE hauteur visible vue.
+function suivreZoneVisible(el, auChangement) {
+  const vv = window.visualViewport;
+  if (!vv || !el) return () => {};
+  let reference = vv.height, largeur = vv.width, hClavier = 0;
+  const caler = () => {
+    if (Math.abs(vv.width - largeur) > 1) { largeur = vv.width; reference = vv.height; hClavier = 0; }
+    reference = Math.max(reference, vv.height);
+    const ouvert = vv.height < reference - 120;
+    hClavier = ouvert ? (hClavier ? Math.min(hClavier, vv.height) : vv.height) : 0;
+    // 🔴 La compensation du glissement d'iOS (`offsetTop`) est INDISPENSABLE : iOS fait glisser l'écran pour montrer le champ et
+    // emporte les éléments fixes. La DEV v1271 l'avait retirée (croyant qu'elle causait le saut au changement de champ) : clavier
+    // ouvert, la feuille partait vers le haut, en-tête hors de l'écran (vidéo de l'utilisateur). Rétablie en DEV v1272.
+    // L'overlay couvre toute la zone visible (le voile va jusqu'au clavier) ; `--vv-ecart` remonte la feuille de ce que la zone
+    // a gagné depuis sa plus petite hauteur (pavé numérique plus bas que les lettres) : la feuille ne bouge pas.
+    el.style.setProperty('--vv-haut', Math.round(vv.offsetTop) + 'px');
+    el.style.setProperty('--vv-h', Math.round(vv.height) + 'px');
+    el.style.setProperty('--vv-ecart', Math.round(ouvert ? vv.height - hClavier : 0) + 'px');
+    auChangement(ouvert);
+  };
+  caler();
+  vv.addEventListener('resize', caler);
+  vv.addEventListener('scroll', caler);
+  return () => { vv.removeEventListener('resize', caler); vv.removeEventListener('scroll', caler); };
+}
+
+function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, dirty, footer, icon, subtitle, tone, pleine = false, liste = false, vue }) {
   // Confirmation avant fermeture si le contenu a été modifié sans enregistrer.
   // dirtyRef passe à true au 1er input/change ; on ne confirme QUE si la modale
   // contient un <form> (les listes, la lecture seule « Toutes les opérations »,
@@ -69,6 +110,28 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
   const dirtyRef = useRef(false);
   const bodyRef = useRef(null);
   const overlayRef = useRef(null);
+  // ---- LA POIGNÉE (lot 4, 16/11/2026 ; règles de l'utilisateur, revues en DEV v1258 et v1259) ------------------------------
+  // Au téléphone en portrait, toute feuille flottante (pas `pleine`) porte une poignée. Le geste NE FERME JAMAIS (la croix ou le
+  // voile). On saisit la feuille par la poignée et l'en-tête seulement : le défilement du contenu reste libre. Ordinateur et
+  // paysage : rien de tout ça. Deux sortes de feuilles, décrites juste en dessous : les formulaires et les listes.
+  const modalRef = useRef(null);
+  const ouvertureRef = useRef(0);          // taille d'ouverture figée (px), 0 hors feuille de téléphone
+  const prendreRef = useRef(null);         // { y0, dy, h0, pts, bouge }
+  const dernierGesteRef = useRef(0);       // fin du dernier glisser : le clic qui suit n'est pas un toucher
+  const toucheeRef = useRef(false);        // la feuille a été prise ou sa poignée touchée : on ne la recale plus
+  const [grande, setGrande] = useState(false);
+  // Une liste ouverte EN GRAND d'emblée y reste : elle se comporte comme un formulaire, sa poignée rebondit (DEV v1260).
+  const [ouverteEnGrand, setOuverteEnGrand] = useState(false);
+  // DEUX SORTES DE FEUILLES (DEV v1258, proposition de l'utilisateur) : les LISTES qui grandissent avec les données (prop
+  // `liste` : Paramètres, répartition des charges, récurrents, tickets resto payés, toutes les opérations, réglages et mise à
+  // jour groupée des enveloppes, calculer un versement) s'ouvrent entières ou en grand (cf. `figer`) et la poignée les fait passer de leur taille d'ouverture
+  // au grand (sous la barre d'état, en restant flottantes) et retour. Les FORMULAIRES, dont le contenu est borné,
+  // s'ouvrent ENTIERS (hauteur de leur contenu, plafonnée sous la barre d'état par le CSS, qui suit si le contenu change) ; leur
+  // poignée est toujours là et la feuille REBONDIT quand on la tire, vers le haut comme vers le bas : rien ne change de taille.
+  // Posée dès le PREMIER rendu : la poignée (14 px) doit être là quand `figer` mesure, sinon une liste ouverte entière
+  // manquait ses 14 derniers pixels (mesuré dans la pane, DEV v1259).
+  const [feuille, setFeuille] = useState(() => !pleine && !!(window.matchMedia && window.matchMedia('(max-width: 640px) and (orientation: portrait)').matches));
+  const feuilleTel = () => !pleine && !!(window.matchMedia && window.matchMedia('(max-width: 640px) and (orientation: portrait)').matches);
   const downOnBackdropRef = useRef(false);
   // Stable (deps []) : sûr à utiliser comme valeur de contexte et en dépendance
   // de useEffect côté formulaires sans provoquer de re-déclenchements.
@@ -79,6 +142,15 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
   // l'utilisateur sur la modification d'une opération). Les appelants historiques
   // écrivent `markDirty()` sans argument et gardent exactement leur comportement.
   const markDirty = useCallback((v = true) => { dirtyRef.current = v !== false; }, []);
+  // La SEULE chose qui peut retenir une fermeture (croix, voile, Échap, ou geste depuis la DEV v1265).
+  const QUESTION_FERMER = 'Des modifications n\'ont pas été enregistrées et seront perdues.\n\nFermer sans enregistrer ?';
+  const aDesModifications = () => {
+    if (noDirtyGuard) return false;
+    const hasUnsaved = dirty != null
+      ? dirty
+      : (dirtyRef.current && bodyRef.current && bodyRef.current.querySelector('form'));
+    return !!hasUnsaved;
+  };
   const attemptClose = () => {
     // noDirtyGuard : modales en auto-enregistrement (ex. Paramètres) où il n'y a
     // jamais de « modifications non enregistrées » à abandonner.
@@ -88,12 +160,7 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
     // aux contrôles à CLIC (picker de mois, boutons…) qui n'émettent aucun de
     // ces événements, et ne sait pas « dé-salir » quand on revient aux valeurs
     // d'origine. Sans la prop : comportement historique inchangé.
-    const hasUnsaved = dirty != null
-      ? dirty
-      : (dirtyRef.current && bodyRef.current && bodyRef.current.querySelector('form'));
-    if (!noDirtyGuard && hasUnsaved) {
-      if (!window.confirm('Des modifications n\'ont pas été enregistrées et seront perdues.\n\nFermer sans enregistrer ?')) return;
-    }
+    if (aDesModifications() && !window.confirm(QUESTION_FERMER)) return;
     onClose();
   };
   // Ref vers la dernière version d'attemptClose, pour que le listener clavier
@@ -198,6 +265,186 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
     window.addEventListener('orientationchange', onOrient);
     return () => window.removeEventListener('orientationchange', onOrient);
   }, []);
+  useLayoutEffect(() => {
+    const m = modalRef.current;
+    if (!m) return undefined;
+    // L'OUVERTURE D'UNE LISTE (DEV v1259, règle de l'utilisateur) : ENTIÈRE, à la taille de son contenu du moment, puis cette
+    // taille reste (ce qui s'ajoute ensuite défile dedans, et la poignée l'ouvre en grand si besoin) ; si son contenu dépasse
+    // déjà l'écran, elle s'ouvre EN GRAND d'emblée et y reste (DEV v1260 : plus de 60 % — on ne descend jamais sous la taille
+    // d'ouverture) ; sa poignée rebondit alors, comme celle d'un formulaire.
+    const figer = () => {
+      m.style.height = '';
+      if (!feuilleTel()) { ouvertureRef.current = 0; setFeuille(false); setGrande(false); setOuverteEnGrand(false); return; }
+      setFeuille(true);
+      // formulaire : entier, la hauteur reste au CSS. Les états de liste sont remis à zéro : une fenêtre à étapes peut passer de
+      // l'une à l'autre (« calculer un versement » : l'étape 1 est un formulaire, l'étape 2 une liste — DEV v1266).
+      if (!liste) { ouvertureRef.current = 0; setGrande(false); setOuverteEnGrand(false); return; }
+      const naturelle = m.offsetHeight, plafond = plafondFeuille();
+      const enGrand = naturelle >= plafond - 2;
+      ouvertureRef.current = enGrand ? plafond : naturelle;
+      m.style.height = (enGrand ? plafond : naturelle) + 'px';
+      setGrande(enGrand);
+      setOuverteEnGrand(enGrand);
+    };
+    toucheeRef.current = false;
+    figer();
+    // Une partie du contenu peut arriver APRÈS l'ouverture (la liste des sauvegardes des Paramètres, lue en base : +90 px
+    // mesurés). Pendant 1,5 s, tant qu'on n'a pas touché la feuille, elle se recale sur ce qui arrive ; ensuite, sa taille reste.
+    const debut = Date.now();
+    const b = bodyRef.current;
+    const mo = (liste && b) ? new MutationObserver(() => {
+      if (Date.now() - debut > 1500) { mo.disconnect(); return; }
+      if (!toucheeRef.current && feuilleTel()) figer();
+    }) : null;
+    if (mo) mo.observe(b, { childList: true, subtree: true, characterData: true });
+    const mq = window.matchMedia ? window.matchMedia('(max-width: 640px) and (orientation: portrait)') : null;
+    if (mq && mq.addEventListener) mq.addEventListener('change', figer);
+    return () => { if (mo) mo.disconnect(); if (mq && mq.removeEventListener) mq.removeEventListener('change', figer); };
+    // `vue` : une fenêtre à étapes (« Calculer un versement », 1 · Valeurs puis 2 · Répartition) la change à chaque étape, et
+    // la feuille se recale alors COMME À UNE NOUVELLE OUVERTURE : entière, ou en grand si l'étape ne tient pas (DEV v1261).
+  }, [vue]);
+  // UNE SEULE CHOSE BOUGE : LA HAUTEUR (DEV v1257, relevé de l'utilisateur sur iPhone : « ça saccade et ça flash parfois »).
+  // La v1256 faisait passer la feuille agrandie de flottante à collée aux bords pendant le geste : sa LARGEUR changeait à
+  // chaque mouvement du doigt (jusqu'à 120 par seconde), tout le contenu se remettait en page → saccades ; et le changement de
+  // classe en fin de course laissait passer une image fausse → flash. Désormais la feuille agrandie RESTE FLOTTANTE (8 px des
+  // bords, mêmes coins), simplement plus haute, jusque sous la barre d'état : largeur, marges et coins ne changent jamais, seule
+  // la hauteur suit le doigt — une mise à jour par image (requestAnimationFrame), sans lecture de mise en page pendant le geste.
+  // Au lâcher ou au toucher de la poignée, la hauteur glisse en 0,26 s vers l'état choisi (instantané si « réduire les
+  // animations »). Aucune classe ne change : pas d'image intermédiaire.
+  const animRef = useRef({ raf: 0, h: 0, fin: 0 });
+  const plafondFeuille = () => {
+    const o = overlayRef.current; if (!o) return window.innerHeight;
+    const cs = getComputedStyle(o);
+    return o.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  };
+  const poserHauteur = (h, transition) => {
+    const m = modalRef.current; if (!m) return;
+    m.style.transition = transition || 'none';
+    m.style.height = h + 'px';
+  };
+  const animerVers = (versGrande) => {
+    const m = modalRef.current; if (!m || !ouvertureRef.current) return;
+    toucheeRef.current = true;
+    const reduit = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duree = reduit ? 0 : 260;
+    const cible = versGrande ? plafondFeuille() : ouvertureRef.current;
+    poserHauteur(cible, duree ? `height ${duree}ms cubic-bezier(0.32, 0.72, 0, 1), transform ${duree}ms cubic-bezier(0.32, 0.72, 0, 1)` : '');
+    m.style.transform = '';
+    window.clearTimeout(animRef.current.fin);
+    animRef.current.fin = window.setTimeout(() => { if (modalRef.current) modalRef.current.style.transition = ''; }, duree + 20);
+    setGrande(versGrande);
+  };
+  // Le REBOND d'un formulaire : la feuille revient à sa place, rien d'autre ne bouge.
+  const rebondir = (depuis) => {
+    const m = modalRef.current; if (!m) return;
+    const reduit = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duree = reduit ? 0 : 260;
+    window.clearTimeout(animRef.current.fin);
+    if (depuis) { m.style.transition = 'none'; m.style.transform = `translateY(${depuis}px)`; void m.offsetHeight; }
+    m.style.transition = duree ? `transform ${duree}ms cubic-bezier(0.32, 0.72, 0, 1)` : '';
+    m.style.transform = '';
+    animRef.current.fin = window.setTimeout(() => { if (modalRef.current) modalRef.current.style.transition = ''; }, duree + 20);
+  };
+  // ---- FERMER PAR LE GESTE (DEV v1265, forme B « comme iOS » choisie par l'utilisateur, _maquettes/Mockup-Fermer-Par-Poignee) --
+  // Tirée vers le bas depuis sa taille d'ouverture (un formulaire, une liste ouverte en grand, une liste non agrandie), la feuille
+  // suit le doigt ; au lâcher, même règle que la feuille « ⋯ » (`fermerLaFeuille` : le geste prolongé de son élan dépasse 80 px).
+  // Rien à perdre : elle glisse hors de l'écran à la vitesse du doigt et se ferme. Des modifications non enregistrées : elle
+  // REVIENT à sa place et la question s'affiche par-dessus — « OK », elle glisse et se ferme ; « Annuler », rien ne bouge. Tant
+  // qu'on n'a pas répondu, la fenêtre n'est jamais démontée : ses données restent. Une liste agrandie revient d'abord à sa taille
+  // d'ouverture ; un second geste la ferme. État d'avant : étiquette git `avant-fermeture-poignee` (DEV v1264).
+  const montesRef = useRef(true);
+  useEffect(() => () => { montesRef.current = false; }, []);
+  // LE CLAVIER — OPTION 1 (DEV v1273, choix de l'utilisateur : « je ne veux pas avoir de couacs »). La feuille NE SUIT PAS le
+  // clavier : comme la carte centrée d'avant (et la PROD), iOS fait glisser tout l'écran lui-même pour montrer le champ touché,
+  // d'un seul mouvement, sans saut ; l'en-tête peut sortir par le haut pendant la saisie des derniers champs. Seule la classe
+  // `modal-overlay--clavier` suit le clavier : coins du bas à 34, boutons à 16 px (styles.css) — elle ne déplace rien.
+  // ⚠️ ESSAYÉ ET RETIRÉ (v1268-v1272) : loger la feuille au-dessus du clavier (overlay sur la zone visible + compensation de
+  // `visualViewport.offsetTop`) garde l'en-tête visible, mais iOS ne prévient de son glissement qu'APRÈS l'avoir fait : la feuille
+  // sautait de ~24 px pendant une ou deux images à chaque changement de champ (mesuré image par image sur les vidéos de
+  // l'utilisateur) ; sans la compensation (v1271), elle partait vers le haut. Pas de solution sans couac : ne pas y revenir sans
+  // une preuve sur iPhone AVANT de livrer. Le détail est au CHANGELOG (v1267 → v1273).
+  useEffect(() => {
+    const o = overlayRef.current;
+    return suivreZoneVisible(o, (ouvert) => { if (o) o.classList.toggle('modal-overlay--clavier', ouvert); });
+  }, []);
+  const animationsReduites = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const glisserDehors = (vitesse) => {
+    const m = modalRef.current, o = overlayRef.current; if (!m) return;
+    const reste = Math.max(0, window.innerHeight - m.getBoundingClientRect().top);
+    const duree = animationsReduites() ? 0 : Math.round(dureeFermetureFeuille(reste, vitesse));
+    window.clearTimeout(animRef.current.fin);
+    m.style.pointerEvents = 'none';
+    m.style.transition = duree ? `transform ${duree}ms cubic-bezier(0.25, 0.5, 0.5, 1)` : '';
+    m.style.transform = `translateY(${window.innerHeight}px)`;
+    if (o) { o.style.transition = duree ? 'background-color 0.4s ease' : ''; o.style.backgroundColor = 'transparent'; }
+    window.setTimeout(() => {
+      onClose();
+      // Filet : si le parent ne démontait pas la fenêtre, elle reviendrait au lieu de rester hors de l'écran.
+      window.setTimeout(() => {
+        if (!montesRef.current || !modalRef.current) return;
+        modalRef.current.style.pointerEvents = '';
+        if (o) { o.style.backgroundColor = ''; o.style.transition = ''; }
+        rebondir();
+      }, 150);
+    }, duree + 20);
+  };
+  const fermerParLeGeste = (vitesse) => {
+    if (!aDesModifications()) { glisserDehors(vitesse); return; }
+    rebondir();   // B, comme iOS : elle revient à sa place, on voit ce qu'on s'apprête à perdre
+    window.setTimeout(() => {
+      if (montesRef.current && window.confirm(QUESTION_FERMER)) glisserDehors(0);
+    }, animationsReduites() ? 0 : 280);
+  };
+  const agrandir = () => animerVers(true);
+  const reduire = () => animerVers(false);
+  // Le geste SUIT LE DOIGT dans les deux sens. Vers le haut au-delà du grand, elle résiste (élastique, ~42 px au plus, par un
+  // `transform`, sans mise en page) ; vers le bas depuis sa taille d'ouverture, elle suit le doigt (c'est la fermeture) ; une
+  // liste agrandie tirée sous sa taille d'ouverture résiste : elle y revient d'abord.
+  const elastique = (a) => (a * 42) / (a + 42);
+  const prendreDebut = (e) => {
+    if (!feuille || (liste && !ouvertureRef.current)) return;
+    toucheeRef.current = true;
+    if (e.target.closest('button') && !e.target.closest('.feuille-poignee')) return; // la croix reste un bouton
+    const m = modalRef.current;
+    // Tout ce qu'il faut lire, on le lit UNE fois, ici.
+    prendreRef.current = (liste && !ouverteEnGrand)
+      ? { y0: e.clientY, dy: 0, h0: m.offsetHeight, bas: ouvertureRef.current, haut: plafondFeuille(), grande0: grande,
+        pts: [{ y: e.clientY, t: e.timeStamp }], bouge: false }
+      : { y0: e.clientY, dy: 0, fixe: true, pts: [{ y: e.clientY, t: e.timeStamp }], bouge: false };
+    m.style.transition = 'none';
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+  };
+  const peindre = () => {
+    animRef.current.raf = 0;
+    const d = prendreRef.current, m = modalRef.current; if (!d || !m) return;
+    if (d.fixe) { m.style.transform = `translateY(${d.dy < 0 ? -elastique(-d.dy) : d.dy}px)`; return; }
+    const voulu = d.h0 - d.dy;
+    if (voulu < d.bas) { m.style.height = d.bas + 'px'; m.style.transform = `translateY(${d.grande0 ? elastique(d.bas - voulu) : d.bas - voulu}px)`; }
+    else if (voulu > d.haut) { m.style.height = d.haut + 'px'; m.style.transform = `translateY(${-elastique(voulu - d.haut)}px)`; }
+    else { m.style.transform = ''; m.style.height = voulu + 'px'; }
+  };
+  const prendreBouge = (e) => {
+    const d = prendreRef.current; if (!d) return;
+    d.pts.push({ y: e.clientY, t: e.timeStamp }); if (d.pts.length > 24) d.pts.splice(0, d.pts.length - 24);
+    d.dy = e.clientY - d.y0; if (Math.abs(d.dy) > 6) d.bouge = true;
+    if (!animRef.current.raf) animRef.current.raf = window.requestAnimationFrame(peindre); // une mise à jour par image
+  };
+  const prendreFin = () => {
+    const d = prendreRef.current; prendreRef.current = null; if (!d) return;
+    if (animRef.current.raf) { window.cancelAnimationFrame(animRef.current.raf); animRef.current.raf = 0; }
+    const m = modalRef.current;
+    const vitesse = vitesseRecente(d.pts);
+    if (d.bouge) dernierGesteRef.current = Date.now();
+    const depuisOuverture = d.fixe || !d.grande0;   // à sa taille d'ouverture : tirée vers le bas, elle se ferme
+    if (d.bouge && depuisOuverture && d.dy > 0 && fermerLaFeuille(d.dy, vitesse)) { fermerParLeGeste(vitesse); return; }
+    if (d.fixe) { rebondir(); return; } // formulaire ou liste ouverte en grand : il rebondit
+    if (!d.bouge) { if (m) { m.style.transform = ''; m.style.transition = ''; } return; } // un toucher : la poignée le traite en clic
+    const choix = decisionPoignee(d.dy, vitesse, grande);
+    animerVers(choix === 'agrandir' ? true : choix === 'reduire' ? false : grande);
+  };
+  const rebondit = !liste || ouverteEnGrand;   // la poignée n'agrandit rien : formulaire, ou liste ouverte en grand
+  const poigneeVisible = feuille;   // toujours, sur toutes les feuilles : elle agrandit (liste) ou rebondit (formulaire)
+
   // Rendu via un PORTAIL vers <body> : indispensable pour les modales
   // IMBRIQUÉES. Sinon la sous-modale est un descendant DOM du .modal-body
   // (scrollable) de la modale parente ; sur iOS Safari, un position:fixed
@@ -206,7 +453,7 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
   // de <body>, la modale se positionne par rapport au vrai viewport.
   return ReactDOM.createPortal(
     <div
-      className="modal-overlay"
+      className={`modal-overlay ${pleine ? 'modal-overlay--pleine' : 'modal-overlay--feuille'}${grande ? ' modal-overlay--grande' : ''}`}
       ref={overlayRef}
       onMouseDown={(e) => { downOnBackdropRef.current = e.target === e.currentTarget; }}
       onClick={(e) => {
@@ -214,8 +461,19 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
         downOnBackdropRef.current = false;
       }}
     >
-      <div className="modal" style={{ maxWidth: size === 'xl' ? 880 : size === 'lg' ? 680 : 500 }}>
-        <div className="modal-header">
+      <div className="modal" ref={modalRef} style={{ maxWidth: size === 'xl' ? 880 : size === 'lg' ? 680 : 500 }}>
+        {poigneeVisible && rebondit && (
+          // Formulaire : la poignée n'agrandit rien ; touchée, la feuille esquisse un rebond. Pas un bouton (aucune action).
+          <div className="feuille-poignee" aria-hidden="true"
+            onPointerDown={prendreDebut} onPointerMove={prendreBouge} onPointerUp={prendreFin} onPointerCancel={prendreFin}
+            onClick={() => { if (dernierGesteRef.current && Date.now() - dernierGesteRef.current < 350) return; rebondir(-12); }} />
+        )}
+        {poigneeVisible && !rebondit && (
+          <button type="button" className="feuille-poignee" aria-label={grande ? 'Réduire la fenêtre' : 'Agrandir la fenêtre'}
+            onPointerDown={prendreDebut} onPointerMove={prendreBouge} onPointerUp={prendreFin} onPointerCancel={prendreFin}
+            onClick={() => { if (dernierGesteRef.current && Date.now() - dernierGesteRef.current < 350) return; (grande ? reduire : agrandir)(); }} />
+        )}
+        <div className="modal-header" onPointerDown={prendreDebut} onPointerMove={prendreBouge} onPointerUp={prendreFin} onPointerCancel={prendreFin}>
           {icon && <span className={`modal-ico${tone ? ` modal-ico--${tone}` : ''}`} aria-hidden="true"><Icon name={icon} size={18} /></span>}
           <div className="modal-titres">
             <h3 className="modal-title">{title}</h3>

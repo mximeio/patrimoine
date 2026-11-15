@@ -578,7 +578,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         />
       )}
       {modal === 'history-ops' && (
-        <Modal title="Toutes les opérations" icon="chart" subtitle={portfolio.name} onClose={() => setModal(null)} size="lg">
+        <Modal liste title="Toutes les opérations" icon="chart" subtitle={portfolio.name} onClose={() => setModal(null)} size="lg">
           <HistoryOpsTable
             stats={stats}
             data={data}
@@ -634,7 +634,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         );
       })()}
       {modal === 'configure' && (
-        <Modal title="Réglages" icon="settings" subtitle={portfolio.name} dirty={configureDirty} onClose={closeConfigure} size="lg">
+        <Modal liste title="Réglages" icon="settings" subtitle={portfolio.name} dirty={configureDirty} onClose={closeConfigure} size="lg">
           <PortfolioConfigureForm
             showToast={showToast}
             data={data}
@@ -1407,7 +1407,7 @@ function UpdateAllValuesModal({ ctx, onClose }) {
   return (
     // dirty CONTRÔLÉ : il retombe à faux si l'on retape la valeur d'origine,
     // ce que l'heuristique générique de Modal ne sait pas faire.
-    <Modal title="Mettre à jour les valeurs" icon="calendar" subtitle="Investissements" size="lg" dirty={modifiees.length > 0} onClose={onClose}>
+    <Modal liste title="Mettre à jour les valeurs" icon="calendar" subtitle="Investissements" size="lg" dirty={modifiees.length > 0} onClose={onClose}>
       {ordonnees.map((p, i) => {
         const etfs = (p.data && p.data.etfs) || [];
         const ouverte = !!ouvertes[p.id];
@@ -2055,7 +2055,7 @@ function ContributionPlannerModal({ data, stats, onSubmit, onClose, showToast })
   const coche = valeursAJour ? <Icon name="check" size={13} /> : null;
 
   return (
-    <Modal title="Calculer un versement" icon="chart" size="lg" dirty={aSaisi} onClose={onClose}>
+    <Modal liste={etape === 2} vue={etape} title="Calculer un versement" icon="chart" size="lg" dirty={aSaisi} onClose={onClose}>
       {rienASaisir && (
         <EmptyState icon="percent" title="Aucun support à répartir"
           hint="Ajoute un support et fixe sa cible dans les Réglages de l'enveloppe." />

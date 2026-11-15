@@ -402,7 +402,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
         </Modal>
       )}
       {modal === 'history-ops' && (
-        <Modal title="Toutes les opérations" icon="piggy" subtitle={saving.name} onClose={() => setModal(null)} size="lg">
+        <Modal liste title="Toutes les opérations" icon="piggy" subtitle={saving.name} onClose={() => setModal(null)} size="lg">
           <SavingsHistoryOpsTable
             ops={sortedOps}
             onEdit={(op) => setEditingOpId(op.id)}
