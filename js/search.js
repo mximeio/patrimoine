@@ -776,9 +776,19 @@ function SearchModal({ ctx, onClose, onNavigate }) {
   // Reset le focus ET la pagination quand la query change
   useEffect(() => { setFocused(0); setShown(SEARCH_PAGE_SIZE); }, [query, du, au]);
 
+  // ÉCRAN TACTILE (DEV v1275, relevé de l'utilisateur sur iPhone) : pas de flèches pour choisir un résultat, donc Entrée n'ouvre
+  // RIEN — elle masque le clavier pour laisser voir toute la liste, et le premier résultat ne porte plus de surbrillance
+  // (`search-modal--tactile`). Sur ordinateur, flèches et Entrée comme avant. Même critère que le gel de page de `Modal`.
+  const tactile = !(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+
   // Navigation clavier
   useEffect(() => {
     const onKey = (e) => {
+      if (tactile && e.key === 'Enter') {
+        e.preventDefault();
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        return;
+      }
       if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -846,11 +856,26 @@ function SearchModal({ ctx, onClose, onNavigate }) {
     const o = overlayRef.current;
     // Les coins : 34 à l'ouverture (le clavier arrive avec la fenêtre), 54 en bas seulement quand le clavier S'EN VA — donc
     // une fois qu'on l'a vu ouvert. Avant de l'avoir vu, l'instant où il monte n'est pas un « clavier masqué » (DEV v1264).
-    let clavierVu = false;
-    return suivreZoneVisible(o, (ouvert) => {
+    // DEV v1285 (relevé de l'utilisateur : recherche vide, clavier rangé, fenêtre courte… coins du bas à 54) : 54 reprend
+    // l'arrondi de l'écran, il n'a de sens que si le bas de la fenêtre TOUCHE le bas de l'écran — clavier rangé ET fenêtre à
+    // sa hauteur maximale (la liste la remplit). Courte, elle garde 34 partout. Même règle que les feuilles du bas.
+    let clavierVu = false, clavierOuvert = false;
+    const recalculer = () => {
+      const m = o && o.querySelector('.search-modal');
+      if (!m) return;
+      const cs = getComputedStyle(o);
+      const dispo = o.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      o.classList.toggle('search-overlay--en-bas', clavierVu && !clavierOuvert && m.offsetHeight >= dispo - 1);
+    };
+    // La hauteur de la fenêtre change aussi sans le clavier (résultats qui arrivent ou s'en vont) : on la suit.
+    const ro = (o && window.ResizeObserver) ? new ResizeObserver(recalculer) : null;
+    if (ro) { const m = o.querySelector('.search-modal'); if (m) ro.observe(m); ro.observe(o); }
+    const arreter = suivreZoneVisible(o, (ouvert) => {
       if (ouvert) clavierVu = true;
-      if (o) o.classList.toggle('search-overlay--sans-clavier', clavierVu && !ouvert);
+      clavierOuvert = ouvert;
+      recalculer();
     });
+    return () => { arreter(); if (ro) ro.disconnect(); };
   }, []);
 
   // Scroll auto pour garder l'élément focusé visible
@@ -889,7 +914,7 @@ function SearchModal({ ctx, onClose, onNavigate }) {
         downOnBackdropRef.current = false;
       }}
     >
-      <div className="search-modal" role="dialog" aria-modal="true" aria-label="Recherche">
+      <div className={`search-modal${tactile ? ' search-modal--tactile' : ''}`} role="dialog" aria-modal="true" aria-label="Recherche">
         <div className="search-input-wrap">
           <span className="search-input-icon"><Icon name="search" size={18} /></span>
           <input
@@ -1038,8 +1063,24 @@ function SearchModal({ ctx, onClose, onNavigate }) {
           </div>
         )}
 
+        {/* iOS (DEV v1276, vidéo de l'utilisateur) : liste tout en haut, clavier ouvert, le doigt faisait glisser TOUT l'écran au
+            lieu de la liste. Même parade que le corps de `Modal` : au toucher, on s'écarte d'1 px des bords pour qu'iOS sache que la
+            liste peut défiler dans les deux sens ; et `overscroll-behavior: contain` (styles.css) garde le défilement dans la liste.
+            ⚠️ Ça n'a pas suffi : CLAVIER OUVERT, iOS garde la main sur le glissement de l'écran (2e vidéo ; clavier rangé, la liste
+            défile). DEV v1277 : comme iOS (Réglages, Messages, Spotlight), glisser la liste RANGE LE CLAVIER — écran tactile seulement.
+            DEV v1278 : dès que le doigt SE POSE (le 1er glissement restait bloqué : iOS attribue le geste à son début). Sans risque de
+            toucher le mauvais résultat : la carte est accrochée en haut, ranger le clavier ne fait que l'allonger par le bas. */}
         {aQuelqueChoseAMontrer && total > 0 && (
-          <div className="search-results" ref={resultsRef}>
+          <div className="search-results" ref={resultsRef} onTouchStart={(e) => {
+            if (tactile) {
+              const actif = document.activeElement;
+              if (actif && actif.classList && actif.classList.contains('search-input')) actif.blur();
+            }
+            const el = e.currentTarget, max = el.scrollHeight - el.clientHeight;
+            if (max <= 0) return;
+            if (el.scrollTop <= 0) el.scrollTop = 1;
+            else if (el.scrollTop >= max) el.scrollTop = max - 1;
+          }}>
             {grouped.map(g => {
               const startIdx = flat.findIndex(it => it === g.items[0]);
               return (

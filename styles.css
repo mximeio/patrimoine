@@ -3456,7 +3456,9 @@ button.stat-card {
 .search-periode > .btn { margin-left: auto; }
 
 .search-results {
-  overflow-y: auto; flex: 1;
+  overflow-y: auto; flex: 1; min-height: 0;
+  /* Le défilement reste dans la liste, jamais l'écran derrière (DEV v1276, même réglage que .modal-body). */
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   padding: 8px 0;
 }
 .search-group { padding: 8px 0 4px; }
@@ -3521,6 +3523,9 @@ button.stat-card {
 .search-result.focused {
   background: var(--surface-alt);
 }
+/* Sur écran tactile, aucune touche ne valide le résultat en surbrillance : pas de surbrillance (DEV v1275). L'état appuyé, lui,
+   vit en fin de fichier (DEV v1280). */
+.search-modal--tactile .search-result.focused { background: transparent; }
 @media (hover: hover) {
 .search-result:hover {
   background: var(--surface-alt);
@@ -4499,8 +4504,9 @@ button.stat-card {
      coins des feuilles ; elle ne descend jamais sous le clavier. L'overlay prend la zone VISIBLE (`--vv-haut` / `--vv-h` / `--vv-ecart`, posées
      par `SearchModal` d'après `visualViewport`) : clavier ouvert, la fenêtre s'arrête 8 px au-dessus de sa barre ; clavier masqué,
      elle peut aller jusqu'à 8 px du bas. Coins de 34 à l'ouverture, avec le clavier ; quand le clavier S'EN VA, ceux du bas
-     passent à 54, comme une feuille en grand (`--sans-clavier`, posée par `SearchModal` seulement après avoir vu le clavier
-     ouvert : sinon l'instant où il monte faisait changer le coin sous les yeux — DEV v1263-v1264). */
+     passent à 54, comme une feuille en grand (`--en-bas`, posée par `SearchModal` seulement après avoir vu le clavier
+     ouvert : sinon l'instant où il monte faisait changer le coin sous les yeux — DEV v1263-v1264 ; et seulement quand le bas de la
+     fenêtre TOUCHE le bas de l'écran : courte, elle garde 34 partout — DEV v1285). */
   .search-overlay {
     top: var(--vv-haut, 0px); bottom: auto; height: var(--vv-h, 100dvh);
     padding: max(14px, env(safe-area-inset-top, 0px)) 8px calc(8px + var(--vv-ecart, 0px));
@@ -4511,7 +4517,7 @@ button.stat-card {
     max-width: none; max-height: 100%;
     border-radius: var(--r-feuille-haut);
   }
-  .search-overlay--sans-clavier .search-modal {
+  .search-overlay--en-bas .search-modal {
     border-radius: var(--r-feuille-haut) var(--r-feuille-haut) var(--r-feuille-bas) var(--r-feuille-bas);
   }
   .modal-overlay--feuille .modal-body .form-actions,
@@ -5373,7 +5379,6 @@ button.cp-seg-item { cursor: pointer; }
 .portfolio-list-row:active,
 .stat-card-clickable:active,
 .dropdown-item:not(:disabled):active,
-.search-result:active,
 .maj-env-head:active,
 .date-cell:not(.selected):not(.today):active,
 .btn-icon:active,
@@ -5391,6 +5396,11 @@ button.cp-seg-item { cursor: pointer; }
 .mc-label:active,
 .proj-value:active { opacity: 0.6; transition: none; }
 .tx-check-hit:active .tx-check { transform: scale(0.85); transition: none; }
+/* Les résultats de la RECHERCHE (demande de l'utilisateur : ils s'ouvrent au toucher, comme une enveloppe) : l'état appuyé
+   revient (DEV v1280), IMMÉDIAT comme avant la v1278 — il s'allume aussi au début d'un glissement, c'est accepté ; le retard de
+   80 ms essayé en v1279 a été refusé. `.search-modal` en tête : passe devant « pas de surbrillance » du tactile (la ligne
+   touchée est aussi `.focused`). */
+.search-modal .search-result:active { background: var(--surface-hover); transition: none; }
 
 /* ============================================================
    SÉLECTION DE TEXTE SUR ÉCRAN TACTILE — audit du 19/10/2026 (constat 7)
