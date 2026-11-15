@@ -852,8 +852,8 @@ input[type="month"] {
 .seg-kebab { padding: 9px 12px; font-size: 16px; line-height: 1; }
 .seg-solo + .seg-kebab { margin-left: 0; }
 .ch-liste { border-top: 1px solid var(--border); }
-.ch-ligne { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 22px; align-items: center; gap: 8px; min-height: 46px; padding: 4px 0; border-bottom: 1px solid var(--border); }
-.ch-ligne--revenu { grid-template-columns: 34px minmax(0, 1fr) auto 22px; gap: 8px; min-height: 52px; }
+.ch-ligne { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 22px; align-items: center; gap: 8px; min-height: 46px; padding: 4px 6px 4px 3px; border-bottom: 1px solid var(--border); } /* 16/11/2026 (Mockup-Listes-Fenetres) : poignée à 3 px du trait, comme le compte courant ; crayon à 11 (0 et 5 avant) */
+.ch-ligne--revenu { grid-template-columns: 34px minmax(0, 1fr) auto 22px; gap: 8px; min-height: 52px; padding-left: 11px; } /* pastille à 11 px du trait (0 avant) */
 .ch-ligne--revenu .ch-av { margin-right: 4px; } /* 12 px entre l'avatar et le nom, mais 8 avant le crayon : le « € » tombe sur celui des charges */
 .ch-grip { display: grid; place-items: center; height: 100%; color: var(--text-subtle); cursor: grab; touch-action: none; }
 .ch-nom { min-width: 0; display: grid; gap: 1px; }
@@ -1363,6 +1363,10 @@ input[type="month"] {
 /* Groupe gris de rangées de réglage (maquette C' : .groupe-r / .rang-r) : tuile de couleur, titre, aide, interrupteur ;
    un filet entre deux rangées, toute la rangée est cliquable (c'est un <label>). */
 .settings-groupe { background: var(--surface-alt); border-radius: var(--r-touche); overflow: hidden; margin-bottom: 14px; }
+/* Le DERNIER bloc d'une fenêtre ne garde pas sa marge (16/11/2026, relevé de l'utilisateur sur iPhone) : ses 14 px s'ajoutaient
+   à la marge du bas de la fenêtre — 30 px en bas des Paramètres contre 14 en haut (38 / 22 à l'ordinateur), 16 / 24 ailleurs. */
+/* Restreint au bloc qui FINIT la fenêtre : ailleurs (réglages d'une enveloppe), la marge sépare le bloc du bouton « Enregistrer ». */
+.modal-body > :last-child > .settings-groupe:last-child, .modal-body > :last-child > .settings-card:last-child { margin-bottom: 0; }
 .rang-reglage { display: flex; align-items: center; gap: 12px; padding: 11px 14px; } /* plus de curseur main : seul l'interrupteur agit */
 .rang-reglage + .rang-reglage { border-top: 1px solid var(--border); }
 .rang-reglage .toggle { position: relative; }
@@ -1507,8 +1511,7 @@ input[type="month"] {
 .op-row.op-row > .op-main { padding-left: 5px; }
 .op-row.op-row > .tx-edit { transform: none; margin-left: -3px; }
 @media (max-width: 768px) { .op-row.op-row > .tx-edit { margin-left: -2px; } }
-.modal-scroll-list .op-row.op-row { padding-left: 24px; padding-right: 8px; }
-@media (max-width: 640px) { .modal-scroll-list .op-row.op-row { padding-left: 16px; padding-right: 6px; } }
+.modal-scroll-list .op-row.op-row { padding-left: 11px; padding-right: 4px; } /* 16/11/2026 : contenu à 11 px des traits, revenus sur la marge (Mockup-Listes-Fenetres) */
 /* ZONES DE TOUCHER élargies sans rien déplacer (15/11/2026, simulation Mockup-Zones-Toucher validée par l'utilisateur) :
    - la poignée couvre toute la hauteur de la ligne et 19 px de large (sa colonne de 14 + l'écart de 5), jusqu'à la case sans la
      chevaucher — un déplacement ne s'arme qu'après l'appui long de 300 ms (dnd.js), faire défiler n'en déclenche pas ;
@@ -2302,15 +2305,14 @@ button.stat-card {
    overlay (Mac/iOS, 0px de largeur dans le layout) se positionne par-
    dessus la zone padding-right des lignes — plus de gap blanc visible
    entre le contenu et le scrollbar. */
-.modal-scroll-list { margin-left: -24px; margin-right: -24px; }
+/* 16/11/2026 (Mockup-Listes-Fenetres, choix de l'utilisateur) : les traits REVIENNENT sur la marge de la fenêtre, comme la fenêtre
+   des tickets resto, et le contenu se pose à 11 px d'eux (règle des listes à traits). Les marges négatives et le padding de
+   fenêtre réappliqué ligne par ligne, ci-dessous, sont retirés. */
+.modal-scroll-list { margin-left: 0; margin-right: 0; }
 /* Padding-left = padding du modal-body pour aligner le contenu à
    l'identique. Padding-right plus petit (8px) pour rapprocher la croix
    du scrollbar (qui est au bord du modal-body) sans la coller. */
-.modal-scroll-list .op-row { padding-left: 24px; padding-right: 8px; }
-@media (max-width: 640px) {
-  .modal-scroll-list { margin-left: -16px; margin-right: -16px; }
-  .modal-scroll-list .op-row { padding-left: 16px; padding-right: 6px; }
-}
+
 
 .section-footer {
   padding: 8px 14px 12px;
@@ -2598,7 +2600,7 @@ button.stat-card {
 .supports-groupe { background: transparent; border-top: 1px solid var(--border); }
 .supports-groupe .support-edit-row {
   width: 100%; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer;
-  grid-template-columns: minmax(0, 1fr) auto 14px; gap: 10px; padding: 10px 0; min-height: 56px; /* plus de pastille de couleur (15/11/2026) ; nom et chevron sur la marge de la fenêtre, comme les champs (2 px avant, 16/11/2026) */
+  grid-template-columns: minmax(0, 1fr) auto 14px; gap: 10px; padding: 10px 11px; min-height: 56px; /* plus de pastille de couleur (15/11/2026) ; nom et chevron à 11 px des traits (Mockup-Listes-Fenetres, 16/11/2026 ; 0 en v1247 était une erreur : une liste à traits suit la règle des 11 px, même dans une fenêtre) */
   border-bottom: 1px solid var(--border);
 }
 @media (hover: hover) { .supports-groupe .support-edit-row:hover { background: var(--surface-hover); } }
@@ -2610,7 +2612,7 @@ button.stat-card {
 .support-edit-complet { font-size: 12px; font-weight: 500; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .supports-groupe .support-edit-cible { font-size: 14px; font-weight: 500; color: var(--text); }
 .support-edit-chev { color: var(--text-muted); font-size: 18px; line-height: 1; text-align: right; } /* calé à droite (centré avant : 6 px de retrait, 16/11/2026) */
-.support-total { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 24px 12px 0; font-size: 14px; } /* 24 px à droite : le total tombe sur la colonne des cibles, qui s'arrête avant le chevron des lignes (14 + 10) ; 0 à gauche, comme les lignes depuis le 16/11/2026 (2 et 26 avant) */
+.support-total { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 35px 12px 11px; font-size: 14px; } /* 35 px à droite : le total tombe sur la colonne des cibles, qui s'arrête avant le chevron des lignes (11 + 14 + 10) ; 11 à gauche, comme les lignes (16/11/2026) */
 .support-total b { font-weight: 600; }
 .support-total span { font-weight: 600; }
 .support-total.ok span { color: var(--success-fonce); }
