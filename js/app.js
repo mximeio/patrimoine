@@ -1265,8 +1265,8 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
 // Barre de navigation basse « Liquid Glass » : capsule de verre flottante
 // (5 sections flex:1, icône + libellé court, goutte foncée glissante) +
 // bouton « ⋯ » en cercle de verre séparé (pattern Music / App Store iOS 26+).
-// Fixée en bas, jamais masquée : au scroll vers le bas elle se RÉTRACTE en
-// icônes seules (mode mini), au scroll vers le haut elle se redéploie.
+// Fixée en bas, jamais masquée, à taille constante en portrait (plus de
+// rétractation au défilement depuis le 16/11/2026 ; compacte en paysage).
 // Affichée uniquement sur mobile (CSS).
 function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk = true }) {
   const wrapRef = useRef(null);
@@ -1320,43 +1320,12 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
   useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.map(t => t.short || t.label).join('|'), mini], mini, true);
 
 
-  // Rétractation au scroll (pattern tab bar de Music sur iOS 26/27).
-  // Le scroll vient du scroller interne .main-container sur mobile
-  // (la page ne scrolle jamais — cf. utils.js/styles.css) : on écoute
-  // les deux cibles et on lit la position via appScrollY().
-  useEffect(() => {
-    let lastY = appScrollY();
-    let ticking = false;
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        // Clamp aux bornes réelles : pendant le rebond élastique iOS
-        // (overscroll haut/bas), scrollTop sort de [0, max] puis revient —
-        // sans clamp, le retour est interprété comme un « scroll vers le
-        // haut » et la barre se redéploie toute seule en bas de page.
-        const sc = getScrollRoot();
-        const maxY = sc ? Math.max(0, sc.scrollHeight - sc.clientHeight) : Infinity;
-        const y = Math.min(Math.max(0, appScrollY()), maxY);
-        // La barre se REDÉPLOIE en haut de page ET en bas de page (à moins
-        // de 40px des bornes) : arrivé au bout, on n'est plus en train de
-        // « parcourir », la nav complète reprend sa place. Entre les deux,
-        // elle se rétracte en descendant et se redéploie en remontant.
-        if (y < 40 || maxY - y < 40) setMini(false);
-        else if (y > lastY + 6) setMini(true);
-        else if (y < lastY - 6) setMini(false);
-        lastY = y;
-        ticking = false;
-      });
-    };
-    const scroller = getScrollRoot();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    if (scroller) scroller.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (scroller) scroller.removeEventListener('scroll', onScroll);
-    };
-  }, []);
+  // PLUS DE RÉTRACTATION AU DÉFILEMENT (16/11/2026, choix de l'utilisateur sur _maquettes/Mockup-Barre-Sans-Retractation) :
+  // en portrait, la barre se resserrait en descendant (54 → 44 px, icônes 22 → 19 px) et se redéployait en remontant. Le
+  // gain (10 px, un cinquième de ligne) ne valait pas une barre qui bouge à chaque changement de sens ; elle garde désormais
+  // sa taille normale. Le paysage reste compact en permanence (CSS, indépendant du défilement). L'état `mini` et les règles
+  // `.tabbar-wrap.mini` sont gardés EN RÉSERVE : l'effet d'écoute du défilement (rétractation au-delà de 6 px vers le bas,
+  // redéploiement en remontant et à moins de 40 px du haut ou du bas) est dans l'historique git, commit d'avant ce retrait.
 
   // Changement de section → barre redéployée (on revient en haut de page)
   useEffect(() => { setMini(false); }, [current]);
