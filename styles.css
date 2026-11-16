@@ -1700,12 +1700,17 @@ input[type="month"] {
 /* ── L'ÉCRAN DE CONNEXION C' (modernisation, 14/11/2026 — auth.js) ── */
 .auth { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 20px; background: var(--bg); }
 .auth-colonne { width: 100%; max-width: 400px; }
-.auth-pile { position: relative; height: 36px; margin: 0 14px; }
+/* LA PILE DROITE (DEV v1288, piste A de _maquettes/Mockup-Connexion-Pile, choix de l'utilisateur) : les quatre cartes des
+   rubriques ont EXACTEMENT la largeur et l'arrondi de la carte sombre, et dépassent de 4 px chacune (des liserés : 8 px en
+   DEV v1288, 4 px depuis la DEV v1290, choix de l'utilisateur sur la maquette des épaisseurs). La même forme répétée :
+   rien ne peut se décaler. Avant, des retraits de 6, 6, 6 puis 14 px et des bandes de 9 px pour un arrondi de 18 laissaient
+   un bout de pile en escalier cassé, avec des crochets de courbe. ⚠️ Ne pas réintroduire de retrait latéral. */
+.auth-pile { position: relative; height: 16px; }
 .auth-bord { position: absolute; left: 0; right: 0; height: 40px; border-radius: var(--r-contenant) var(--r-contenant) 0 0; }
-.auth-bord--physical { top: 0; margin: 0 18px; background: linear-gradient(150deg, #f2b33d, #e09a1a); }
-.auth-bord--investments { top: 9px; margin: 0 12px; background: linear-gradient(150deg, #047857, #065f46); }
-.auth-bord--savings { top: 18px; margin: 0 6px; background: linear-gradient(150deg, #0e7490, #155e75); }
-.auth-bord--checking { top: 27px; background: linear-gradient(150deg, #4f46e5, #3730a3); }
+.auth-bord--physical { top: 0; background: linear-gradient(150deg, #f2b33d, #e09a1a); }
+.auth-bord--investments { top: 4px; background: linear-gradient(150deg, #047857, #065f46); }
+.auth-bord--savings { top: 8px; background: linear-gradient(150deg, #0e7490, #155e75); }
+.auth-bord--checking { top: 12px; background: linear-gradient(150deg, #4f46e5, #3730a3); }
 .auth-carte {
   position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 14px;
   min-height: 120px; padding: 20px 22px; border-radius: var(--r-contenant); color: #fff; margin-bottom: 28px;
