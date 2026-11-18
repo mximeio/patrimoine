@@ -3167,7 +3167,20 @@ button.stat-card {
    plein de la couleur de la rubrique (celle de la goutte active, `.tab-slide-ind`), le « ⋯ » sur le verre. Les onglets
    perdent ~7 px (49 → 42 sur un iPhone de 375 px, 5 rubriques). ⚠️ `min-width: 0` et `padding: 0` sur les deux moitiés : sans
    eux, le « ⋯ » gardait la largeur de son caractère et du rembourrage d'un bouton (42 px contre 30 au « + », mesuré en paysage). */
-.tabbar-actions { flex: 0 0 88px; height: 54px; box-sizing: border-box; display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-full); }
+.tabbar-actions { flex: 0 0 94px; height: 54px; box-sizing: border-box; display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-full); --bord-capsule: 4px; }
+/* RONDS DE 42 ET ZONES DE TOUCHER (DEV v1301 ; audit apple-design du 18/11/2026, constat 4 ; canevas Claude Design « Barre du bas
+   — cibles et appui », choix de l'utilisateur). 94 = 1 + 3 + 42 + 2 + 42 + 3 + 1 : les ronds visibles passent de 39 à 42 (le plus
+   grand qui laisse les onglets du 15 Pro à 5 onglets au-dessus de 44 : 45,4 → 44,2 ; 17 Pro Max 54,8 → 53,6). Le doigt, lui, est
+   pris sur TOUTE la moitié de capsule, bordure comprise (47 × 54) : un pseudo-élément transparent déborde du bouton sur
+   l'anneau (`--bord-capsule` = rembourrage + bordure) et sur la moitié de l'écart entre les deux. Avant, seul le rond répondait.
+   ⚠️ L'accueil (rond « ⋯ » seul, `sans-plus`) n'a pas changé : 54 px, et le « ⋯ » y répond sur tout le rond. Barre réduite et
+   paysage gardent leurs ronds (34 et 37), avec la même zone élargie. */
+.tabbar-plus { position: relative; }
+.tabbar-plus::before,
+.tabbar-wrap .tabbar-actions .tabbar-more::before { content: ''; position: absolute; top: calc(-1 * var(--bord-capsule)); bottom: calc(-1 * var(--bord-capsule)); }
+.tabbar-plus::before { left: calc(-1 * var(--bord-capsule)); right: -1px; }
+.tabbar-wrap .tabbar-actions .tabbar-more::before { left: -1px; right: calc(-1 * var(--bord-capsule)); }
+.tabbar-wrap .tabbar-actions.sans-plus .tabbar-more::before { left: calc(-1 * var(--bord-capsule)); }
 .tabbar-wrap .tabbar-actions .tabbar-more { flex: 1 1 0; min-width: 0; padding: 0; height: auto; font-size: 18px; border: 0; background: transparent; box-shadow: none; }
 .tabbar-plus { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--radius-full);
   background: rgba(15, 23, 42, 0.92); color: #ffffff; cursor: pointer; transition: background-color .3s ease; }
@@ -3176,12 +3189,16 @@ button.stat-card {
 [data-rubrique="investments"] .tabbar-plus { background: #047857; }
 [data-rubrique="physical"] .tabbar-plus { background: #f2b33d; color: #2b1d00; }
 .tabbar-wrap.seule .tabbar-actions { margin-left: auto; }
-.tabbar-wrap.mini .tabbar-actions { flex-basis: 76px; height: 44px; padding: 2px; }
+.tabbar-wrap.mini .tabbar-actions { flex-basis: 76px; height: 44px; padding: 2px; --bord-capsule: 3px; }
 /* L'ACCUEIL SANS « + » (DEV v1297, choix de l'utilisateur) : la capsule redevient le rond « ⋯ » (54 = 3 + 48 + 3) et s'étire en
    arrivant sur une page où l'on crée — largeur animée en 0,25 s, le « + » se replie dans le même temps (largeur, opacité,
    échelle). La pastille de l'onglet actif suit les onglets image par image (`useSlideIndicator`, clé `avecPlus`). */
-.tabbar-actions { transition: flex-basis .25s cubic-bezier(0.4, 0, 0.2, 1), gap .25s cubic-bezier(0.4, 0, 0.2, 1); }
-.tabbar-plus { transition: background-color .3s ease, flex-grow .25s cubic-bezier(0.4, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0.4, 0, 0.2, 1); }
+/* ⚠️ COURBE À DÉPART FRANC (DEV v1302, relevé de l'utilisateur : « une latence à l'ajout et au masquage du bouton ») : la courbe
+   d'origine, cubic-bezier(0.4, 0, 0.2, 1), démarre presque immobile — 1 % à 16 ms, 5 % à 33 ms, 13 % à 50 ms : l'œil le lit comme
+   un retard, dans les deux sens. cubic-bezier(0, 0, 0.2, 1) part tout de suite (21 %, 37 %, 50 %) et finit en douceur, même durée.
+   Ne pas revenir à une courbe qui accélère au départ pour un mouvement qui RÉPOND à un geste. */
+.tabbar-actions { transition: flex-basis .25s cubic-bezier(0, 0, 0.2, 1), gap .25s cubic-bezier(0, 0, 0.2, 1); }
+.tabbar-plus { transition: background-color .3s ease, flex-grow .25s cubic-bezier(0, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0, 0, 0.2, 1); }
 .tabbar-actions.sans-plus { flex-basis: 54px; gap: 0; }
 .tabbar-actions.sans-plus .tabbar-plus { flex-grow: 0; opacity: 0; transform: scale(0.5); pointer-events: none; }
 .tabbar-wrap.mini .tabbar-actions.sans-plus { flex-basis: 44px; }
@@ -4676,7 +4693,7 @@ button.stat-card {
   .tabbar-wrap .tab-pill { padding: 8px 13px; }
   .tabbar-wrap .tab-ico { --icob: 0.86; }
   .tabbar-wrap .tabbar-more { flex: 0 0 44px; height: 44px; font-size: 17px; } /* = capsule compacte (2 + 38 + 2 + 2) */
-  .tabbar-wrap .tabbar-actions { flex-basis: 80px; height: 44px; padding: 2px; } /* capsule « + | ⋯ » compacte : 2 + 37 + 2 + 37 + 2 */
+  .tabbar-wrap .tabbar-actions { flex-basis: 80px; height: 44px; padding: 2px; --bord-capsule: 3px; } /* capsule « + | ⋯ » compacte : 2 + 37 + 2 + 37 + 2 */
   .tabbar-wrap .tabbar-actions.sans-plus { flex-basis: 44px; } /* accueil : le rond « ⋯ » compact (DEV v1297) */
   .btn.ops-nouvelle { display: none; } /* le « + » de la barre le remplace (DEV v1296) */
   .btn.ops-nouvelle.liste-nouveau { display: inline-flex; } /* sauf en tête des listes (DEV v1299) */
@@ -5441,6 +5458,12 @@ button.cp-seg-item { cursor: pointer; }
    80 ms essayé en v1279 a été refusé. `.search-modal` en tête : passe devant « pas de surbrillance » du tactile (la ligne
    touchée est aussi `.focused`). */
 .search-modal .search-result:active { background: var(--surface-hover); transition: none; }
+/* La capsule « + | ⋯ » (DEV v1301 ; audit du 18/11/2026, constat 1) : sous le doigt, le « + » fonce et rentre de 6 %, un rond gris
+   s'allume sous le « ⋯ » — rien ne bougeait avant. Les onglets gardent leur réponse (la pastille vient sous le doigt) : leur
+   gonflement a été retiré à la demande de l'utilisateur (v508). `more-pressed` est posée par le JS du « ⋯ » au toucher. */
+.tabbar-plus:not(:disabled):active { transform: scale(0.94); filter: brightness(0.86); transition: none; }
+.tabbar-wrap .tabbar-actions .tabbar-more:active,
+.tabbar-wrap .tabbar-actions .tabbar-more.more-pressed { background: rgba(15, 23, 42, 0.09); transform: scale(0.94); transition: none; }
 
 /* ============================================================
    SÉLECTION DE TEXTE SUR ÉCRAN TACTILE — audit du 19/10/2026 (constat 7)

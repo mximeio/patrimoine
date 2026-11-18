@@ -973,7 +973,10 @@ function useEnteteSousPage(ctx, nom, onBack) {
   const refRetour = useRef(onBack);
   refRetour.current = onBack;
   const poser = ctx && ctx.setSousPage;
-  useEffect(() => {
+  // `useLayoutEffect` et non `useEffect` (DEV v1302) : la barre du bas lit `sousPage` (le « + » n'existe que sur une sous-page) ;
+  // posé après l'affichage, il arrivait une mise à jour APRÈS la page — mesuré : la capsule changeait 3 à 6 ms après le contenu,
+  // dans une tâche à part, donc une image plus tard. Posé avant l'affichage, page et barre changent dans la même image.
+  useLayoutEffect(() => {
     if (!poser) return undefined;
     if (!nom) { poser(null); return undefined; }
     poser({ nom, onBack: () => { if (refRetour.current) refRetour.current(); } });
