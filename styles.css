@@ -3152,7 +3152,7 @@ button.stat-card {
   border-radius: var(--radius-full);
   font-size: 20px; color: var(--text-light);
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0, 0, 0.2, 1);
 }
 /* Contraction au scroll (façon Instagram) : TOUTE la capsule se resserre —
    marges latérales élargies, padding réduit, icônes à −14 %, cercle « ⋯ »
@@ -3240,7 +3240,8 @@ button.stat-card {
   box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.2);
   /* le bas du contenu reste au-dessus de la barre d'accueil de l'iPhone (la feuille descend jusqu'à 8 px du bord) */
   padding: 8px 16px max(16px, var(--ligne-appui));
-  animation: sheetUp 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Ouverture : courbe à départ franc (DEV v1303). La FERMETURE (`.closing`, sheetDown) garde la sienne : une sortie peut partir doucement. */
+  animation: sheetUp 0.28s cubic-bezier(0, 0, 0.2, 1);
 }
 .sheet-handle {
   width: 36px; height: 4px; border-radius: var(--radius-full);
@@ -3297,10 +3298,10 @@ button.stat-card {
    Mockup-Sheet-Confirm-Deconnexion) : les deux panneaux sont superposés
    en absolute, le conteneur porte la hauteur (animée en JS par
    MobileSheet). Le panneau inactif glisse latéralement et s'estompe. */
-.sheet-swap { position: relative; overflow: hidden; transition: height 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+.sheet-swap { position: relative; overflow: hidden; transition: height 0.28s cubic-bezier(0, 0, 0.2, 1); }
 .swap-pane {
   position: absolute; left: 0; right: 0; top: 0;
-  transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0, 0, 0.2, 1);
 }
 .swap-pane.hidden-left  { opacity: 0; transform: translateX(-26px); pointer-events: none; }
 .swap-pane.hidden-right { opacity: 0; transform: translateX(26px);  pointer-events: none; }
@@ -4528,7 +4529,8 @@ button.stat-card {
     --marge-boutons: max(16px, calc(env(safe-area-inset-bottom, 0px) - 8px));
     border-radius: var(--r-feuille-haut) var(--r-feuille-haut) var(--r-feuille-bas) var(--r-feuille-bas);
     max-height: calc(100dvh - max(14px, env(safe-area-inset-top, 0px)) - 8px);
-    animation: sheetUp 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Courbe à départ franc (DEV v1303, même raison que la capsule en v1302 : l'ancienne démarrait presque immobile). */
+    animation: sheetUp 0.28s cubic-bezier(0, 0, 0.2, 1);
   }
   .modal-overlay--feuille .modal-body { padding-bottom: var(--marge-boutons); transition: padding-bottom 0.2s ease; }
   /* CLAVIER OUVERT (DEV v1267) : iOS remonte la feuille au-dessus du clavier — ses coins du bas passent à 34 comme ceux du haut,
