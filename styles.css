@@ -5517,6 +5517,13 @@ button.cp-seg-item { cursor: pointer; }
   .net-pill { animation: fadeIn 0.2s ease; }
   .swap-pane.hidden-left,
   .swap-pane.hidden-right { transform: none; }
+  /* Audit du 18/11/2026 (constat 2) : ce que le bloc ne couvrait pas encore. La capsule « + | ⋯ » (DEV v1297) se pose à sa
+     nouvelle largeur au lieu de s'étirer, et le « + » apparaît en fondu, sans grandir ; la feuille « ⋯ » prend sa nouvelle
+     hauteur d'un coup en passant à la confirmation de déconnexion (les panneaux, eux, se croisent déjà en fondu). */
+  .tabbar-actions { transition: none; }
+  .tabbar-plus { transition: background-color .3s ease, opacity .2s ease; }
+  .tabbar-actions.sans-plus .tabbar-plus { transform: none; }
+  .sheet-swap { transition: none; }
 }
 
 /* Réglages iOS → Accessibilité → Affichage et taille du texte → « Réduire la
