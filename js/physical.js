@@ -5,6 +5,7 @@
 function PhysicalView({ ctx }) {
   const { user, physical, showToast } = ctx;
   const [showNew, setShowNew] = useState(false);
+  // Pas de `useNouvelle` : le « + » de la barre est réservé aux opérations (DEV v1299) ; un actif se crée par « + Nouveau » en tête.
   const [editId, setEditId] = useState(null);
 
   const totalCurrent = physical.reduce((s, a) => s + physicalCurrentValue(a), 0);
@@ -71,7 +72,11 @@ function PhysicalView({ ctx }) {
             <span className="section-icon physical"><Icon name="coin" size={14} /></span>
             Mes actifs physiques
           </div>
-          <span className="section-aide">{physical.length}</span>
+          {/* DEV v1298 (demande de l'utilisateur) : le bouton d'ajout passe EN TÊTE de la liste, à la place du nombre d'éléments, comme
+              « Opérations … + Nouvelle » — dans `.ops-outils`, qui le fait déborder sans agrandir l'en-tête (32 px, la géométrie commune des
+              rubriques). DEV v1299 : il reste au téléphone (`liste-nouveau`) — créer un compte ou un actif est rare, le « + » de la barre est
+              réservé aux opérations, qui sont de tous les jours. */}
+          <div className="ops-outils"><button type="button" className="btn btn-accent ops-nouvelle liste-nouveau" onClick={() => setShowNew(true)}><Icon name="plus" size={15} /> Nouveau</button></div>
         </div>
         <div>
           {sortByNumber(physical, p => physicalCurrentValue(p)).map(p => (
@@ -81,9 +86,12 @@ function PhysicalView({ ctx }) {
             <EmptyState icon="coin" title="Aucun actif physique" hint="Pièces d'or, métaux précieux, …" />
           )}
         </div>
-        <div className="section-footer">
-          <button className="btn-add" onClick={() => setShowNew(true)}>Ajouter un actif</button>
-        </div>
+        {/* Le grand bouton ne reste que sur la liste VIDE (première utilisation, DEV v1298) ; sinon l'en-tête et le « + » suffisent. */}
+        {physical.length === 0 && (
+          <div className="section-footer">
+            <button className="btn-add" onClick={() => setShowNew(true)}>Ajouter un actif</button>
+          </div>
+        )}
       </div>
 
       {showNew && (

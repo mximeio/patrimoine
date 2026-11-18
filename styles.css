@@ -3162,6 +3162,29 @@ button.stat-card {
 .tabbar-wrap.mini .tab-pill { padding: 8px 13px; }
 .tabbar-wrap.mini .tab-ico { --icob: 0.86; }
 .tabbar-wrap.mini .tabbar-more { flex-basis: 44px; height: 44px; font-size: 17px; } /* = capsule réduite : 2 + 38 + 2 + 2 */
+/* LA CAPSULE « + | ⋯ » (DEV v1296, piste 2 du canevas « Bouton flottant Nouvelle », choix de l'utilisateur) : une pastille de
+   verre de la hauteur de la barre (88 × 54 = 3 + 40 + 2 + 40 + 3, moitiés de 40 + anneau, cibles ≥ 44 avec l'anneau), le « + »
+   plein de la couleur de la rubrique (celle de la goutte active, `.tab-slide-ind`), le « ⋯ » sur le verre. Les onglets
+   perdent ~7 px (49 → 42 sur un iPhone de 375 px, 5 rubriques). ⚠️ `min-width: 0` et `padding: 0` sur les deux moitiés : sans
+   eux, le « ⋯ » gardait la largeur de son caractère et du rembourrage d'un bouton (42 px contre 30 au « + », mesuré en paysage). */
+.tabbar-actions { flex: 0 0 88px; height: 54px; box-sizing: border-box; display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-full); }
+.tabbar-wrap .tabbar-actions .tabbar-more { flex: 1 1 0; min-width: 0; padding: 0; height: auto; font-size: 18px; border: 0; background: transparent; box-shadow: none; }
+.tabbar-plus { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--radius-full);
+  background: rgba(15, 23, 42, 0.92); color: #ffffff; cursor: pointer; transition: background-color .3s ease; }
+[data-rubrique="checking"] .tabbar-plus { background: #4f46e5; }
+[data-rubrique="savings"] .tabbar-plus { background: #0e7490; }
+[data-rubrique="investments"] .tabbar-plus { background: #047857; }
+[data-rubrique="physical"] .tabbar-plus { background: #f2b33d; color: #2b1d00; }
+.tabbar-wrap.seule .tabbar-actions { margin-left: auto; }
+.tabbar-wrap.mini .tabbar-actions { flex-basis: 76px; height: 44px; padding: 2px; }
+/* L'ACCUEIL SANS « + » (DEV v1297, choix de l'utilisateur) : la capsule redevient le rond « ⋯ » (54 = 3 + 48 + 3) et s'étire en
+   arrivant sur une page où l'on crée — largeur animée en 0,25 s, le « + » se replie dans le même temps (largeur, opacité,
+   échelle). La pastille de l'onglet actif suit les onglets image par image (`useSlideIndicator`, clé `avecPlus`). */
+.tabbar-actions { transition: flex-basis .25s cubic-bezier(0.4, 0, 0.2, 1), gap .25s cubic-bezier(0.4, 0, 0.2, 1); }
+.tabbar-plus { transition: background-color .3s ease, flex-grow .25s cubic-bezier(0.4, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0.4, 0, 0.2, 1); }
+.tabbar-actions.sans-plus { flex-basis: 54px; gap: 0; }
+.tabbar-actions.sans-plus .tabbar-plus { flex-grow: 0; opacity: 0; transform: scale(0.5); pointer-events: none; }
+.tabbar-wrap.mini .tabbar-actions.sans-plus { flex-basis: 44px; }
 
 /* Bottom sheet (menu « ⋯ ») — flottante et en verre, comme la barre */
 .sheet-backdrop {
@@ -4389,6 +4412,10 @@ button.stat-card {
   .main-inner { min-height: calc(100% + 1px); }
   /* Barre du bas Liquid Glass (layout dans la règle de base) */
   .tabbar-wrap { display: flex; }
+  /* Le « + Nouvelle » des en-têtes (compte, livret, enveloppe) laisse la place au « + » de la barre (DEV v1296) : un seul
+     geste de création par écran. À l'ordinateur, sans barre du bas, il reste. */
+  .btn.ops-nouvelle { display: none; }
+  .btn.ops-nouvelle.liste-nouveau { display: inline-flex; } /* en tête des listes, il reste : le « + » de la barre est réservé aux opérations (DEV v1299) */
   /* Modale plein écran : règles déplacées dans le bloc
      @media (max-width:640px) and (orientation: portrait) plus bas.
      ATTENTION : en PAYSAGE la modale n'est PAS plein écran (marge + coins
@@ -4649,6 +4676,10 @@ button.stat-card {
   .tabbar-wrap .tab-pill { padding: 8px 13px; }
   .tabbar-wrap .tab-ico { --icob: 0.86; }
   .tabbar-wrap .tabbar-more { flex: 0 0 44px; height: 44px; font-size: 17px; } /* = capsule compacte (2 + 38 + 2 + 2) */
+  .tabbar-wrap .tabbar-actions { flex-basis: 80px; height: 44px; padding: 2px; } /* capsule « + | ⋯ » compacte : 2 + 37 + 2 + 37 + 2 */
+  .tabbar-wrap .tabbar-actions.sans-plus { flex-basis: 44px; } /* accueil : le rond « ⋯ » compact (DEV v1297) */
+  .btn.ops-nouvelle { display: none; } /* le « + » de la barre le remplace (DEV v1296) */
+  .btn.ops-nouvelle.liste-nouveau { display: inline-flex; } /* sauf en tête des listes (DEV v1299) */
   /* Le toggle .mini (scroll) ne doit pas écraser les insets safe-area
      du paysage (spécificité supérieure de .tabbar-wrap.mini) */
   .tabbar-wrap.mini {

@@ -40,6 +40,7 @@ function CheckingModule({ ctx }) {
 function CheckingConsolidatedView({ ctx, onOpenAccount }) {
   const { checkingAccounts, createCheckingAccount, showToast } = ctx;
   const [showCreate, setShowCreate] = useState(false);
+  // Pas de `useNouvelle` sur la liste des comptes (plusieurs comptes courants) : le « + » de la barre est réservé aux opérations (DEV v1299) : une liste n'en a pas, la création passe par « + Nouveau » en tête.
 
   // Calcul des soldes par compte (mois de référence = plus récent ≤ aujourd'hui)
   const cur = currentMonthKey();
@@ -79,6 +80,11 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
             <span className="section-icon checking"><Icon name="creditCard" size={14} /></span>
             Mes comptes courants
           </div>
+          {/* DEV v1298 (demande de l'utilisateur) : le bouton d'ajout passe EN TÊTE de la liste, à la place du nombre d'éléments, comme
+              « Opérations … + Nouvelle » — dans `.ops-outils`, qui le fait déborder sans agrandir l'en-tête (32 px, la géométrie commune des
+              rubriques). DEV v1299 : il reste au téléphone (`liste-nouveau`) — créer un compte ou un actif est rare, le « + » de la barre est
+              réservé aux opérations, qui sont de tous les jours. */}
+          <div className="ops-outils"><button type="button" className="btn btn-accent ops-nouvelle liste-nouveau" onClick={() => setShowCreate(true)}><Icon name="plus" size={15} /> Nouveau</button></div>
         </div>
         <div>
           {accountsWithBalance.map((acc, i) => {
@@ -120,11 +126,6 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
               </button>
             );
           })}
-        </div>
-        <div className="section-footer">
-          <button className="btn-add" onClick={() => setShowCreate(true)}>
-            Ajouter un compte
-          </button>
         </div>
       </div>
 
@@ -290,6 +291,9 @@ function CheckingView({ ctx, onBack }) {
   // (v574 : l'ancien `trCreateSignal` pour TrSection était du code mort —
   //  jamais incrémenté — supprimé ; les TR se gèrent via la popup.)
   const [opCreateSignal, setOpCreateSignal] = useState(0);
+  // Le mois affiché est-il figé ? Lu par l'intention « nouvelle » (plus bas), dont l'écouteur est posé avant que `frozen`
+  // existe (retour anticipé tant que les mois ne sont pas chargés).
+  const moisFigeRef = useRef(false);
   const closeReglages = () => {
     // La confirmation « modifications non enregistrées » est portée par le
     // composant Modal via la prop dirty={reglagesDirty} (v535) : le calcul
@@ -352,6 +356,13 @@ function CheckingView({ ctx, onBack }) {
     return () => window.removeEventListener('patrimoine:open', onOpen);
   }, [checking.id]); // eslint-disable-line
 
+  // Le « + » de la barre (DEV v1296) : la fenêtre « Nouvelle opération », comme le bouton de l'en-tête. Sur un mois figé, le même
+  // refus que les autres gestes.
+  useNouvelle(true, () => {
+    if (moisFigeRef.current) { showToast('Mois figé — défige-le via le menu ⋯'); return; }
+    setOpCreateSignal(n => n + 1);
+  });
+
   if (!hasMonths) {
     return (<div className="loading" style={{ minHeight: 200 }}><Spinner /></div>);
   }
@@ -367,6 +378,7 @@ function CheckingView({ ctx, onBack }) {
   // seule. L'état vit sur le mois (m.frozen), l'action dans le kebab, la
   // pédagogie dans un toast — pas de bandeau permanent.
   const frozen = !!m.frozen;
+  moisFigeRef.current = frozen;
 
   // setCurrentMonth est purement LOCAL : state React + localStorage.
   // Plus aucune écriture en Firestore pour le mois courant.
@@ -649,13 +661,8 @@ function CheckingView({ ctx, onBack }) {
                   ⚠️ Le séparateur suit donc « Nouvelle opération » SEULE : il
                   testait aussi `trEnabled`, et le garder ainsi afficherait un
                   trait sans rien au-dessus sur un mois figé. */}
-              {!frozen && (
-                <button className="dropdown-item" onClick={() => setOpCreateSignal(n => n + 1)}>
-                  <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
-                  Nouvelle opération
-                </button>
-              )}
-              {!frozen && <div className="dropdown-separator" />}
+              {/* « Nouvelle opération » et son séparateur retirés du menu (DEV v1298) : le bouton d'en-tête « + Nouvelle » et le
+                  « + » de la barre la portent. */}
               <button className="dropdown-item" onClick={() => setShowRecurring(true)}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="arrowLeftRight" size={14} /></span>
                 Opérations récurrentes

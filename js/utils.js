@@ -377,6 +377,22 @@ function requestOpen(type, payload) {
   window.__pendingOpen = { type, payload, until: Date.now() + 3000 };
   window.dispatchEvent(new CustomEvent('patrimoine:open', { detail: { type } }));
 }
+// LE « + » DE LA BARRE (DEV v1296-v1297) : chaque page déclare ce que son « + » ouvre — `actif` faux quand elle n'est pas la
+// page affichée (la liste des livrets quand un livret est ouvert : c'est la sous-page qui répond). Le « + » pose l'intention
+// « nouvelle » ; la page active la consomme, de façon synchrone. `ouvrir` reçoit la charge utile (vide aujourd'hui).
+function useNouvelle(actif, ouvrir) {
+  const ref = React.useRef({ actif, ouvrir });
+  ref.current = { actif, ouvrir };
+  React.useEffect(() => {
+    const surIntention = (e) => {
+      if (!e.detail || e.detail.type !== 'nouvelle' || !ref.current.actif) return;
+      const p = consumeOpen('nouvelle');
+      if (p) ref.current.ouvrir(p);
+    };
+    window.addEventListener('patrimoine:open', surIntention);
+    return () => window.removeEventListener('patrimoine:open', surIntention);
+  }, []);
+}
 function consumeOpen(type) {
   const p = window.__pendingOpen;
   if (p && p.type === type && Date.now() < p.until) {

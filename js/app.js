@@ -828,6 +828,22 @@ function App() {
 
   const safeModule = tabs.find(t => t.id === moduleName) ? moduleName : 'overview';
 
+  // LE « + » DE LA BARRE (DEV v1296-v1297). Il pose l'intention « nouvelle » ; la page affichée la consomme (`useNouvelle`) et
+  // ouvre sa fenêtre d'opération (compte, livret ou enveloppe ouverts ; jusqu'à la v1298, les listes créaient aussi un compte
+  // ou un actif — cf. `avecPlus` plus bas). L'accueil n'a pas de « + » (DEV v1297 : la feuille « Où l'ajouter ? » de la
+  // v1296 posait la question du mois et oubliait les tickets resto). Personne ne l'a prise : on la retire, rien ne s'ouvre.
+  const nouvelleDepuisBarre = () => {
+    requestOpen('nouvelle', {});
+    const p = window.__pendingOpen;
+    if (p && p.type === 'nouvelle') window.__pendingOpen = null;
+  };
+  // DEV v1299 (demande de l'utilisateur) : le « + » veut TOUJOURS dire « nouvelle opération ». Sur une liste (livrets,
+  // enveloppes, comptes courants en multi) ou les actifs, il aurait créé un compte, geste rare — et le même bouton aurait changé
+  // de sens d'une page à l'autre (on y aurait cherché un versement). La capsule s'y replie en rond « ⋯ », comme sur l'accueil ;
+  // la création passe par le « + Nouveau » d'en-tête, gardé au téléphone (`liste-nouveau`).
+  // Restent : le compte courant (un seul compte), et toute sous-page ouverte (compte en multi, livret, enveloppe).
+  const avecPlus = !!sousPage || (safeModule === 'checking' && !modulesEnabled.multiCheckingAccounts);
+
   // Sélection d'un onglet (desktop et mobile). Re-tap sur l'onglet déjà
   // actif → retour en haut de page (réflexe standard des tab bars iOS).
   const selectModule = (id) => {
@@ -919,6 +935,8 @@ function App() {
         current={safeModule}
         onSelect={selectModule}
         onMore={() => setShowSheet(true)}
+        onNouvelle={nouvelleDepuisBarre}
+        avecPlus={avecPlus}
         online={netOnline}
         cacheOk={cacheOk}
       />
@@ -1155,7 +1173,13 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
     const onResize = () => follow(400);
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
+    // Le conteneur change de largeur SANS que la fenêtre bouge (DEV v1297 : la capsule « + | ⋯ » s'étire ou se rétracte en
+    // changeant de page) : on remesure à chaque changement de taille. Filet du suivi image par image, qui peut être
+    // interrompu (onglet en arrière-plan) — la pastille finit toujours sur son onglet.
+    const ro = (window.ResizeObserver && containerRef.current) ? new ResizeObserver(() => move()) : null;
+    if (ro) ro.observe(containerRef.current);
     return () => {
+      if (ro) ro.disconnect();
       if (raf) cancelAnimationFrame(raf);
       if (indicatorRef.current) indicatorRef.current.style.transition = '';
       clearTimeout(t);
@@ -1268,7 +1292,7 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
 // Fixée en bas, jamais masquée, à taille constante en portrait (plus de
 // rétractation au défilement depuis le 16/11/2026 ; compacte en paysage).
 // Affichée uniquement sur mobile (CSS).
-function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk = true }) {
+function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = true, libellePlus = 'Nouvelle opération', online = true, cacheOk = true }) {
   const wrapRef = useRef(null);
   const barRef = useRef(null);
   const indRef = useRef(null);
@@ -1317,7 +1341,9 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
   // l'animation de la capsule (au lieu de se recaler en retard).
   // v569 : idem barre desktop — les libellés (short) entrent dans les deps
   // pour re-mesurer la goutte quand un texte change de largeur (multi-comptes).
-  useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.map(t => t.short || t.label).join('|'), mini], mini, true);
+  // `avecPlus` dans la clé de suivi (DEV v1297) : la capsule « + | ⋯ » s'étire ou se rétracte en 0,25 s en changeant de page,
+  // les onglets changent de largeur pendant ce temps — la pastille les suit image par image (340 ms), comme pour le mode réduit.
+  useSlideIndicator(barRef, indRef, '.tab-item-active .tab-pill', [current, tabs.map(t => t.short || t.label).join('|'), mini, avecPlus], `${mini}|${avecPlus}`, true);
 
 
   // PLUS DE RÉTRACTATION AU DÉFILEMENT (16/11/2026, choix de l'utilisateur sur _maquettes/Mockup-Barre-Sans-Retractation) :
@@ -1491,10 +1517,27 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
       </nav>
       {/* L'écart capsule ↔ « ⋯ » : 10 px, porté par cet espaceur seul. */}
       <div className="tabbar-spacer" />
-      {/* « ⋯ » : une ACTION, pas une section → cercle séparé, icône seule,
-          jamais d'état actif (recommandation retenue à la validation). */}
+      {/* LA CAPSULE « + | ⋯ » (DEV v1296, piste 2 du canevas « Bouton flottant Nouvelle », choix de l'utilisateur) : à gauche le
+          « + » de la couleur de la rubrique — nouvelle opération en UN toucher, depuis n'importe quel écran (création directe sur
+          le compte, un livret ou une enveloppe ouverts ; ailleurs, la feuille « Nouvelle opération dans… », cf. App) ; à droite le
+          « ⋯ », inchangé. Une seule pastille de verre, de la hauteur de la barre : les onglets s'étroitisent de ~7 px. */}
+      {/* DEV v1297 (choix de l'utilisateur) : sur l'ACCUEIL, pas de « + » — rien à y créer sans ambiguïté (quel compte, quel
+          mois ?) — la capsule redevient le rond « ⋯ » ; elle s'étire en arrivant sur une page où l'on crée (classe `sans-plus`,
+          largeur animée). Le « + » reste dans le DOM, replié, hors tabulation. */}
+      <div className={`tabbar-actions glassbar${avecPlus ? '' : ' sans-plus'}`}>
       <button
-        className="tabbar-more glassbar"
+        type="button"
+        className="tabbar-plus"
+        onClick={() => { setMini(false); onNouvelle(); }}
+        aria-label={avecPlus ? libellePlus : undefined}
+        aria-hidden={avecPlus ? undefined : 'true'}
+        tabIndex={avecPlus ? undefined : -1}
+        disabled={!avecPlus}
+      ><Icon name="plus" size={20} /></button>
+      {/* « ⋯ » : une ACTION, pas une section → icône seule, jamais d'état actif (recommandation retenue à la validation). */}
+      <button
+        type="button"
+        className="tabbar-more"
         // `setMini(false)` AVANT d'ouvrir la feuille : sans lui, la barre reste
         // rétractée et on la retrouve en icônes seules à la fermeture (signalé
         // le 01/08/2026 sur iPhone). Le redéploiement était attaché à un
@@ -1511,6 +1554,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, online = true, cacheOk 
         onPointerLeave={(e) => { e.currentTarget.classList.remove('more-pressed'); }}
         aria-label="Menu"
       >⋯{!online && <span className={`net-dot${cacheOk ? '' : ' net-dot--grave'}`} />}</button>
+      </div>
     </div>
   );
 }

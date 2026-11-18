@@ -13,6 +13,7 @@ function InvestmentsView({ ctx }) {
   const { user, portfolios, showToast } = ctx;
   const [activeId, setActiveId] = useState(null); // null = vue liste, sinon id du portefeuille
   const [showCreate, setShowCreate] = useState(false);
+  // Pas de `useNouvelle` sur la LISTE des enveloppes : le « + » de la barre est réservé aux opérations (DEV v1299) : une liste n'en a pas, la création passe par « + Nouveau » en tête.
 
   // Si le portefeuille actif disparaît (suppression / import), retour à la liste.
   useEffect(() => {
@@ -206,7 +207,11 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
             <span className="section-icon invest"><Icon name="layers" size={14} /></span>
             Mes enveloppes
           </div>
-          <span className="section-aide">{portfolios.length}</span>
+          {/* DEV v1298 (demande de l'utilisateur) : le bouton d'ajout passe EN TÊTE de la liste, à la place du nombre d'éléments, comme
+              « Opérations … + Nouvelle » — dans `.ops-outils`, qui le fait déborder sans agrandir l'en-tête (32 px, la géométrie commune des
+              rubriques). DEV v1299 : il reste au téléphone (`liste-nouveau`) — créer un compte ou un actif est rare, le « + » de la barre est
+              réservé aux opérations, qui sont de tous les jours. */}
+          <div className="ops-outils"><button type="button" className="btn btn-accent ops-nouvelle liste-nouveau" onClick={() => setShowCreate(true)}><Icon name="plus" size={15} /> Nouvelle</button></div>
         </div>
         <div>
           {sortByNumber(portfolios, p => computePortfolioStats(p.data).totalValue).map((p, i) => (
@@ -218,9 +223,6 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
               onClick={() => onOpen(p.id)}
             />
           ))}
-        </div>
-        <div className="section-footer">
-          <button className="btn-add" onClick={() => setShowCreate(true)}>Ajouter une enveloppe</button>
         </div>
       </div>
 
@@ -325,6 +327,8 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   useEnteteSousPage(ctx, portfolio.name, onBack);
   const { user, showToast } = ctx;
   const [modal, setModal] = useState(null);
+  // Le « + » de la barre (DEV v1296) : nouvelle opération dans cette enveloppe.
+  useNouvelle(true, () => setModal('add'));
   // ID de l'opération en cours d'édition (depuis HistoryOpsTable).
   // Null = pas de modale d'édition ouverte. Quand on a un id, on rend
   // une modale "Modifier l'opération" qui réutilise AddOperationForm
@@ -444,10 +448,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
       <CarteDeTete
         module="investments" libelle="Valeur" montant={stats.totalValue}
         droite={<>{stats.totalPurchased > 0 && <span className="ct-pill">{fmtPct(stats.totalGainPct)}{stats.hasDistributing && stats.totalDividends > 0 && <span className="ct-pill-div">{'\u00a0· +'}{fmt(stats.totalDividends)} € de div.</span>}</span>}<Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
-              <button className="dropdown-item" onClick={() => setModal('add')}>
-                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="plus" size={14} /></span>
-                Nouvelle opération
-              </button>
+              {/* « Nouvelle opération » retirée du menu (DEV v1298) : le bouton d'en-tête et le « + » de la barre la portent. */}
               <button className="dropdown-item" onClick={() => setModal('values')}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="refresh" size={14} /></span>
                 Mettre à jour les valeurs
