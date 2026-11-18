@@ -311,6 +311,59 @@ function TickAxeMois({ x, y, payload, parLibelle }) {
 }
 function EvolutionAiresChart({ data, categories, width, height, style }) {
   const duree = useDureeAnimationGraphique();
+  // LA BULLE AU TOUCHER (relevés de l'utilisateur sur iPhone, 18/11/2026) : Recharts ouvre la bulle dès que le doigt se pose
+  // et ne la ferme qu'à la sortie de la SOURIS. Faire défiler la page le doigt posé sur le graphique l'affichait (bulle et point),
+  // puis la laissait ouverte. Désormais : elle ne s'ouvre qu'au LEVER d'un TOUCHER FRANC sur le graphique (doigt resté à moins de
+  // 10 px de son point de départ) ; pendant un glissement, rien ne s'affiche. Elle se ferme au toucher suivant, hors du graphique
+  // comme dedans tant que le doigt n'est pas levé, et au défilement — comme les bulles d'aide (`InfoTip`). À la souris, le survol
+  // la montre (`onMouseMove`). `active={false}` force la fermeture (curseur compris) ; `undefined` rend la main à Recharts.
+  const [bulle, setBulle] = useState(true);
+  const bulleRef = useRef(true);
+  const montrerBulle = (v) => { if (bulleRef.current !== v) { bulleRef.current = v; setBulle(v); } };
+  // ⚠️ Recharts appelle AUSSI `onMouseMove` à chaque `touchmove` (`triggeredAfterMouseMove`, Recharts 2.12.7) : branché tel quel,
+  // il rouvrait la bulle pendant un glissement (DEV v1292, relevé de l'utilisateur sur iPhone ; reproduit : elle clignotait). On
+  // l'ignore pendant un geste au doigt et dans la seconde qui suit — le survol qu'iOS simule après un toucher compris.
+  const derniereToucheRef = useRef(0);
+  const auSurvol = () => { if (Date.now() - derniereToucheRef.current > 1000) montrerBulle(true); };
+  useEffect(() => {
+    let geste = null;   // { x, y, bouge } : un toucher commencé sur le graphique
+    // Un toucher qui COMMENCE sur le graphique ne ferme rien (DEV v1294, relevé de l'utilisateur : toucher un autre mois faisait
+    // disparaître puis réapparaître la bulle — elle doit se DÉPLACER) ; elle se ferme seulement s'il devient un glissement.
+    // Un toucher hors du graphique la ferme aussitôt.
+    const auToucher = (e) => {
+      derniereToucheRef.current = Date.now();
+      const t = e.touches && e.touches[0];
+      const surGraphe = !!(e.target && e.target.closest && e.target.closest('.evo-graphe'));
+      geste = (surGraphe && t && e.touches.length === 1) ? { x: t.clientX, y: t.clientY, bouge: false, cible: e.target } : null;
+      if (!geste) montrerBulle(false);
+    };
+    const auDeplacement = (e) => {
+      derniereToucheRef.current = Date.now();
+      const t = e.touches && e.touches[0];
+      if (geste && !geste.bouge && t && Math.hypot(t.clientX - geste.x, t.clientY - geste.y) > 10) { geste.bouge = true; montrerBulle(false); }
+    };
+    // Au lever d'un toucher franc, Recharts n'a pas recalé le mois : son `touchstart` n'est qu'un appui, seuls `touchmove` et
+    // `mousemove` déplacent la bulle (lu dans Recharts 2.12.7). On lui envoie donc un `mousemove` au point touché, puis on montre.
+    const auLever = () => {
+      derniereToucheRef.current = Date.now();
+      if (geste && !geste.bouge) {
+        geste.cible.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: geste.x, clientY: geste.y }));
+        montrerBulle(true);
+      }
+      geste = null;
+    };
+    const auDefilement = () => { if (geste) geste.bouge = true; montrerBulle(false); };
+    document.addEventListener('touchstart', auToucher, { capture: true, passive: true });
+    document.addEventListener('touchmove', auDeplacement, { capture: true, passive: true });
+    document.addEventListener('touchend', auLever, { capture: true, passive: true });
+    document.addEventListener('scroll', auDefilement, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('touchstart', auToucher, { capture: true });
+      document.removeEventListener('touchmove', auDeplacement, { capture: true });
+      document.removeEventListener('touchend', auLever, { capture: true });
+      document.removeEventListener('scroll', auDefilement, { capture: true });
+    };
+  }, []);
   // L'axe des mois : l'échelle de `etiquettesAxeMois` (utils.js), recalculée à chaque largeur et à chaque période.
   const axe = useMemo(() => {
     if (!width || !data || data.length < 2) return null;
@@ -321,7 +374,8 @@ function EvolutionAiresChart({ data, categories, width, height, style }) {
     return { ticks: r.etiquettes.map(e => data[e.i].label), parLibelle, avecAn: r.etiquettes.some(e => e.an) };
   }, [data, width]);
   return (
-    <AreaChart width={width} height={height} style={style} data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+    <AreaChart width={width} height={height} style={style} className="evo-graphe" data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}
+      onMouseMove={auSurvol}>
       <defs>
         <linearGradient id="evo-fond" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor={COURBE_TOTAL} stopOpacity={0.18} />
@@ -332,8 +386,10 @@ function EvolutionAiresChart({ data, categories, width, height, style }) {
         ? <XAxis dataKey="label" ticks={axe.ticks} interval={0} tick={<TickAxeMois parLibelle={axe.parLibelle} />} tickLine={false} axisLine={false} height={axe.avecAn ? 34 : 22} />
         : <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />}
       <YAxis hide domain={['dataMin', 'dataMax']} />
-      <Tooltip content={<EvolutionTooltip categories={categories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
-      <Area type="monotone" dataKey="total" stroke={COURBE_TOTAL} strokeWidth={2.5} fill="url(#evo-fond)"
+      <Tooltip active={bulle ? undefined : false} content={<EvolutionTooltip categories={categories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
+      {/* Le point de la courbe suit la bulle (DEV v1295) : Recharts le dessine d'après SON état (`isTooltipActive`), sans lire
+          `Tooltip active` — il restait affiché pendant un glissement, bulle et ligne pointillée cachées (relevé de l'utilisateur). */}
+      <Area type="monotone" dataKey="total" stroke={COURBE_TOTAL} strokeWidth={2.5} fill="url(#evo-fond)" activeDot={bulle}
         animationBegin={0} animationDuration={duree} />
     </AreaChart>
   );

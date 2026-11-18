@@ -1571,6 +1571,10 @@ input[type="month"] {
 .liste-rec .composite-comp-row { border-bottom: 0; }
 /* Les libellés des composantes sont des champs en lecture seule : sur ordinateur, un clic y posait un curseur. */
 .composite-comp-row input[readonly] { pointer-events: none; caret-color: transparent; cursor: default; }
+/* Le contexte du clone de glisser-déposer (dnd.js, `contexteDuClone`, 18/11/2026) : des coquilles d'ancêtres en `display: contents`.
+   Un élément en `display: contents` garde ses ::before / ::after — le trait des composantes (`.composite-comps::before`) se
+   dessinerait au bord de l'écran. Les coquilles n'en ont aucun. */
+.dnd-clone-ctx::before, .dnd-clone-ctx::after { content: none !important; }
 /* Crayon centré entre le « € » et le bout de la ligne : il était à 14 px du « € » et à 8 px du bord (mesuré, 15/11/2026). */
 /* CRAYON CENTRÉ entre le « € » et le bord de la ligne, dans TOUTES les listes d'opérations (15/11/2026, mesuré à 430, 599
    et 1 280 px) : les marges des lignes diffèrent d'une liste et d'un format à l'autre, d'où un décalage par cas. */

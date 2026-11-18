@@ -34,6 +34,32 @@
 // ============================================================
 
 const DND_ROW_SELECTOR = '.tx-row, .composite-comp-row, .recurring-row, .charge-row, .ch-ligne'; // .ch-ligne : charges, version 2 (15/11/2026)
+// Le contexte du clone flottant (18/11/2026) : des COQUILLES des ancêtres de la ligne — mêmes balise, classes et style en ligne
+// (donc `--amt-w`), sans enfants ni id, en `display: contents` (aucune boîte : le clone reste en `position: fixed` sur l'écran) —,
+// jusqu'à la racine de la liste. Pour une composante, la coquille de sa ligne parente, cachée, précède `.composite-comps` :
+// les règles en « + » la trouvent. Rend l'élément à poser dans <body>.
+const RACINE_LISTE_DND = '.section-block, .liste-rec, .modal';
+function contexteDuClone(row, clone) {
+  let haut = clone;
+  for (let a = row.parentElement; a && a !== document.body; a = a.parentElement) {
+    const coquille = a.cloneNode(false);
+    coquille.removeAttribute('id');
+    coquille.style.display = 'contents';
+    coquille.classList.add('dnd-clone-ctx');
+    coquille.appendChild(haut);
+    haut = coquille;
+    if (a.matches(RACINE_LISTE_DND)) break;
+  }
+  const comps = row.closest('.composite-comps');
+  const copieComps = clone.closest('.composite-comps');
+  if (comps && copieComps && comps.previousElementSibling) {
+    const parent = comps.previousElementSibling.cloneNode(false);
+    parent.removeAttribute('id');
+    parent.style.display = 'none';
+    copieComps.parentNode.insertBefore(parent, copieComps);
+  }
+  return haut;
+}
 const DND_THRESHOLD = 5;      // px : seuil d'armement à la SOURIS
 const DND_EDGE = 64;          // px : bande d'auto-scroll près des bords
 const DND_MAX_SPEED = 13;     // px/frame max d'auto-scroll
@@ -202,20 +228,14 @@ function startDrag(clientX, clientY) {
     // rouvrir l'effet « double » (l'origine est déjà très estompée, .dragging 0,15).
     + `box-shadow:0 12px 28px rgba(15,23,42,.20); transform:scale(1.02); `
     + `opacity:0.85;`;
-  // Le clone vit dans <body>, hors de la liste : les styles de la liste du compte courant (`.section-block.ops-c …`,
-  // modernisation C') ne l'atteignaient pas, et il montrait l'ancienne ligne (flèche, autre grille). On lui redonne
-  // ce contexte par une enveloppe `display: contents` qui porte les mêmes classes (relevé de l'utilisateur, 15/11/2026).
-  let cloneWrap = null;
-  const liste = row.closest('.section-block.ops-c');
-  if (liste) {
-    cloneWrap = document.createElement('div');
-    cloneWrap.className = 'section-block ops-c dnd-clone-ctx';
-    cloneWrap.style.display = 'contents';
-    cloneWrap.appendChild(clone);
-    document.body.appendChild(cloneWrap);
-  } else {
-    document.body.appendChild(clone);
-  }
+  // Le clone vit dans <body>, hors de la liste : les styles qui dépendent de la liste ne l'atteignaient pas, et il montrait une
+  // autre grille. Une première enveloppe `.section-block.ops-c` (15/11/2026) ne suffisait pas : une COMPOSANTE prend ses colonnes
+  // de `.tx-row.composite-row + .composite-comps …` (libellé tombé dans une colonne de 20 px, « Abo… −12.50 € » — relevé de
+  // l'utilisateur, 18/11/2026), la largeur des montants vient de `--amt-w` posée sur `.tx-list`, et les récurrents n'avaient
+  // aucune enveloppe. `contexteDuClone` recopie donc la chaîne des ancêtres jusqu'à la racine de la liste : le clone reçoit
+  // exactement les règles de l'original, quelle que soit la liste (mesuré : grilles identiques au pixel, quatre cas).
+  const cloneWrap = contexteDuClone(row, clone);
+  document.body.appendChild(cloneWrap);
   row.classList.add('dragging');
   // v547 : dès l'armement, on bloque le scroll natif pour tout le geste
   // (voir blockTouchScroll). Avant, la poignée en pan-y laissait défiler.
