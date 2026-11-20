@@ -3200,6 +3200,8 @@ button.stat-card {
 .tabbar-actions { transition: flex-basis .25s cubic-bezier(0, 0, 0.2, 1), gap .25s cubic-bezier(0, 0, 0.2, 1); }
 .tabbar-plus { transition: background-color .3s ease, flex-grow .25s cubic-bezier(0, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0, 0, 0.2, 1); }
 .tabbar-actions.sans-plus { flex-basis: 54px; gap: 0; }
+/* Le « + » qui RÉAPPARAÎT : sa couleur est posée sans fondu (DEV v1308 — il partait de la couleur de la page quittée). */
+.tabbar-actions.plus-arrive .tabbar-plus { transition: flex-grow .25s cubic-bezier(0, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0, 0, 0.2, 1); }
 .tabbar-actions.sans-plus .tabbar-plus { flex-grow: 0; opacity: 0; transform: scale(0.5); pointer-events: none; }
 .tabbar-wrap.mini .tabbar-actions.sans-plus { flex-basis: 44px; }
 
@@ -5548,6 +5550,7 @@ button.cp-seg-item { cursor: pointer; }
   .tabbar-actions { transition: none; }
   .tabbar-plus { transition: background-color .3s ease, opacity .2s ease; }
   .tabbar-actions.sans-plus .tabbar-plus { transform: none; }
+  .tabbar-actions.plus-arrive .tabbar-plus { transition: opacity .2s ease; } /* v1308 : sans fondu de couleur, mais sans mouvement non plus */
   .sheet-swap { transition: none; }
 }
 
