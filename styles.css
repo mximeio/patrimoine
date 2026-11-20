@@ -755,19 +755,20 @@ input[type="month"] {
 .seg-kebab { padding: 9px 12px; font-size: 16px; line-height: 1; }
 .seg-solo + .seg-kebab { margin-left: 0; }
 .ch-liste { border-top: 1px solid var(--border); }
-.ch-ligne { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 22px; align-items: center; gap: 8px; min-height: 46px; padding: 4px 6px 4px 3px; border-bottom: 1px solid var(--border); } /* 16/11/2026 (Mockup-Listes-Fenetres) : poignée à 3 px du trait, comme le compte courant ; crayon à 11 (0 et 5 avant) */
+.ch-ligne { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 22px; align-items: center; gap: 8px; min-height: 40px; padding: 4px 6px 4px 3px; border-bottom: 1px solid var(--border); } /* 16/11/2026 (Mockup-Listes-Fenetres) : poignée à 3 px du trait, comme le compte courant ; crayon à 11 (0 et 5 avant) */
 .ch-ligne--revenu { grid-template-columns: 34px minmax(0, 1fr) auto 22px; gap: 8px; min-height: 52px; padding-left: 11px; } /* pastille à 11 px du trait (0 avant) */
 .ch-ligne--revenu .ch-av { margin-right: 4px; } /* 12 px entre l'avatar et le nom, mais 8 avant le crayon : le « € » tombe sur celui des charges */
 .ch-grip { display: grid; place-items: center; height: 100%; color: var(--text-subtle); cursor: grab; touch-action: none; }
 .ch-nom { min-width: 0; display: grid; gap: 1px; }
 .ch-nom b { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ch-nom small { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Repères d'une charge (version A′) : pastilles sans fond, un filet clair et le texte dans sa couleur. */
-.ch-nom small.ch-reperes { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+/* Repères d'une charge — la légende d'avant (DEV v1314) : sur la ligne du libellé, la pastille du partage (sans fond, un filet
+   clair) puis les points du compte joint et du livret ; le libellé seul se tronque. */
+.ch-nom.ch-nom--ligne { display: flex; align-items: center; gap: 6px; }
+.ch-nom--ligne b { flex: 0 1 auto; min-width: 0; }
+.ch-nom--ligne .charge-vir-dot, .ch-nom--ligne .charge-prov-dot { margin-left: 1px; }
 .ch-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--border); font-size: 11px; font-weight: 500; color: var(--text-light); white-space: nowrap; flex: none; }
-.ch-tag--joint { color: var(--accent); border-color: #d9d6fb; }
-.ch-tag--livret { color: var(--warning-fonce); border-color: #f5dfb0; }
-.ch-tag-txt { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.ch-tag--perso { border-color: transparent; font-weight: 700; } /* initiales de qui paie seul : le fond pâle et le gras des pastilles des revenus (.ch-av), même taille que les autres pastilles — DEV v1315 */
 .ch-montant { white-space: nowrap; }
 .ch-montant-val { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--danger-fonce); }
 .ch-montant-val--neutre { color: var(--text); }
@@ -4029,6 +4030,7 @@ button.stat-card {
    ticker · ISIN sous le nom complet d'un support, total annuel sous les parts
    d'une charge. */
 .infotip-sous { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.infotip-tete { display: block; margin-bottom: 2px; font-weight: 600; } /* la première ligne d'une bulle riche (le total par mois d'une charge annuelle, DEV v1314) */
 /* Les deux déclencheurs « en touchant » du portrait téléphone (nom d'un support,
    montant d'une charge) : un pointillé dit qu'on peut toucher. */
 .support-nom-tip, .charge-montant-tip { text-decoration: underline dotted; text-decoration-color: rgba(100, 116, 139, 0.55); text-underline-offset: 3px; }

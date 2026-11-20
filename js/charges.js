@@ -170,9 +170,13 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
     .map((p, i) => ({ p, i, v: chargeShareOf(c, p.id, nets, people.length) / (annuelle ? 12 : 1) }))
     .filter((x) => roundDisp(x.v) !== 0);
   const partsTexte = parts.map((x) => `${x.p.label} ${eur(x.v)}`).join(' · ');
-  // Repères (version A′ de Mockup-Charges-Reperes, 15/11/2026) : des pastilles SANS FOND — un filet clair, le texte en
-  // couleur — pour le partage, la personne qui paie seule, et le compte par lequel la charge passe. Elles disent leur nom :
-  // plus de légende. L'équivalent mensuel d'une charge annuelle reste en texte simple.
+  // Repères — LA LÉGENDE D'AVANT (DEV v1314, piste A du canevas Claude Design « Répartition — listes allégées », choix de
+  // l'utilisateur pour alléger les listes) : une seule ligne. À côté du libellé, la pastille du partage (« Prorata »,
+  // « 50/50 », « Montants »), ou les INITIALES de la personne qui paie seule — au style des pastilles des revenus (`.ch-av`) :
+  // fond pâle de la personne, texte en gras, sans filet (DEV v1315, planche « Initiales » du même canevas) ; puis le point indigo du
+  // virement mensuel (compte joint) et le point ambre de la provision (livret), expliqués une fois sous les listes
+  // (`.charges-legend-global`). L'équivalent par mois d'une charge annuelle passe dans la bulle du montant.
+  // (Avant : version A′ du 15/11/2026, pastilles « Compte joint » et « Livret » en toutes lettres sous le libellé.)
   const sp = c.split || {};
   const seule = sp.mode === 'perso'
     ? (() => { const avec = people.filter(p => (Number(sp.amounts?.[p.id]) || 0) > 0); return avec.length === 1 ? avec[0] : null; })()
@@ -181,16 +185,15 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
   const reperes = (
     <>
       {seule
-        ? <span className="ch-tag" style={{ color: personTextAt(iSeule), borderColor: `color-mix(in srgb, ${personColorAt(iSeule)} 35%, #fff)` }}>{seule.label}</span>
+        ? <span className="ch-tag ch-tag--perso" title={`Payée par ${seule.label}`} style={{ color: personTextAt(iSeule), background: personLightAt(iSeule) }}>{initials(seule.label)}</span>
         : <span className="ch-tag">{partageEnMots(c, people) === 'Au prorata' ? 'Prorata' : partageEnMots(c, people) === 'Montants fixés' ? 'Montants' : partageEnMots(c, people)}</span>}
-      {c.joint && <span className="ch-tag ch-tag--joint">Compte joint</span>}
-      {annuelle && c.provision !== false && <span className="ch-tag ch-tag--livret">Livret</span>}
-      {annuelle && <span className="ch-tag-txt">{eur(total / 12)}/mois</span>}
+      {c.joint && <span className="charge-vir-dot" role="img" title="Virement mensuel (compte joint)" aria-label="Compte joint" />}
+      {annuelle && c.provision !== false && <span className="charge-prov-dot" role="img" title="Provision mensuelle (livret)" aria-label="Livret" />}
     </>
   );
   const bulleParts = (
     <>
-      {annuelle && 'Par mois : '}
+      {annuelle && <span className="infotip-tete">{eur(total / 12)} par mois</span>}
       {parts.map((x, k) => (
         <React.Fragment key={x.p.id}>
           {k > 0 && ' · '}
@@ -205,14 +208,14 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
   return (
     <div ref={dropRef} className="ch-ligne">
       <span ref={dragRef} className="ch-grip" title="Glisser pour réordonner"><Icon name="poignee" size={14} /></span>
-      <span className="ch-nom">
+      <span className="ch-nom ch-nom--ligne">
         <b>{c.label || '(sans libellé)'}</b>
-        <small className="ch-reperes">{reperes}</small>
+        {reperes}
       </span>
       <span className="ch-montant">
         <span className="ch-montant-val">
           {parts.length > 0
-            ? <InfoTip className="charge-montant-tip" popClassName="infotip-pop--wrap" label={`${annuelle ? 'Par mois : ' : ''}${partsTexte}`} content={bulleParts}>{chiffre}</InfoTip>
+            ? <InfoTip className="charge-montant-tip" popClassName="infotip-pop--wrap" label={`${annuelle ? `${eur(total / 12)} par mois — ` : ''}${partsTexte}`} content={bulleParts}>{chiffre}</InfoTip>
             : chiffre}
         </span> <span className="cur">€</span>
       </span>
@@ -767,11 +770,16 @@ function ChargesModal({ ctx, onClose }) {
                 </div>
                 <button className="btn-add ch-ajout" onClick={() => setEditingCharge('new')}>Ajouter une charge mensuelle</button>
 
-                <h3 className="settings-group-title">Charges annuelles<AideChamp>Réparties sur 12 mois ; celles marquées « livret » sont provisionnées chaque mois sur le livret.</AideChamp><span className="ch-total">par mois : {eurEl(totalAnnuel / 12)}</span></h3>
+                <h3 className="settings-group-title">Charges annuelles<AideChamp>Réparties sur 12 mois ; celles qui portent le point ambre sont provisionnées chaque mois sur le livret.</AideChamp><span className="ch-total">par mois : {eurEl(totalAnnuel / 12)}</span></h3>
                 <div className="ch-liste">
                   {annual.length ? annual.map(renderRow) : emptyMsg('Aucune charge annuelle.')}
                 </div>
                 <button className="btn-add ch-ajout" onClick={() => setEditingCharge('new-annual')}>Ajouter une charge annuelle</button>
+                {/* La légende des points (DEV v1314, celle d'avant la version 2) : une fois, sous les deux listes. */}
+                <div className="charges-legend-global">
+                  <span><span className="charge-vir-dot" /> Virement mensuel (compte joint)</span>
+                  <span><span className="charge-prov-dot" /> Provision mensuelle (livret)</span>
+                </div>
               </>
             );
           })()}
