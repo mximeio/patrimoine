@@ -937,6 +937,7 @@ function App() {
         onMore={() => setShowSheet(true)}
         onNouvelle={nouvelleDepuisBarre}
         avecPlus={avecPlus}
+        avecPlusPour={(id) => id === 'checking' && !modulesEnabled.multiCheckingAccounts}
         online={netOnline}
         cacheOk={cacheOk}
       />
@@ -1132,6 +1133,40 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
       raf = requestAnimationFrame(step);
     };
 
+    // TRAJET DIRECT (DEV v1305) quand la capsule « + | ⋯ » change de largeur avec le changement d'onglet. Historique :
+    //  - jusqu'à la v1303, `follow` COLLAIT la pastille à l'onglet image par image : lancée par le doigt, elle sautait le
+    //    reste du chemin (19 à 22 px en une image, mesuré) ;
+    //  - la v1304 gardait le ressort et recalait la cible À CHAQUE IMAGE : fluide dans Chrome, « saccade énormément » sur
+    //    l'iPhone de l'utilisateur (Safari relance l'animation à chaque recalage).
+    // Ici, technique FLIP : on mesure la géométrie FINALE (transition de la capsule coupée un instant), on envoie la pastille
+    // UNE FOIS vers sa place finale (position au ressort, largeur sur la courbe de la capsule), puis on rend à la capsule sa
+    // largeur de départ pour qu'elle s'étire comme avant. Aucun recalage pendant le trajet : le ResizeObserver se tait.
+    const trajetDirect = () => {
+      const cont = containerRef.current, ind = indicatorRef.current;
+      const act = cont && cont.parentElement ? cont.parentElement.querySelector('.tabbar-actions') : null;
+      if (!cont || !ind || !act) { move(); return false; }
+      const largeurDepart = act.getBoundingClientRect().width;
+      // `.tab-pill` (l'élément mesuré) anime sa propre largeur (`transition: all 0.3s`) : sans coupure, on lisait son
+      // ANCIENNE largeur — la pastille gardait sa taille tout le trajet puis changeait de 8 px d'un coup (mesuré, v1305).
+      const pills = [...cont.querySelectorAll('.tab-pill')];
+      pills.forEach((p) => { p.style.transition = 'none'; });
+      act.style.transition = 'none';
+      act.style.flexBasis = '';
+      ind.style.transition = 'transform 0.62s cubic-bezier(0.22, 1.08, 0.3, 1), width 0.25s cubic-bezier(0, 0, 0.2, 1)';
+      const txAvant = parseFloat(ind.style.getPropertyValue('--tx'));
+      move();                                   // géométrie finale : la pastille part vers sa place définitive
+      // Déjà visée au toucher (v1306) : une différence d'arrondi ne doit pas relancer le ressort.
+      const txApres = parseFloat(ind.style.getPropertyValue('--tx'));
+      if (!isNaN(txAvant) && Math.abs(txApres - txAvant) < 1.5) ind.style.setProperty('--tx', txAvant + 'px');
+      pills.forEach((p) => { p.style.transition = ''; });
+      act.style.flexBasis = largeurDepart + 'px';
+      void act.offsetWidth;                     // la capsule repart de sa largeur de départ…
+      act.style.transition = '';
+      act.style.flexBasis = '';                 // …et s'étire vers la finale avec sa transition CSS
+      return act;
+    };
+    let calmeJusqua = 0;
+
     const followChanged = prevFollowKey.current !== followKey;
     prevFollowKey.current = followKey;
     // Retour ou avance du SYSTÈME (glisser depuis le bord, boutons du
@@ -1148,7 +1183,28 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
     // pose la nouvelle position. Une coupure posée ailleurs était annulée —
     // mesuré au navigateur sur la première version (DEV v1072).
     const systeme = performance.now() - derniereNavSysteme < 600;
-    if (followChanged) follow(340);
+    // Capsule qui change de largeur : trajet direct (cf. `trajetDirect`). Un retour du SYSTÈME garde la pose collée (constat 9
+    // de l'audit du 19/10 : pas de glissement), comme une rotation.
+    // Fin du trajet : à la FIN RÉELLE de l'étirement de la capsule (`transitionend`), pas à heure fixe — un iPhone occupé à
+    // afficher la page peut finir plus tard, et un recalage en cours d'étirement viserait une position intermédiaire.
+    // Filet : 600 ms. Jusque-là, aucun recalage (ResizeObserver et polices se taisent).
+    let finTrajet = null, capsuleEnTrajet = null, finirTrajet = null;
+    const capsule = (followChanged && !systeme) ? trajetDirect() : null;
+    if (capsule) {
+      calmeJusqua = Infinity;
+      capsuleEnTrajet = capsule;
+      finirTrajet = (e) => {
+        if (e && (e.target !== capsule || e.propertyName !== 'flex-basis')) return;
+        capsule.removeEventListener('transitionend', finirTrajet);
+        clearTimeout(finTrajet);
+        calmeJusqua = 0;
+        if (indicatorRef.current) indicatorRef.current.style.transition = '';
+        move();
+      };
+      capsule.addEventListener('transitionend', finirTrajet);
+      finTrajet = setTimeout(() => finirTrajet(), 600);
+    }
+    else if (followChanged) follow(340);
     else if (systeme && indicatorRef.current) {
       const ind = indicatorRef.current;
       // Les icônes aussi : `.tab-pill` fond sa couleur en 0,3 s, et pendant ce
@@ -1165,7 +1221,9 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
 
     // Recalage quand la police web finit de charger (largeurs des libellés)
     // et en fin de transition par sécurité.
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(move);
+    // ⚠️ Se tait pendant un trajet direct : `fonts.ready`, déjà résolu, rappelait `move` dans la foulée et remesurait la
+    // capsule revenue à sa largeur de départ — la pastille perdait sa largeur finale (mesuré, v1305).
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (performance.now() >= calmeJusqua) move(); });
     const t = setTimeout(move, 380);
     // Resize / rotation : les media queries peuvent déclencher des
     // transitions sur les éléments mesurés (paysage = capsule compacte) →
@@ -1176,11 +1234,13 @@ function useSlideIndicator(containerRef, indicatorRef, activeSelector, deps, fol
     // Le conteneur change de largeur SANS que la fenêtre bouge (DEV v1297 : la capsule « + | ⋯ » s'étire ou se rétracte en
     // changeant de page) : on remesure à chaque changement de taille. Filet du suivi image par image, qui peut être
     // interrompu (onglet en arrière-plan) — la pastille finit toujours sur son onglet.
-    const ro = (window.ResizeObserver && containerRef.current) ? new ResizeObserver(() => move()) : null;
+    const ro = (window.ResizeObserver && containerRef.current) ? new ResizeObserver(() => { if (performance.now() >= calmeJusqua) move(); }) : null;
     if (ro) ro.observe(containerRef.current);
     return () => {
       if (ro) ro.disconnect();
       if (raf) cancelAnimationFrame(raf);
+      if (finTrajet) clearTimeout(finTrajet);
+      if (capsuleEnTrajet && finirTrajet) capsuleEnTrajet.removeEventListener('transitionend', finirTrajet);
       if (indicatorRef.current) indicatorRef.current.style.transition = '';
       clearTimeout(t);
       window.removeEventListener('resize', onResize);
@@ -1292,7 +1352,7 @@ function AppBar({ user, onSignOut, tabs, currentModule, onSelectModule, onOpenSe
 // Fixée en bas, jamais masquée, à taille constante en portrait (plus de
 // rétractation au défilement depuis le 16/11/2026 ; compacte en paysage).
 // Affichée uniquement sur mobile (CSS).
-function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = true, libellePlus = 'Nouvelle opération', online = true, cacheOk = true }) {
+function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = true, avecPlusPour, libellePlus = 'Nouvelle opération', online = true, cacheOk = true }) {
   const wrapRef = useRef(null);
   const barRef = useRef(null);
   const indRef = useRef(null);
@@ -1373,23 +1433,45 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
   //  Pointer capture : la mécanique éprouvée de la poignée de la sheet.
   // ============================================================
   const gestureRef = useRef(null);
-  // Géométrie des pills en COORDONNÉES DE LAYOUT (offsetLeft cumulés),
-  // PAS getBoundingClientRect : pendant l'appui la capsule est scalée
-  // (×1.035) et les rects vivent dans l'espace agrandi alors que
-  // style.left vit dans l'espace layout — l'écart (proportionnel à la
-  // distance du centre) faisait sortir la bulle de la barre à droite
-  // (bug v495 signalé). Les offsets, eux, ignorent les transforms.
-  const pillRects = () => {
+  // (DEV v1307) `pillRects`, qui mesurait en offsetLeft cumulés, est retiré : il ne tombait pas au même endroit que `move`
+  // (jusqu'à 23 px d'écart, mesuré). Toute mesure passe par `rectsExactes`, qui divise par l'échelle de la capsule.
+  // VISER LA PLACE FINALE DÈS LE TOUCHER (DEV v1306, demande de l'utilisateur après la v1305 : « ça saccade encore
+  // légèrement »). Toucher un onglet qui fera apparaître ou disparaître le « + » : la capsule changera de largeur au relâcher
+  // et l'onglet bougera. Avant, la pastille visait sa place ACTUELLE, puis `trajetDirect` la relançait vers la finale — un
+  // coup de frein en route (mesuré : 4,7 → 1,6 px par image). Ici on mesure la géométrie finale (classe `sans-plus`
+  // basculée un instant, transitions coupées, tout est rétabli dans la même tâche : rien ne s'affiche) et la pastille vise
+  // d'emblée sa place définitive. Mesure à la manière de `move` (rectangles, fractions de pixel) : au relâcher, `trajetDirect`
+  // retrouve la même valeur et ne relance rien.
+  const rectsExactes = () => {
     const bar = barRef.current;
-    const layoutLeft = (el) => {
-      let x = 0, n = el;
-      while (n && n !== bar) { x += n.offsetLeft; n = n.offsetParent; }
-      return x;
-    };
-    return [...bar.querySelectorAll('.tab-pill')].map(p => {
-      const left = layoutLeft(p);
-      return { left, width: p.offsetWidth, cx: left + p.offsetWidth / 2 };
+    const c = bar.getBoundingClientRect();
+    const s = bar.offsetWidth ? (c.width / bar.offsetWidth) : 1;
+    return [...bar.querySelectorAll('.tab-pill')].map((p) => {
+      const b = p.getBoundingClientRect();
+      const left = (b.left - c.left) / s + bar.scrollLeft - bar.clientLeft;
+      return { left, width: b.width / s, cx: left + b.width / s / 2 };
     });
+  };
+  const rectsPour = (avecPlusCible) => {
+    const bar = barRef.current;
+    const act = bar && bar.parentElement ? bar.parentElement.querySelector('.tabbar-actions') : null;
+    if (!act || act.classList.contains('sans-plus') === !avecPlusCible) return rectsExactes();
+    const plus = act.querySelector('.tabbar-plus');
+    const pills = [...bar.querySelectorAll('.tab-pill')];
+    const largeur = act.getBoundingClientRect().width;
+    act.style.transition = 'none';
+    if (plus) plus.style.transition = 'none';
+    pills.forEach((p) => { p.style.transition = 'none'; });
+    act.classList.toggle('sans-plus', !avecPlusCible);
+    const rects = rectsExactes();
+    act.classList.toggle('sans-plus', avecPlusCible);
+    act.style.flexBasis = largeur + 'px';
+    void act.offsetWidth;
+    act.style.transition = '';
+    act.style.flexBasis = '';
+    if (plus) plus.style.transition = '';
+    pills.forEach((p) => { p.style.transition = ''; });
+    return rects;
   };
   const barItems = () => [...barRef.current.querySelectorAll('.tab-item')];
   const setActivePreview = (idx) => {
@@ -1407,9 +1489,14 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
     ind.classList.add('ind-pressed');
     item.classList.add('item-pressed');
     // La bulle vient au doigt (transition ressort du CSS), aperçu
-    // d'activation — l'onglet ne s'ouvrira qu'au relâcher.
-    const rects = pillRects();
+    // d'activation — l'onglet ne s'ouvrira qu'au relâcher. Elle vise la place FINALE de l'onglet (cf. `rectsPour`).
+    const iCourant = tabs.findIndex((t) => t.id === current);
+    const avecPlusCible = (idx === iCourant || !avecPlusPour) ? avecPlus : !!avecPlusPour(tabs[idx].id);
+    const rects = rectsPour(avecPlusCible);
     ind.style.setProperty('--tx', rects[idx].left + 'px');
+    if (Math.abs(rects[idx].width - ind.getBoundingClientRect().width) > 0.5) {
+      ind.style.transition = 'transform 0.62s cubic-bezier(0.22, 1.08, 0.3, 1), width 0.25s cubic-bezier(0, 0, 0.2, 1)';
+    }
     ind.style.width = rects[idx].width + 'px';
     setActivePreview(idx);
   };
@@ -1418,8 +1505,8 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
     const bar = barRef.current, ind = indRef.current;
     if (!g || !bar || !ind) return;
     if (!g.moved && Math.abs(e.clientX - g.startX) < 6) return;
-    if (!g.moved) { g.moved = true; ind.classList.add('ind-dragging'); }
-    const rects = pillRects();
+    if (!g.moved) { g.moved = true; ind.classList.add('ind-dragging'); ind.style.transition = ''; } // le style en ligne posé à l'appui couvrirait `ind-dragging`
+    const rects = rectsExactes();
     // Position du doigt convertie en coordonnées de LAYOUT : la capsule
     // pressée est scalée, on divise par le facteur d'échelle courant.
     const c = bar.getBoundingClientRect();
@@ -1453,9 +1540,14 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
     gestureRef.current = null;
     clearPressVisuals();
     const ind = indRef.current;
-    if (ind) {
-      // Pose de la bulle sur son slot exact (le ressort CSS reprend)
-      const rects = pillRects();
+    // ⚠️ DEV v1307 (« je vois toujours le coup de frein », mesuré) : le relâcher reposait la bulle avec `pillRects`
+    // (positions entières, et un écart allant jusqu'à 23 px avec la mesure de `move`), puis la mise à jour de la page la
+    // ramenait : le ressort repartait DEUX fois, sur TOUS les changements d'onglet. Après un simple toucher, la bulle vise
+    // déjà sa place finale depuis l'appui : on n'y touche plus. Après un glissé, on la pose avec la même mesure que partout.
+    if (ind && g.moved) {
+      const iCourant = tabs.findIndex((x) => x.id === current);
+      const avecPlusCible = (g.hover === iCourant || !avecPlusPour) ? avecPlus : !!avecPlusPour(tabs[g.hover].id);
+      const rects = rectsPour(avecPlusCible);
       ind.style.setProperty('--tx', rects[g.hover].left + 'px');
       ind.style.width = rects[g.hover].width + 'px';
     }
@@ -1474,7 +1566,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
     setActivePreview(idx);
     const ind = indRef.current;
     if (ind && idx >= 0) {
-      const rects = pillRects();
+      const rects = rectsExactes();
       ind.style.setProperty('--tx', rects[idx].left + 'px');
       ind.style.width = rects[idx].width + 'px';
     }
