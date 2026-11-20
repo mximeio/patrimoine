@@ -395,8 +395,7 @@ function EvolutionAiresChart({ data, categories, width, height, style }) {
   );
 }
 
-// Tooltip du graphique d'évolution — fond BLANC, aligné sur le tooltip
-// standard des autres graphiques (CustomTooltip dans ui.js) : c'était le
+// Tooltip du graphique d'évolution — fond BLANC (surface, liseré, ombre) : c'était le
 // seul habillage sombre de l'app hors hero cards (héritage v1), l'ombre et
 // le liseré suffisent à le détacher des aires colorées.
 function EvolutionTooltip({ active, payload, categories }) {

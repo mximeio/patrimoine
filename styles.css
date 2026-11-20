@@ -647,86 +647,8 @@ input[type="month"] {
 }
 .ref-btn.off { border-color: var(--border); color: var(--text-muted); background: var(--surface); }
 
-/* Revenus : cartes par personne — style « stat-card » blanc (cf. compte
-   courant) : fine bordure, pastille colorée en haut à droite. */
-.inc-row { display: flex; gap: 12px; flex-wrap: wrap; }
-.inc-fld {
-  flex: 1; min-width: 150px; position: relative;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-md); padding: 14px 15px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-@media (hover: hover) { .inc-fld:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); } }
-.inc-ava {
-  position: absolute; top: 12px; right: 12px;
-  width: 28px; height: 28px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
-}
-.inc-name {
-  display: block; font-size: 11px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
-  padding-right: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.inc-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-top: 9px; }
-.inc-amt { display: flex; align-items: baseline; gap: 5px; margin-top: 2px; }
-.inc-amt-input {
-  border: 1px solid transparent; background: transparent; font-family: inherit;
-  font-size: 20px; font-weight: 600; letter-spacing: -0.02em; color: var(--text);
-  text-align: left; padding: 2px 3px; border-radius: var(--radius-sm); min-width: 2ch;
-}
-@media (hover: hover) { .inc-amt-input:hover { border-color: var(--border); } }
-.inc-amt-input:focus { outline: none; border-color: var(--accent); background: var(--surface-alt); }
-.inc-amt .cur { color: var(--text-muted); font-weight: 600; font-size: 16px; }
 /* Symbole € atténué (cohérent avec .tx-currency de l'app) */
 .cur { color: var(--text-muted); font-weight: 500; }
-
-/* Pastilles de couleur (utilisées dans la comparaison) */
-.pc-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
-.pc-dot.sm { width: 8px; height: 8px; }
-
-/* Synthèse : tuiles KPI par personne — style stat-card blanc. */
-.pcards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.pcard {
-  position: relative;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-md); padding: 14px 15px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-@media (hover: hover) { .pcard:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); } }
-.pc-ava {
-  position: absolute; top: 12px; right: 12px;
-  width: 28px; height: 28px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
-}
-.pc-name { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding-right: 36px; }
-.pcard-hero { margin-top: 9px; }
-.pcard-hero-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; }
-.pcard-hero-val { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 2px; }
-.pcard-sub { font-size: 12px; color: var(--text-muted); margin-top: 7px; font-variant-numeric: tabular-nums; }
-.pcard-sub b { color: var(--text); font-weight: 600; }
-.pcard .cur { color: var(--text-muted); }
-/* Bascule en une colonne à 640px — le seuil « mobile » général de l'app.
-   *Règle unique depuis le 01/08/2026 : elle en remplace deux, à 560px ici et à
-   640px plus bas, qui faisaient la même chose — la seconde masquant la première.
-   Comportement inchangé, c'est 640 qui l'emportait déjà.*
-
-   ⛔ NE PAS RELEVER CE SEUIL POUR EMPÊCHER UN LIBELLÉ DE PASSER À LA LIGNE.
-   Essayé le 01/08/2026, puis ANNULÉ le jour même. Le raisonnement était : le
-   libellé le plus large de `.pcard-alloc-lbl` (« Virement mensuel (compte
-   joint) », 192px en Inter 12,5px) dépasse les ~174px qu'offre une colonne à
-   660px de fenêtre, donc il se replie dans la bande 641-700px. Vrai — mais
-   remonter le seuil à 760 puis 820px revenait à **empiler les cartes sur toutes
-   les tablettes en portrait** (iPad Air = 820px pile) pour un mot qui passe à la
-   ligne dans une fenêtre de bureau volontairement rétrécie. C'est l'utilisateur
-   qui a arrêté les frais, et il avait raison : on changeait la mise en page de
-   tout un parc d'appareils pour un détail cosmétique **qui préexistait**
-   (« Charges à provisionner (Livret) » faisait déjà 183px et se repliait pareil).
-   ⇒ Ce repli est ACCEPTÉ. Invisible sur téléphone (une colonne, pleine largeur)
-   comme sur un écran de bureau (colonnes larges). Si un jour il faut vraiment
-   le traiter, c'est le LIBELLÉ qu'on raccourcit, pas la grille qu'on déplace. */
-@media (max-width: 640px) { .pcards { grid-template-columns: 1fr; } }
 
 /* Tableau de comparaison (fin, regroupé par poste) */
 /* Comparatif (D1) : une carte par personne, scénarios en lignes, colonne
@@ -769,21 +691,8 @@ input[type="month"] {
   .cmpd-round { display: inline; }
 }
 
-/* (Avatars .inc-ava / .pc-ava définis dans la section des cartes Revenus /
-   Synthèse : style stat-card, fond clair + initiales colorées en inline.) */
-
 /* Mode de répartition : liste déroulante neutre pour tous les modes
    (50/50, Prorata, Perso) — pas de couleur. */
-
-/* Pastille toggle "Joint" */
-.jtoggle {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text-subtle);
-  border-radius: var(--radius-full); padding: 5px 11px; cursor: pointer; font-family: inherit;
-  transition: all 0.12s;
-}
-.jtoggle.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent-light); }
-@media (hover: hover) { .jtoggle:hover { border-color: var(--accent); } }
 
 /* Liste de charges en lecture seule (édition via la sous-modale), compacte */
 .charge-row--ro {
@@ -833,12 +742,6 @@ input[type="month"] {
 .charge-prov-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex-shrink: 0; vertical-align: middle; }
 .charge-pea-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex-shrink: 0; vertical-align: middle; }
 .charge-tampon-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--text-subtle); flex-shrink: 0; vertical-align: middle; }
-/* Sous-rubriques de répartition sous chaque carte de synthèse. */
-.pcard-alloc { border-top: 1px solid var(--border); margin-top: 9px; padding-top: 9px; display: flex; flex-direction: column; gap: 7px; }
-.pcard-alloc-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.pcard-alloc-lbl { flex: 1; color: var(--text-muted); }
-.pcard-alloc-val { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-.pcard-alloc-val .cur { color: var(--text-muted); font-weight: 400; }
 .charge-legend .charge-vir-dot { margin-right: 5px; }
 /* Légende globale de la page charges. */
 .charges-legend-global { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin: 8px 0 4px; }
@@ -848,7 +751,7 @@ input[type="month"] {
 
 /* ── Répartition des charges, version 2 (15/11/2026, Mockup-Repartition-Charges) ─────────────────────────────────────
    Lignes de charge et de revenu au format des lignes d'opération ; synthèse et comparaison en cartes grises comme
-   « Mettre à jour les valeurs ». Classes neuves (ch-*) : les anciennes règles .charge-row/.pcard ne s'y appliquent pas. */
+   « Mettre à jour les valeurs ». Classes neuves (ch-*) : les anciennes règles .charge-row ne s'y appliquent pas. */
 .seg-kebab { padding: 9px 12px; font-size: 16px; line-height: 1; }
 .seg-solo + .seg-kebab { margin-left: 0; }
 .ch-liste { border-top: 1px solid var(--border); }
@@ -937,14 +840,6 @@ input[type="month"] {
   .charges-table--ch .num,
   .charges-table--ch .charges-input--num { font-size: 16px; }
   .charges-table th, .charges-table td { padding: 8px 9px; }
-  /* Revenus : 2 cartes côte à côte, compactes */
-  .inc-fld { padding: 11px 12px 12px; gap: 6px; }
-  .inc-ava { width: 26px; height: 26px; font-size: 10px; }
-  .inc-amt-input { font-size: 18px; }
-  .inc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* `.pcards` retiré d'ici le 01/08/2026 : la même règle existait DEUX fois
-     (ici et près de `.pcards`, à 560px). Une seule subsiste, à 640px — même
-     comportement, c'est 640 qui l'emportait déjà. */
 }
 /* Mobile portrait : "+ Scénario" en icône seule (« + »), tandis que "Comparer"
    conserve son libellé (action principale, on la garde explicite). */
@@ -1353,7 +1248,6 @@ input[type="month"] {
 .modal .charge-list .charge-row { padding: 6px 2px 6px 0; min-height: 46px; }
 .modal .charge-badge { width: 20px; height: 20px; border-radius: 6px; }
 .modal .charge-list-footer { padding: 12px 0; }
-.modal .inc-name, .modal .inc-lbl, .modal .pc-name, .modal .pcard-hero-label { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; color: var(--text-light); }
 .modal .settings-card { padding: 14px; } /* 14 px de côté, comme les rangées de réglage (.rang-reglage) : un seul bord intérieur dans les Paramètres */
 .modal .settings-card h2 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .modal .settings-card .muted { font-size: 12px; font-weight: 400; }
@@ -1411,7 +1305,8 @@ input[type="month"] {
 @media (max-width: 1023px) { .mt-long { display: none; } .mt-court { display: inline; } } /* tablette : libellés courts (« Invest. », « Actifs ») */
 .app-bar-user { margin-left: 0; }
 .app-bar-user .btn-icon { width: 38px; height: 38px; border-radius: 50%; background: #f1f3f7; }
-.tab-slide-ind::before { transition: background-color .3s ease, box-shadow .2s ease; }
+/* (DEV v1309) La bulle change de couleur D'UN COUP en changeant de rubrique : la règle de fondu qui était ici n'a jamais joué
+   (la transition de `.tab-slide-ind::before`, plus bas, l'écrasait) et a été retirée. Le « + » de la barre fait de même. */
 [data-rubrique="checking"] .tab-slide-ind::before { background: #4f46e5; }
 [data-rubrique="savings"] .tab-slide-ind::before { background: #0e7490; }
 [data-rubrique="investments"] .tab-slide-ind::before { background: #047857; }
@@ -2095,7 +1990,6 @@ button.stat-card {
 .tx-check.checked { background: var(--accent); border-color: var(--accent); color: white; }
 .tx-check.checked::after { content: '✓'; font-size: 12px; font-weight: bold; }
 
-
 /* Variante avec le crayon (.tx-edit) en dernière colonne (la suppression est
    passée dans la modale d'édition, plus de croix sur la ligne). */
 .tx-row.with-edit {
@@ -2107,7 +2001,6 @@ button.stat-card {
 .tx-row.composite-row.with-edit {
   grid-template-columns: 28px 24px 1fr var(--amt-w, 130px) 24px;
 }
-
 
 .tx-label, .tx-amount {
   background: transparent; border: none; outline: none;
@@ -2325,7 +2218,6 @@ button.stat-card {
    l'identique. Padding-right plus petit (8px) pour rapprocher la croix
    du scrollbar (qui est au bord du modal-body) sans la coller. */
 
-
 .section-footer {
   padding: 8px 14px 12px;
   display: flex; gap: 8px; flex-wrap: wrap;
@@ -2512,21 +2404,6 @@ button.stat-card {
 .settings-card .muted { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
 
 /* Portfolio settings (inside settings cards) */
-.portfolio-name-input {
-  flex: 1; min-width: 0;
-  font-size: 14px; font-weight: 600;
-  background: transparent; border: 1px solid transparent;
-  padding: 4px 8px; margin: -4px -8px;
-  border-radius: var(--radius-sm);
-  color: var(--text); font-family: inherit;
-  outline: none; transition: all 0.15s;
-}
-@media (hover: hover) { .portfolio-name-input:hover { border-color: var(--border); } }
-.portfolio-name-input:focus {
-  background: var(--surface-alt);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-light);
-}
 .portfolio-section-title {
   font-size: 13px; font-weight: 600;
   color: var(--text); margin: 16px 0 8px;
@@ -2547,27 +2424,6 @@ button.stat-card {
   position: relative;
 }
 
-/* Toggle Capitalisant / Distribuant sur la fiche d'un support */
-.kind-toggle {
-  display: inline-flex;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px;
-  font-size: 11px; font-weight: 600;
-  user-select: none;
-}
-.kind-toggle button {
-  border: none; background: transparent;
-  padding: 3px 9px;
-  border-radius: 999px;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-family: inherit;
-  transition: all 0.15s;
-}
-.kind-toggle button.active.cap { background: var(--accent); color: white; }
-.kind-toggle button.active.dist { background: #8b5cf6; color: white; }
 .etf-row:last-child { border-bottom: none; }
 .etf-ticker {
   font-weight: 500; font-size: 13px;
@@ -2946,7 +2802,6 @@ button.stat-card {
    redisait ce que portent déjà le fond indigo pâle, la bordure pleine et le texte indigo — et le cadenas la remplaçait
    depuis la v490 sur tous les mois figés, soit presque tous. La légende montre la cellule elle-même. */
 
-
 /* Légende du picker de mois */
 .picker-legend {
   /* flex-wrap (v531) : 3 items possibles (+ « Mois figé ») — sur le
@@ -3032,10 +2887,8 @@ button.stat-card {
               transform 0.7s cubic-bezier(0.26, 1.2, 0.36, 1);
   touch-action: none;
 }
-/* v508 : PULSE SUPPRIMÉ à la demande de l'utilisateur — les classes
-   .bar-pressed/.ind-pressed/.item-pressed restent posées par le JS
-   (réactivation en une règle CSS si l'envie revient), mais plus aucun
-   gonflement. Bulle magnétique, drag et ressorts de trajet conservés. */
+/* v508 : PULSE SUPPRIMÉ à la demande de l'utilisateur — plus aucun gonflement. Les classes .bar-pressed/.ind-pressed/
+   .item-pressed, que le JS posait encore sans effet, ont disparu en DEV v1313. Bulle magnétique, drag et ressorts conservés. */
 /* Goutte glissante : elle porte le fond foncé et l'ombre de l'actif */
 /* Goutte en MODE COMPOSITEUR (v499) : l'élément est une coquille
    transparente positionnée à left:0, déplacée par translateX(--tx) —
@@ -3183,7 +3036,7 @@ button.stat-card {
 .tabbar-wrap .tabbar-actions.sans-plus .tabbar-more::before { left: calc(-1 * var(--bord-capsule)); }
 .tabbar-wrap .tabbar-actions .tabbar-more { flex: 1 1 0; min-width: 0; padding: 0; height: auto; font-size: 18px; border: 0; background: transparent; box-shadow: none; }
 .tabbar-plus { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--radius-full);
-  background: rgba(15, 23, 42, 0.92); color: #ffffff; cursor: pointer; transition: background-color .3s ease; }
+  background: rgba(15, 23, 42, 0.92); color: #ffffff; cursor: pointer; }
 [data-rubrique="checking"] .tabbar-plus { background: #4f46e5; }
 [data-rubrique="savings"] .tabbar-plus { background: #0e7490; }
 [data-rubrique="investments"] .tabbar-plus { background: #047857; }
@@ -3198,10 +3051,10 @@ button.stat-card {
    un retard, dans les deux sens. cubic-bezier(0, 0, 0.2, 1) part tout de suite (21 %, 37 %, 50 %) et finit en douceur, même durée.
    Ne pas revenir à une courbe qui accélère au départ pour un mouvement qui RÉPOND à un geste. */
 .tabbar-actions { transition: flex-basis .25s cubic-bezier(0, 0, 0.2, 1), gap .25s cubic-bezier(0, 0, 0.2, 1); }
-.tabbar-plus { transition: background-color .3s ease, flex-grow .25s cubic-bezier(0, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0, 0, 0.2, 1); }
+/* Couleur : D'UN COUP, comme la bulle des onglets (DEV v1309, demande de l'utilisateur : « uniformise ») — plus de fondu de couleur,
+   ni en réapparaissant (il partait de la couleur de la page quittée), ni déjà visible (livret → compte). */
+.tabbar-plus { transition: flex-grow .25s cubic-bezier(0, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0, 0, 0.2, 1); }
 .tabbar-actions.sans-plus { flex-basis: 54px; gap: 0; }
-/* Le « + » qui RÉAPPARAÎT : sa couleur est posée sans fondu (DEV v1308 — il partait de la couleur de la page quittée). */
-.tabbar-actions.plus-arrive .tabbar-plus { transition: flex-grow .25s cubic-bezier(0, 0, 0.2, 1), opacity .2s ease, transform .25s cubic-bezier(0, 0, 0.2, 1); }
 .tabbar-actions.sans-plus .tabbar-plus { flex-grow: 0; opacity: 0; transform: scale(0.5); pointer-events: none; }
 .tabbar-wrap.mini .tabbar-actions.sans-plus { flex-basis: 44px; }
 
@@ -4534,12 +4387,12 @@ button.stat-card {
     /* Courbe à départ franc (DEV v1303, même raison que la capsule en v1302 : l'ancienne démarrait presque immobile). */
     animation: sheetUp 0.28s cubic-bezier(0, 0, 0.2, 1);
   }
-  .modal-overlay--feuille .modal-body { padding-bottom: var(--marge-boutons); transition: padding-bottom 0.2s ease; }
+  .modal-overlay--feuille .modal-body { padding-bottom: var(--marge-boutons); }
   /* CLAVIER OUVERT (DEV v1267) : iOS remonte la feuille au-dessus du clavier — ses coins du bas passent à 34 comme ceux du haut,
-     et les boutons du bas à 16 px, alignés sur les champs ; clavier fermé, retour à 54 et 26. Classe posée par `Modal`. */
-  .modal-overlay--feuille .modal { transition: border-radius 0.2s ease; }
+     et les boutons du bas à 16 px, alignés sur les champs ; clavier fermé, retour à 54 et 26. Classe posée par `Modal`.
+     D'UN COUP depuis la DEV v1313 (coins, espace sous les boutons, marge) : iOS fait déjà glisser tout l'écran avec le clavier,
+     et une transition sur le padding et la marge recalculait la mise en page à chaque image pendant 0,2 s. */
   .modal-overlay--feuille.modal-overlay--clavier .modal { border-radius: var(--r-feuille-haut); --marge-boutons: 16px; }
-  .modal-overlay--feuille .modal-body .form-actions { transition: margin 0.2s ease; }
   .modal-overlay.modal-overlay--pleine {
     padding: calc(max(14px, env(safe-area-inset-top, 0px)) + 6px) 0 0;
     align-items: stretch;
@@ -5052,8 +4905,6 @@ button.stat-card {
 /* Fondu de disparition au pointage en mode masqué */
 .tx-row.fading, .tx-composite-wrap.fading { opacity: 0; transition: opacity 0.35s ease; }
 
-
-
 /* ============================================================
    PROJECTION EXPLIQUÉE (v517 — maquette Mockup-Quatuor-Confort).
    La valeur « Projection fin de mois » du hero est dépliable : détail
@@ -5548,9 +5399,8 @@ button.cp-seg-item { cursor: pointer; }
      nouvelle largeur au lieu de s'étirer, et le « + » apparaît en fondu, sans grandir ; la feuille « ⋯ » prend sa nouvelle
      hauteur d'un coup en passant à la confirmation de déconnexion (les panneaux, eux, se croisent déjà en fondu). */
   .tabbar-actions { transition: none; }
-  .tabbar-plus { transition: background-color .3s ease, opacity .2s ease; }
+  .tabbar-plus { transition: opacity .2s ease; }
   .tabbar-actions.sans-plus .tabbar-plus { transform: none; }
-  .tabbar-actions.plus-arrive .tabbar-plus { transition: opacity .2s ease; } /* v1308 : sans fondu de couleur, mais sans mouvement non plus */
   .sheet-swap { transition: none; }
 }
 

@@ -1432,13 +1432,6 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
   //  useSlideIndicator recale la goutte à l'exact, avec le ressort CSS).
   //  Pointer capture : la mécanique éprouvée de la poignée de la sheet.
   // ============================================================
-  // LE « + » QUI APPARAÎT prend tout de suite la couleur de la page (DEV v1308, vidéo de l'utilisateur : caché, il garde la
-  // couleur de la rubrique affichée — orange sur les actifs — et son fondu de 0,3 s partait de là en arrivant sur le compte).
-  // `plus-arrive` n'existe que pour le rendu où le « + » réapparaît : il retire `background-color` des transitions du « + »
-  // (styles.css). Le rendu suivant le rend ; la couleur est déjà la bonne, rien ne bouge. Déjà visible, il garde son fondu.
-  const plusPrecedent = useRef(avecPlus);
-  const plusArrive = avecPlus && !plusPrecedent.current;
-  useEffect(() => { plusPrecedent.current = avecPlus; }, [avecPlus]);
   const gestureRef = useRef(null);
   // (DEV v1307) `pillRects`, qui mesurait en offsetLeft cumulés, est retiré : il ne tombait pas au même endroit que `move`
   // (jusqu'à 23 px d'écart, mesuré). Toute mesure passe par `rectsExactes`, qui divise par l'échelle de la capsule.
@@ -1492,9 +1485,6 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
     const idx = barItems().indexOf(item);
     gestureRef.current = { hover: idx, startX: e.clientX, moved: false };
     try { bar.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
-    bar.classList.add('bar-pressed');
-    ind.classList.add('ind-pressed');
-    item.classList.add('item-pressed');
     // La bulle vient au doigt (transition ressort du CSS), aperçu
     // d'activation — l'onglet ne s'ouvrira qu'au relâcher. Elle vise la place FINALE de l'onglet (cf. `rectsPour`).
     const iCourant = tabs.findIndex((t) => t.id === current);
@@ -1528,18 +1518,13 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
     let n = 0, bd = Infinity;
     rects.forEach((r, i) => { const d = Math.abs(r.cx - cx); if (d < bd) { bd = d; n = i; } });
     if (n !== g.hover) {
-      const items = barItems();
-      items[g.hover].classList.remove('item-pressed');
-      items[n].classList.add('item-pressed');
       setActivePreview(n);
       g.hover = n;
     }
   };
   const clearPressVisuals = () => {
-    const bar = barRef.current, ind = indRef.current;
-    if (bar) bar.classList.remove('bar-pressed');
-    if (ind) ind.classList.remove('ind-pressed', 'ind-dragging');
-    if (bar) barItems().forEach(it => it.classList.remove('item-pressed'));
+    const ind = indRef.current;
+    if (ind) ind.classList.remove('ind-dragging');
   };
   const onBarPointerUp = () => {
     const g = gestureRef.current;
@@ -1623,7 +1608,7 @@ function MobileTabBar({ tabs, current, onSelect, onMore, onNouvelle, avecPlus = 
       {/* DEV v1297 (choix de l'utilisateur) : sur l'ACCUEIL, pas de « + » — rien à y créer sans ambiguïté (quel compte, quel
           mois ?) — la capsule redevient le rond « ⋯ » ; elle s'étire en arrivant sur une page où l'on crée (classe `sans-plus`,
           largeur animée). Le « + » reste dans le DOM, replié, hors tabulation. */}
-      <div className={`tabbar-actions glassbar${avecPlus ? '' : ' sans-plus'}${plusArrive ? ' plus-arrive' : ''}`}>
+      <div className={`tabbar-actions glassbar${avecPlus ? '' : ' sans-plus'}`}>
       <button
         type="button"
         className="tabbar-plus"

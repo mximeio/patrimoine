@@ -2,13 +2,6 @@
 //  MODULE INVESTISSEMENTS — vue Consolidé (liste) + sous-page portefeuille
 // ============================================================
 
-// Interrupteur du graphe d'allocation (donut « Répartition par support ») :
-// masqué totalement pour l'instant (donut ET bouton « Afficher »), à la demande
-// de l'utilisateur, mais le code est conservé. Pour le réafficher : passer
-// SHOW_ALLOCATION_DONUT à true — il apparaîtra alors dès 2 supports.
-const SHOW_ALLOCATION_DONUT = false;
-const ALLOCATION_MIN_SUPPORTS = 2;
-
 function InvestmentsView({ ctx }) {
   const { user, portfolios, showToast } = ctx;
   const [activeId, setActiveId] = useState(null); // null = vue liste, sinon id du portefeuille
@@ -334,7 +327,6 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   // une modale "Modifier l'opération" qui réutilise AddOperationForm
   // avec initial pré-rempli.
   const [editingOpId, setEditingOpId] = useState(null);
-  const [donutHidden, setDonutHidden] = useState(false);
   // Garde-fou « modifications non enregistrées » de la modale Réglages.
   const [configureDirty, setConfigureDirty] = useState(false);
   // Idem pour « Mettre à jour les valeurs » (09/08/2026) : garde CONTRÔLÉE, qui
@@ -354,7 +346,6 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   const stats = computePortfolioStats(data);
   const positive = stats.totalGain >= 0;
   const etfCount = (data.etfs || []).length;
-  const showDonut = SHOW_ALLOCATION_DONUT && etfCount >= ALLOCATION_MIN_SUPPORTS && !donutHidden;
 
   // 🔴 REND un verdict — et ses appelants DOIVENT l'attendre. Avant le
   // 09/08/2026 il avalait l'erreur et ne renvoyait rien : les appelants
@@ -515,20 +506,6 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
           )}
         </div>
       </div>
-
-      {/* DONUT d'allocation : visible seulement si SHOW_ALLOCATION_DONUT est
-          activé (actuellement false → masqué partout, bouton inclus), dès
-          ALLOCATION_MIN_SUPPORTS supports et si non masqué par l'utilisateur. */}
-      {showDonut && (
-        <SupportsAllocationCard stats={stats} onHide={() => setDonutHidden(true)} />
-      )}
-      {SHOW_ALLOCATION_DONUT && !showDonut && etfCount >= ALLOCATION_MIN_SUPPORTS && (
-        <div style={{ marginBottom: 16, textAlign: 'right' }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => setDonutHidden(false)}>
-            <Icon name="eye" size={12} /> Afficher le graphique d'allocation
-          </button>
-        </div>
-      )}
 
       {/* OPÉRATIONS RÉCENTES */}
       <OperationsJournal
@@ -831,54 +808,6 @@ function SupportRow({ position, lastDate }) {
             <> · {fmtPct(position.gainPct)}</>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function SupportsAllocationCard({ stats, onHide }) {
-  return (
-    <div className="card" style={{ background: 'white', marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div>
-          <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 500 }}>ALLOCATION</div>
-          <h3 style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 700 }}>Répartition par support</h3>
-        </div>
-        <button className="btn btn-secondary btn-sm" onClick={onHide} title="Masquer ce graphique">
-          <Icon name="eyeOff" size={12} /> Masquer
-        </button>
-      </div>
-      <div style={{ position: 'relative', minHeight: 220 }}>
-        <RedessinARotation>
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie data={stats.positions} dataKey="current" nameKey="id" cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={3} stroke="none">
-              {stats.positions.map(p => <Cell key={p.id} fill={p.color} />)}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
-        </RedessinARotation>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-          <div style={{ fontSize: 11, color: COLORS.muted }}>TOTAL</div>
-          <div className="num" style={{ fontSize: 20, fontWeight: 600 }}>{fmtNoDec(stats.totalCurrent)} €</div>
-        </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-        {stats.positions.map(p => (
-          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color }} />
-            <span style={{ fontWeight: 500 }}>{supportName(p)}</span>
-            {/* Second oubli du même motif, trouvé en auditant les 11 endroits qui
-                nomment un support (10/08/2026). Une POSITION spread son etf, donc
-                elle porte bien `fullName` — vérifié dans `computePortfolioStats`. */}
-            <LibelleSupport etf={p} className="" style={{ color: COLORS.muted, fontSize: 12 }} />
-            <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span className="num" style={{ fontWeight: 600 }}>{fmt(p.current)} €</span>
-              <span className="num" style={{ color: COLORS.muted, fontSize: 12, minWidth: 50, textAlign: 'right' }}>{fmtPct(p.weight, { signe: false })}</span>
-            </span>
-          </div>
-        ))}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@
 
 const { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } = React;
 const {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Legend, AreaChart, Area, ComposedChart
 } = Recharts;
@@ -997,27 +997,6 @@ function nomSupportUneLigne(etf, compact = false) {
   const principal = compact ? (n.principalCourt || n.principal) : n.principal;
   const secondaire = compact ? (n.secondaireCourt || n.secondaireLong) : n.secondaireLong;
   return principal + (secondaire ? ` — ${secondaire}` : '');
-}
-
-function CustomTooltip({ active, payload, label, suffix = '€' }) {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 'var(--r-touche)', padding: '10px 14px', boxShadow: '0 8px 24px rgba(15,23,42,0.10)', fontSize: 13 }}>
-      {label && <div style={{ fontWeight: 600, marginBottom: 6, color: COLORS.text }}>{label}</div>}
-      {payload.map((e, i) => (
-        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: COLORS.text }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* Sur un anneau (Pie), Recharts ne fournit pas `e.color` : la couleur est
-                dans la donnée de la part. Sans ce repli, la pastille était vide (mesuré,
-                19/10/2026) et la bulle ne disait pas à quelle part elle répondait. */}
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: e.color || (e.payload && (e.payload.fill || e.payload.color)) }} />
-            {e.name}
-          </span>
-          <span className="num" style={{ fontWeight: 600 }}>{fmt(e.value)} {suffix}</span>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 // Le logo de l'app (21/10/2026) : le P en quatre parts, une par rubrique, blanc sur la tuile bleu nuit —
