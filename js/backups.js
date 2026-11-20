@@ -458,7 +458,13 @@ function normaliserMontants(data) {
     });
   }
   if (Array.isArray(data.physical)) {
-    out.physical = data.physical.map((a) => (estObjet(a) ? avec(a, ['quantity', 'unitPurchasePrice', 'unitCurrentPrice'], versMontant) : a));
+    out.physical = data.physical.map((a) => {
+      if (!estObjet(a)) return a;
+      const b = avec(a, ['quantity', 'unitPurchasePrice', 'unitCurrentPrice'], versMontant);
+      // Le journal d'opérations (DEV v1316) : quantité, prix unitaire et frais de chaque opération.
+      if (Array.isArray(b.operations)) b.operations = b.operations.map((o) => (estObjet(o) ? avec(o, ['qty', 'unitPrice', 'fees'], versMontant) : o));
+      return b;
+    });
   }
   return out;
 }
@@ -636,6 +642,13 @@ function validatePatrimoineData(data) {
     data.physical.forEach((a, i) => {
       if (a && (badAmount(a.quantity) || badAmount(a.unitCurrentPrice) || badAmount(a.unitPurchasePrice))) {
         errors.push(`physical[${i}] : quantité ou prix invalide`);
+      }
+      if (a && a.operations != null) {
+        if (!Array.isArray(a.operations)) errors.push(`physical[${i}].operations n'est pas une liste`);
+        else a.operations.forEach((o, j) => {
+          if (!o || typeof o !== 'object') { errors.push(`physical[${i}].operations[${j}] n'est pas un objet`); return; }
+          if (badAmount(o.qty) || badAmount(o.unitPrice) || badAmount(o.fees)) errors.push(`physical[${i}].operations[${j}] : quantité, prix ou frais invalide`);
+        });
       }
     });
   }

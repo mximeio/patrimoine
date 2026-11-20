@@ -842,7 +842,8 @@ function App() {
   // de sens d'une page à l'autre (on y aurait cherché un versement). La capsule s'y replie en rond « ⋯ », comme sur l'accueil ;
   // la création passe par le « + Nouveau » d'en-tête, gardé au téléphone (`liste-nouveau`).
   // Restent : le compte courant (un seul compte), et toute sous-page ouverte (compte en multi, livret, enveloppe).
-  const avecPlus = !!sousPage || (safeModule === 'checking' && !modulesEnabled.multiCheckingAccounts);
+  // DEV v1316 : la rubrique Actifs physiques a un journal d'opérations, donc un « + » (comme une enveloppe).
+  const avecPlus = !!sousPage || (safeModule === 'checking' && !modulesEnabled.multiCheckingAccounts) || safeModule === 'physical';
 
   // Sélection d'un onglet (desktop et mobile). Re-tap sur l'onglet déjà
   // actif → retour en haut de page (réflexe standard des tab bars iOS).
@@ -937,7 +938,7 @@ function App() {
         onMore={() => setShowSheet(true)}
         onNouvelle={nouvelleDepuisBarre}
         avecPlus={avecPlus}
-        avecPlusPour={(id) => id === 'checking' && !modulesEnabled.multiCheckingAccounts}
+        avecPlusPour={(id) => (id === 'checking' && !modulesEnabled.multiCheckingAccounts) || id === 'physical'}
         online={netOnline}
         cacheOk={cacheOk}
       />

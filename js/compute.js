@@ -474,11 +474,76 @@ function computePortfolioStats(data) {
   };
 }
 
+// ============================================================
+//  ACTIFS PHYSIQUES — LE JOURNAL D'OPÉRATIONS (DEV v1316, rang 2 du BACKLOG)
+// ============================================================
+// Un actif porte `operations` : achats, ventes, réceptions. La QUANTITÉ détenue et le PRIX DE REVIENT sont DÉRIVÉS de ce
+// journal, jamais saisis — c'est ce qui rend représentable un second achat de la même pièce à un autre prix (avant, un seul
+// `unitPurchasePrice` pour toute la position : augmenter la quantité écrasait le prix de revient).
+// Une opération : { id, type: 'purchase' | 'sale' | 'gift', date: 'AAAA-MM-JJ' | null, qty, unitPrice, fees, note? }.
+//  • achat     : coût = qty × unitPrice + fees — les frais d'acquisition ENTRENT dans le prix de revient (décision du
+//                12/08/2026 : sans eux la plus-value est mécaniquement optimiste) ;
+//  • vente     : reçu net = qty × unitPrice − fees ; la part vendue sort au PRIX DE REVIENT MOYEN du moment, l'écart est la
+//                plus-value réalisée ;
+//  • réception : la quantité entre à coût nul (comme une réception des investissements) ; unitPrice = valeur à la
+//                réception, informative.
+// 🔴 UN TYPE INCONNU EST IGNORÉ, sans lever ni compter (décision du 12/08/2026) : des frais de détention pourront s'ajouter
+// un jour sans migration, et ils resteront HORS du prix de revient (ce sont des dépenses, pas un coût d'acquisition).
+// Ordre de calcul : par date, l'achat reconstruit sans date (la migration, `migratePhysicalShape`) en premier, puis l'ordre
+// d'écriture à date égale.
+function ordreOpsPhysiques(ops) {
+  return (Array.isArray(ops) ? ops : [])
+    .map((o, i) => ({ o, i }))
+    .sort((x, y) => {
+      const dx = x.o && x.o.date ? x.o.date : '', dy = y.o && y.o.date ? y.o.date : '';
+      if (dx !== dy) return dx < dy ? -1 : 1;
+      return x.i - y.i;
+    })
+    .map((x) => x.o);
+}
+function deriverActifPhysique(asset) {
+  const a = asset || {};
+  if (!Array.isArray(a.operations)) {
+    // Document à l'ancien format (jamais vu par `migratePhysicalShape`, ex. un fichier d'import) : les champs d'avant.
+    const qty = Number(a.quantity) || 0;
+    const pmp = Number(a.unitPurchasePrice) || 0;
+    return { qty, cost: qty * pmp, pmp, realized: 0, purchased: qty * pmp, received: 0 };
+  }
+  let qty = 0, cost = 0, realized = 0, purchased = 0, received = 0;
+  for (const o of ordreOpsPhysiques(a.operations)) {
+    if (!o) continue;
+    const q = Math.max(0, Number(o.qty) || 0);
+    const p = Math.max(0, Number(o.unitPrice) || 0);
+    const f = Math.max(0, Number(o.fees) || 0);
+    if (o.type === 'purchase') {
+      qty += q; cost += q * p + f; purchased += q * p + f;
+    } else if (o.type === 'gift') {
+      qty += q; received += q * p;
+    } else if (o.type === 'sale') {
+      const vendue = Math.min(q, qty);
+      if (vendue <= 0) continue;
+      const coutSorti = qty > 0 ? cost * (vendue / qty) : 0;
+      realized += (vendue * p - f) - coutSorti;
+      cost -= coutSorti; qty -= vendue;
+    }
+    // tout autre type : ignoré (cf. ci-dessus)
+  }
+  if (qty <= 1e-9) { qty = 0; cost = 0; }
+  return { qty, cost: r2(cost), pmp: qty > 0 ? cost / qty : 0, realized: r2(realized), purchased: r2(purchased), received: r2(received) };
+}
+// Les deux lectures historiques, gardées pour leurs appelants (accueil, instantanés, sauvegardes, recherche) : elles
+// passent désormais par le journal.
 function physicalCurrentValue(asset) {
-  return (asset.quantity || 0) * (asset.unitCurrentPrice || 0);
+  return deriverActifPhysique(asset).qty * (Number(asset && asset.unitCurrentPrice) || 0);
 }
 function physicalInvested(asset) {
-  return (asset.quantity || 0) * (asset.unitPurchasePrice || 0);
+  return deriverActifPhysique(asset).cost;
+}
+// Les champs d'avant, RECALCULÉS depuis le journal et écrits avec lui à chaque enregistrement : une version précédente de
+// l'app lit toujours un actif juste, et revenir en arrière ne perd rien (décision du 20/11/2026).
+function champsDerivesPhysique(operations) {
+  const d = deriverActifPhysique({ operations });
+  return { quantity: d.qty, unitPurchasePrice: r2(d.pmp) };
 }
 
 function computeInvestmentsConsolidated(portfolios) {

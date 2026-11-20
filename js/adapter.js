@@ -194,6 +194,21 @@ const DEFAULT_PORTFOLIO_DATA = {
 //  restent valides) et on initialise `ticker = id`. L'affichage utilise
 //  `ticker || label` (cf. supportName dans utils.js).
 // ------------------------------------------------------------------
+// ACTIFS PHYSIQUES — passage au journal d'opérations (DEV v1316, rang 2 du BACKLOG). Pure et IDEMPOTENTE, appliquée à la
+// LECTURE (abonnement, liste) sur le motif de `migrateCheckingShape` : un actif sans `operations` reçoit un ACHAT
+// RECONSTRUIT depuis sa quantité et son prix d'achat, SANS DATE — l'app n'a jamais connu la date d'acquisition ; la ligne
+// affiche « date à saisir » et le crayon de l'opération permet de la poser (décision de l'utilisateur du 20/11/2026 ; jamais
+// la date du cours, `priceUpdatedAt`, qui dirait faux). Rien n'est écrit ici : le document ne change en base qu'au premier
+// enregistrement, qui écrit alors le journal ET les champs d'avant recalculés (`champsDerivesPhysique`, compute.js).
+function migratePhysicalShape(asset) {
+  if (!asset || typeof asset !== 'object' || Array.isArray(asset.operations)) return asset;
+  const qty = Number(asset.quantity) || 0;
+  const operations = qty > 0
+    ? [{ id: 'ouverture', type: 'purchase', date: null, qty, unitPrice: Number(asset.unitPurchasePrice) || 0, fees: 0 }]
+    : [];
+  return { ...asset, operations };
+}
+
 function migratePortfolioData(data) {
   if (!data || !Array.isArray(data.etfs) || data.etfs.length === 0) return data;
   let changed = false;
@@ -694,7 +709,7 @@ const Adapter = {
 
   async listPhysical(uidStr) {
     const snap = await this._physicalCol(uidStr).orderBy('createdAt', 'asc').get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snap.docs.map(d => migratePhysicalShape({ id: d.id, ...d.data() }));
   },
   async createPhysical(uidStr, payload) {
     const ref = this._physicalCol(uidStr).doc();
@@ -986,7 +1001,7 @@ const Adapter = {
 
   subscribePhysical(uidStr, onChange) {
     return this._physicalCol(uidStr).orderBy('createdAt', 'asc').onSnapshot((snap) => {
-      onChange(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      onChange(snap.docs.map(d => migratePhysicalShape({ id: d.id, ...d.data() })));
     }, (err) => console.error('[subscribePhysical]', err));
   },
 

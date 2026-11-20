@@ -1699,6 +1699,12 @@ input[type="month"] {
 .ct-pill-lib, .ct-pill-div { font-weight: 500; } /* l'intitulé d'une pastille en 500, son chiffre en 600 (échelle typographique) */
 /* Les deux pastilles fines sous la carte du compte courant : « Reste mois préc. » et « Tickets resto ». */
 .pastilles-cc { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: -4px 0 16px; }
+/* Une seule pastille (actifs physiques, DEV v1316 : pas de cash, donc pas de « Versé ») : toute la largeur au téléphone,
+   la largeur d'une pastille à l'ordinateur. Spécificité au-dessus de `.vue-rub > .colle .pastilles-cc`. */
+.vue-rub > .colle .pastilles-cc.pastilles-cc--seule { grid-template-columns: 1fr; }
+@media (min-width: 641px) { .vue-rub > .colle .pastilles-cc.pastilles-cc--seule { grid-template-columns: 260px; } }
+/* L'achat reconstruit à la migration n'a pas de date : « date à saisir », en ambre (DEV v1316). */
+.op-date.op-date--manque { color: var(--warning-fonce); font-weight: 600; }
 .ind-fen { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin: 0; }
 /* Fenêtre des tickets resto : la liste suit les cases avec l'écart des formulaires (14 px), pas la marge de section de page (22). */
 .ind-fen + .section-block { margin-top: 14px; }

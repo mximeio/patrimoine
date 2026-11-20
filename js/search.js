@@ -286,7 +286,7 @@ function collectSearchItems(ctx) {
     items.push({
       module: 'physical',
       title: ph.name,
-      sub: `Actif physique · ${ph.quantity || 0} unité${(ph.quantity || 0) > 1 ? 's' : ''}`,
+      sub: `Actif physique · ${deriverActifPhysique(ph).qty} unité${deriverActifPhysique(ph).qty > 1 ? 's' : ''}`,
       amount: physicalCurrentValue(ph),
       target: { module: 'physical', locate: `phys-${ph.id}` },
       keywords: ph.name,
