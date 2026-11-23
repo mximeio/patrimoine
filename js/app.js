@@ -478,16 +478,9 @@ function App() {
     const doSave = async () => {
       try {
         const monthKey = currentMonthKey();
-        // Multi-comptes : on agrège les soldes projetés de tous les comptes courants
-        // (0 si module désactivé).
-        const checkingBalance = !checkingOn ? 0 : checkingAccounts.reduce((sum, acc) => {
-          const realKeys = Object.keys(acc.months || {}).filter(k => k <= monthKey).sort();
-          const refKey = realKeys[realKeys.length - 1];
-          const balance = refKey
-            ? computeMonth(acc, refKey).balanceProjected
-            : (acc.initialBalance || 0);
-          return sum + balance;
-        }, 0);
+        // Multi-comptes : on agrège les soldes POINTÉS de tous les comptes courants (0 si module désactivé) — la règle de
+        // l'accueil, `soldesCompteCourant` (23/11/2026 ; avant : la projection de fin de mois).
+        const checkingBalance = !checkingOn ? 0 : checkingAccounts.reduce((sum, acc) => sum + soldesCompteCourant(acc, monthKey).pointe, 0);
         // Pour chaque module : 0 si désactivé (cohérent avec ce qui est
         // affiché dans la vue Patrimoine — sinon le graphique d'évolution
         // continuerait d'intégrer un module masqué à l'utilisateur).

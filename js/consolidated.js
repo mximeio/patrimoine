@@ -103,19 +103,19 @@ function ConsolidatedView({ ctx, onNavigate }) {
   // À défaut, le mois créé le plus récent qui n'est pas dans le futur.
   // Multi-comptes : on agrège tous les comptes courants.
   const cur = currentMonthKey();
-  const checkingPerAccount = (checkingAccounts || []).map(acc => {
-    const realKeys = Object.keys(acc.months || {}).filter(k => k <= cur).sort();
-    const refKey = realKeys[realKeys.length - 1] || null;
-    const stats = refKey ? computeMonth(acc, refKey) : null;
-    return { refKey, stats, balance: stats ? stats.balanceProjected : (acc.initialBalance || 0) };
-  });
-  const checkingBalance = checkingPerAccount.reduce((s, p) => s + p.balance, 0);
+  // Le compte courant compte pour son solde POINTÉ (23/11/2026, `soldesCompteCourant`) ; la projection passe en sous-titre.
+  const checkingPerAccount = (checkingAccounts || []).map(acc => soldesCompteCourant(acc, cur));
+  const checkingBalance = checkingPerAccount.reduce((s, p) => s + p.pointe, 0);
+  const checkingProjete = checkingPerAccount.reduce((s, p) => s + p.projete, 0);
   const refKeysAll = checkingPerAccount.map(p => p.refKey).filter(Boolean).sort();
   const latestRefKey = refKeysAll[refKeysAll.length - 1] || null;
+  // Sous le nom : la projection de fin de mois (maquette « Compte courant au pointé », 23/11/2026), mois en abrégé pour tenir au
+  // téléphone (« Projeté fin nov. : −115.31 € », vérifié à 393 et 440 px).
+  const projeteTxt = `${fmt(checkingProjete)} €`;
   const checkingSub = latestRefKey
     ? (checkingAccounts.length > 1
-        ? `${checkingAccounts.length} comptes · proj. fin ${monthLabel(latestRefKey).toLowerCase()}`
-        : `Projeté fin ${monthLabel(latestRefKey).toLowerCase()}`)
+        ? `${checkingAccounts.length} comptes · projeté : ${projeteTxt}`
+        : `Projeté fin ${monthLabelShort(latestRefKey).split(' ')[0]} : ${projeteTxt}`)
     : 'Solde initial';
 
   const savingsTotal = savings.reduce((s, a) => s + computeSavingsBalance(a), 0);

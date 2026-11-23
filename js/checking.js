@@ -45,12 +45,9 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
   // Calcul des soldes par compte (mois de référence = plus récent ≤ aujourd'hui)
   const cur = currentMonthKey();
   const accountsWithBalance = checkingAccounts.map(acc => {
-    const realKeys = Object.keys(acc.months || {}).filter(k => k <= cur).sort();
-    const refKey = realKeys[realKeys.length - 1] || null;
-    const stats = refKey ? computeMonth(acc, refKey) : null;
-    const balance = stats ? stats.balanceProjected : (acc.initialBalance || 0);
-    const balancePointed = stats ? stats.balancePointed : (acc.initialBalance || 0);
-    return { ...acc, _balance: balance, _balancePointed: balancePointed, _refKey: refKey };
+    // Le POINTÉ en grand, la projection dessous (23/11/2026, la règle de l'accueil : `soldesCompteCourant`).
+    const s = soldesCompteCourant(acc, cur);
+    return { ...acc, _balance: s.pointe, _balanceProjete: s.projete, _refKey: s.refKey };
   });
   // Tri décroissant par solde
   accountsWithBalance.sort((a, b) => b._balance - a._balance);
@@ -68,7 +65,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
       {/* HERO consolidé — même structure que le hero Épargne pour cohérence visuelle */}
       <div className="colle">
       <CarteDeTete
-        module="checking" libelle="Solde total" montant={total}
+        module="checking" libelle="Solde pointé" montant={total}
         pied={[{ label: 'Nombre de comptes', value: accountsWithBalance.length }]}
       />
       </div>
@@ -116,7 +113,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
                   </div>
                   {hasMonth ? (
                     <div className="num" style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-                      Pointé · {fmt(acc._balancePointed)} €
+                      Projeté · {fmt(acc._balanceProjete)} €
                     </div>
                   ) : (
                     <div className="num" style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>Solde initial</div>

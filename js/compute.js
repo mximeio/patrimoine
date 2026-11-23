@@ -74,6 +74,19 @@ function computeMonth(checking, mKey) {
 // Aucune mémoïsation, volontairement : rien n'est conservé entre deux
 // appels, donc modifier un mois ancien reste immédiatement répercuté sur
 // toute la chaîne des mois suivants (cf. updateTRRefundsCascade).
+// LE SOLDE D'UN COMPTE COURANT POUR LE PATRIMOINE (23/11/2026, décision de l'utilisateur) : le POINTÉ, ce qui est réellement sur
+// le compte — la projection de fin de mois n'est plus qu'une information de second rang. Mois de référence : le plus récent créé
+// qui n'est pas dans le futur (`moisCourant` = `currentMonthKey()`) ; sans mois, le solde initial pour les deux. SOURCE UNIQUE :
+// l'accueil (carte, total, courbe), l'instantané mensuel (app.js), les totaux de la fenêtre de comparaison (backups.js) et la
+// liste des comptes en multi-comptes (checking.js) la lisent — `tests.js` vérifie qu'aucun ne reprend `balanceProjected`.
+function soldesCompteCourant(acc, moisCourant) {
+  const realKeys = Object.keys(acc.months || {}).filter(k => k <= moisCourant).sort();
+  const refKey = realKeys[realKeys.length - 1] || null;
+  const stats = refKey ? computeMonth(acc, refKey) : null;
+  const initial = acc.initialBalance || 0;
+  return { refKey, pointe: stats ? stats.balancePointed : initial, projete: stats ? stats.balanceProjected : initial };
+}
+
 function computeCarryOver(checking, mKey) {
   const prev = prevMonthKey(mKey);
   if (checking.months[prev]) {

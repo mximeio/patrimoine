@@ -214,11 +214,8 @@ function computeRubriqueTotals(d) {
   const accounts = d.checkingAccounts
     ? d.checkingAccounts
     : (d.checking ? [{ id: 'main', name: 'Compte principal', ...d.checking }] : []);
-  const accBalance = (acc) => {
-    const realKeys = Object.keys(acc.months || {}).filter(k => k <= monthKey).sort();
-    const refKey = realKeys[realKeys.length - 1];
-    return refKey ? computeMonth(acc, refKey).balanceProjected : (acc.initialBalance || 0);
-  };
+  // Le solde POINTÉ, comme l'accueil et l'instantané (`soldesCompteCourant`, 23/11/2026).
+  const accBalance = (acc) => soldesCompteCourant(acc, monthKey).pointe;
 
   const checkingDetail = !on.checking ? [] : accounts.map(acc => ({
     id: acc.id || 'main',
