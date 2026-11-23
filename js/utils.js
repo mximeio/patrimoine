@@ -366,6 +366,78 @@ function requestLocate(key) {
 }
 
 // ============================================================
+//  L'ALLUMAGE APRÈS ENREGISTREMENT (rang 3 du BACKLOG, décisions du 23/11/2026)
+// ============================================================
+// Après l'ajout ou la modification d'une opération (compte courant, tickets resto), la ligne s'allume comme un résultat de
+// recherche (`.row-flash`, 2,4 s — une seule forme). Écart volontaire avec `requestLocate` : on ne défile QUE si la ligne
+// n'est pas entièrement visible — pour une saisie, inutile de faire bouger la page. ⚠️ Sans défilement du tout (la fiche
+// d'origine), la ligne créée, ajoutée en FIN de liste, tombait presque toujours hors de l'écran depuis le « + » de la barre.
+// « Réduire les animations » : saut direct ; l'allumage, qui n'est qu'une couleur, reste.
+// Pure : la ligne tient-elle ENTIÈRE dans la zone visible ({ top, bottom }) ?
+function ligneEntierementVisible(rect, zone) {
+  return !!rect && !!zone && rect.top >= zone.top && rect.bottom <= zone.bottom;
+}
+// Plusieurs lignes d'un coup (le versement et ses achats, les supports revalorisés…) : toutes s'allument ; la page ne défile
+// que si AUCUNE n'est entièrement visible, et alors vers la première. ⚠️ Une ligne cachée derrière une fenêtre encore ouverte
+// attend sa fermeture (3 s au plus) : défiler la page sous une fenêtre gelée la ferait sauter. Plusieurs éléments peuvent
+// porter la même clé (la page ET la fenêtre « Toutes les opérations ») : on prend le DERNIER, celui de la fenêtre au-dessus.
+function allumerLignes(keys) {
+  const cles = (Array.isArray(keys) ? keys : [keys]).filter(Boolean);
+  if (!cles.length) return;
+  const deadline = Date.now() + 3000;
+  const trouver = (key) => {
+    const tous = document.querySelectorAll('[data-locate="' + key + '"]');
+    return tous.length ? tous[tous.length - 1] : null;
+  };
+  const sousUneFenetre = (el) => {
+    const fenetres = document.querySelectorAll('.modal-overlay');
+    if (!fenetres.length) return false;
+    return !fenetres[fenetres.length - 1].contains(el);
+  };
+  const zoneDe = (el) => {
+    let p = el.parentElement;
+    while (p && p !== document.body) {
+      const o = getComputedStyle(p).overflowY;
+      if ((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight) break;
+      p = p.parentElement;
+    }
+    const zr = p && p !== document.body ? p.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    let bas = Math.min(zr.bottom, window.innerHeight);
+    if (!el.closest('.modal-overlay')) {
+      const barre = document.querySelector('.tabbar-wrap');
+      if (barre) { const b = barre.getBoundingClientRect(); if (b.height > 0 && b.top < bas) bas = b.top; }
+    }
+    return { top: Math.max(zr.top, 0), bottom: bas };
+  };
+  const attempt = () => {
+    const els = cles.map(trouver);
+    const presents = els.filter((el) => el && !sousUneFenetre(el));
+    const complet = presents.length === cles.length;
+    if (!complet && Date.now() < deadline) { setTimeout(attempt, 120); return; }
+    if (!presents.length) return;
+    if (!presents.some((el) => ligneEntierementVisible(el.getBoundingClientRect(), zoneDe(el)))) {
+      const reduit = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      try { presents[0].scrollIntoView({ behavior: reduit ? 'auto' : 'smooth', block: 'center' }); } catch (e) { presents[0].scrollIntoView(); }
+    }
+    presents.forEach((el) => {
+      el.classList.remove('row-flash');
+      void el.offsetWidth; // relance l'animation si la ligne était déjà allumée
+      el.classList.add('row-flash');
+      setTimeout(() => el.classList.remove('row-flash'), 2600);
+    });
+  };
+  // Même délai que `requestLocate` : la fenêtre se ferme et rend son défilement à la page avant la première tentative.
+  setTimeout(attempt, 180);
+}
+function allumerLigne(key) { allumerLignes([key]); }
+// Pure : les identifiants des éléments NOUVEAUX ou MODIFIÉS d'une liste (comparaison du contenu), pour allumer ce qu'un
+// enregistrement a changé sans que chaque formulaire ait à le dire. Les suppressions ne rendent rien.
+function clesModifiees(avant, apres) {
+  const ancien = new Map((avant || []).filter(Boolean).map((x) => [x.id, JSON.stringify(x)]));
+  return (apres || []).filter((x) => x && x.id != null && ancien.get(x.id) !== JSON.stringify(x)).map((x) => x.id);
+}
+
+// ============================================================
 //  INTENTION D'OUVERTURE (recherche, phases 2/3) : ouvrir une sous-page
 //  (livret, portefeuille) ou une modale (récurrents) depuis un résultat.
 //  Problème : au moment du clic, la vue cible n'est pas forcément montée

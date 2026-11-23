@@ -1802,6 +1802,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
         }
         return next;
       }));
+      allumerLigne(`op-${editing.id}`); // la ligne modifiée s'allume (rang 3, 23/11/2026)
     } else {
       // Création : nouvel item en fin de liste.
       const base = { id: uid(), label: data.label, pointed: false, type: data.type };
@@ -1823,6 +1824,7 @@ function OpsSection({ items, onChange, mKey, datesMode, trEnabled, trRefundAmoun
         base.amount = data.amount;
       }
       onChange([...items, base]);
+      allumerLigne(`op-${base.id}`); // la ligne créée s'allume, et la page défile vers elle si besoin (rang 3, 23/11/2026)
     }
     setShowForm(false);
     setEditing(null);
@@ -2497,6 +2499,7 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
       } else {
         onChange([...items, trItem]);
       }
+      allumerLigne(`tr-${trItem.id}`); // dans la fenêtre des tickets resto (rang 3, 23/11/2026)
     } else {
       const opItem = { id: editing ? editing.id : uid(), label: data.label, pointed: false, type: data.type };
       if (cleanDate) opItem.date = cleanDate;

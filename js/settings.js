@@ -527,6 +527,7 @@ function RecurringList({ items, onChange, trEnabled, datesMode, showToast }) {
         }
         return next;
       }));
+      allumerLigne(`rec-${editing.id}`); // allumage, 23/11/2026
     } else {
       const base = { id: uid(), label: data.label, type: data.type, dayOfMonth: data.dayOfMonth || null };
       if (data.isComposite) {
@@ -537,6 +538,7 @@ function RecurringList({ items, onChange, trEnabled, datesMode, showToast }) {
         base.amount = data.amount;
       }
       onChange([...items, base]);
+      allumerLigne(`rec-${base.id}`); // allumage, 23/11/2026
     }
     setShowForm(false);
     setEditing(null);

@@ -33,9 +33,13 @@ function SavingsView({ ctx }) {
 
   const handleCreate = async (name, balance) => {
     try {
-      await Adapter.createSavings(user.uid, {
+      // L'identifiant est tiré sur l'appareil, AVANT l'envoi, pour allumer la ligne même hors ligne (allumage, 23/11/2026).
+      const id = Adapter.nouvelId(user.uid, 'savings');
+      const envoi = Adapter.createSavings(user.uid, {
         name, balance, balanceUpdatedAt: todayIso(), operations: [],
-      });
+      }, id);
+      allumerLigne(`saving-${id}`);
+      await envoi;
       setShowCreate(false);
       showToast("Compte d'épargne créé", 'success');
     } catch (e) {
@@ -301,12 +305,16 @@ function SavingsDetailView({ ctx, saving, onBack }) {
     showToast('Erreur de sauvegarde', 'error');
   });
   const handleAddOp = (op) => {
-    signaleEchec(Adapter.addSavingsOperation(user.uid, saving.id, op, saving.operations));
+    // L'identifiant est tiré ICI (plus dans l'adapter) pour allumer la ligne créée (allumage, 23/11/2026).
+    const avecId = op.id ? op : { ...op, id: uid() };
+    signaleEchec(Adapter.addSavingsOperation(user.uid, saving.id, avecId, saving.operations));
+    allumerLigne(`sop-${avecId.id}`);
     setModal(null);
     showToast('Opération ajoutée', 'success');
   };
   const handleUpdateOp = (opId, patch) => {
     signaleEchec(Adapter.updateSavingsOperation(user.uid, saving.id, opId, patch, saving.operations));
+    allumerLigne(`sop-${opId}`);
     setEditingOpId(null);
     showToast('Opération modifiée');
   };

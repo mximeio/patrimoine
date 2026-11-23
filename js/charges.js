@@ -206,7 +206,7 @@ function ChargeRow({ c, index, people, nets, onEdit, onRemove, onDrop }) {
   // Le pointillé ne souligne que le CHIFFRE : le « € » reste hors de la bulle, en gris, comme dans les listes d'opérations.
   const chiffre = `${annuelle ? '' : '−'}${fmt(total)}`; // signe collé (règle du 14/11/2026)
   return (
-    <div ref={dropRef} className="ch-ligne">
+    <div ref={dropRef} className="ch-ligne" data-locate={`ch-${c.id}`}>
       <span ref={dragRef} className="ch-grip" title="Glisser pour réordonner"><Icon name="poignee" size={14} /></span>
       <span className="ch-nom ch-nom--ligne">
         <b>{c.label || '(sans libellé)'}</b>
@@ -550,6 +550,7 @@ function ChargesModal({ ctx, onClose }) {
   const onChargeDrop = (drop) => patchActive({ charges: performDrop(active.charges, drop.source, drop) });
   const submitCharge = (charge) => {
     setCharges(cs => cs.some(c => c.id === charge.id) ? cs.map(c => c.id === charge.id ? charge : c) : [...cs, charge]);
+    allumerLigne(`ch-${charge.id}`); // allumage, 23/11/2026
     setEditingCharge(null);
   };
 
@@ -732,7 +733,7 @@ function ChargesModal({ ctx, onClose }) {
           <h3 className="settings-group-title">Revenus nets</h3>
           <div className="ch-liste">
             {people.map((p, i) => (
-              <div key={p.id} className="ch-ligne ch-ligne--revenu">
+              <div key={p.id} className="ch-ligne ch-ligne--revenu" data-locate={`rev-${p.id}`}>
                 <span className="ch-av" style={{ background: personLightAt(i), color: personTextAt(i) }}>{initials(p.label)}</span>
                 <span className="ch-nom"><b>{p.label}</b></span>
                 <span className="ch-montant"><span className="ch-montant-val ch-montant-val--neutre">{fmt(Number(active.incomes?.[p.id]?.net) || 0)}</span> <span className="cur">€</span></span>
@@ -880,7 +881,7 @@ function ChargesModal({ ctx, onClose }) {
             scenario={active.name}
             valeur={active.incomes?.[p.id]?.net}
             onClose={() => setEditingRevenu(null)}
-            onSubmit={(v) => { setIncome(p.id, 'net', v); setEditingRevenu(null); }}
+            onSubmit={(v) => { setIncome(p.id, 'net', v); allumerLigne(`rev-${p.id}`); setEditingRevenu(null); }}
           />
         );
       })()}

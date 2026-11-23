@@ -85,6 +85,7 @@ function PhysicalView({ ctx }) {
     const extra = (!initialOp && op.type === 'purchase' && !(Number(asset.unitCurrentPrice) > 0))
       ? { unitCurrentPrice: op.unitPrice, priceUpdatedAt: op.date || todayIso() } : {};
     ecrireJournal(asset, ops, extra);
+    allumerLigne(`pop-${asset.id}-${op.id}`);
     showToast(initialOp ? 'Opération modifiée' : 'Opération ajoutée', initialOp ? undefined : 'success');
   };
   const supprimerOp = (assetId, opId) => {
@@ -100,17 +101,21 @@ function PhysicalView({ ctx }) {
       Adapter.updatePhysical(user.uid, id, { unitCurrentPrice: prix, priceUpdatedAt: jour }), 'Erreur de sauvegarde'));
     setPrixDirty(false);
     setModal(null);
+    allumerLignes(changements.map(({ id }) => `phys-${id}`));
     showToast('Prix mis à jour');
   };
   const creerActif = (nom) => {
+    const id = Adapter.nouvelId(user.uid, 'physical');
     signaleEchec(Adapter.createPhysical(user.uid, {
       name: nom, operations: [], quantity: 0, unitPurchasePrice: 0, unitCurrentPrice: 0, priceUpdatedAt: null,
-    }), 'Erreur de sauvegarde');
+    }, id), 'Erreur de sauvegarde');
+    allumerLigne(`phys-reg-${id}`); // dans « Réglages », qui reste ouverte
     setEditAsset(null);
     showToast('Actif créé', 'success');
   };
   const renommerActif = (asset, nom) => {
     signaleEchec(Adapter.updatePhysical(user.uid, asset.id, { name: nom }), 'Erreur de sauvegarde');
+    allumerLigne(`phys-reg-${asset.id}`);
     setEditAsset(null);
     showToast('Actif renommé');
   };
@@ -249,7 +254,7 @@ function PhysicalView({ ctx }) {
               const d = deriverActifPhysique(a);
               const n = (a.operations || []).length;
               return (
-                <div key={a.id} className="support-row">
+                <div key={a.id} className="support-row" data-locate={`phys-reg-${a.id}`}>
                   <span className="support-icon" style={{ background: fondPastille(MODULE_COLORS.physical), color: couleurIcone(MODULE_COLORS.physical) }}>{initiales(a.name)}</span>
                   <div className="support-main">
                     <div className="support-name">{a.name}</div>
@@ -311,7 +316,7 @@ function PhysicalAssetRow({ asset, derive }) {
 function PhysicalOpRow({ op, asset, onEdit }) {
   const d = opPhysiqueAffichage(op, asset.name || 'Actif');
   return (
-    <div className="op-row">
+    <div className="op-row" data-locate={`pop-${asset.id}-${op.id}`}>
       <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
       <div className="op-main">
         <span className="op-label">{d.label}</span>

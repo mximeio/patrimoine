@@ -39,8 +39,10 @@ function InvestmentsView({ ctx }) {
   // et la mise à jour groupée des valorisations — l'attente est CONSERVÉE, et
   // leurs commentaires disent pourquoi.
   const handleCreate = (name) => {
-    Adapter.createPortfolio(user.uid, name)
+    const id = Adapter.nouvelId(user.uid, 'portfolios'); // tiré sur l'appareil : la ligne s'allume même hors ligne
+    Adapter.createPortfolio(user.uid, name, null, id)
       .catch((e) => { console.error(e); showToast('Erreur de création', 'error'); });
+    allumerLigne(`pf-${id}`);
     setShowCreate(false);
     showToast('Enveloppe créée', 'success');
   };
@@ -381,6 +383,16 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   const handleUpdateData = (newData) => {
     Adapter.updatePortfolioData(user.uid, portfolio.id, newData)
       .catch((e) => { console.error(e); showToast('Erreur de sauvegarde', 'error'); });
+    // L'ALLUMAGE (23/11/2026) : tout ce qui écrit l'enveloppe passe par ici — nouvelle opération, modification, versement et
+    // ses achats, mise à jour des valeurs. On allume les opérations nouvelles ou modifiées ; à défaut, les supports dont la
+    // valeur a changé. Une suppression n'allume rien.
+    const ops = clesModifiees(data.operations, newData.operations);
+    if (ops.length) allumerLignes(ops.map((id) => `iop-${id}`));
+    else {
+      const av = data.currentValues || {}, ap = newData.currentValues || {};
+      const sup = Object.keys(ap).filter((k) => r2(Number(ap[k]) || 0) !== r2(Number(av[k]) || 0));
+      if (sup.length) allumerLignes(sup.map((id) => `etf-${id}`));
+    }
     return true;
   };
 
@@ -835,7 +847,7 @@ function OperationsJournal({ stats, onShowAll, onAdd, onEdit, onDelete }) {
           const d = getOpDisplay(op, nameOf);
           const isTransfer = op.isTransfer;
           return (
-            <div key={op.id} className="op-row">
+            <div key={op.id} className="op-row" data-locate={`iop-${op.id}`}>
               <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
               <div className="op-main">
                 <span className="op-label">{d.label}</span>
@@ -1299,6 +1311,7 @@ function UpdateAllValuesModal({ ctx, onClose }) {
     }
     showToast(`${modifiees.length} enveloppe${modifiees.length > 1 ? 's' : ''} mise${modifiees.length > 1 ? 's' : ''} à jour`, 'success');
     onClose();
+    allumerLignes(modifiees.map((m) => `pf-${m.id}`)); // les enveloppes revalorisées (23/11/2026)
   };
 
   // Zone d'actions EN FIN DE CORPS, comme les 27 autres modales de l'app.
@@ -1585,7 +1598,7 @@ function HistoryOpsTable({ stats, data, onEdit, onDelete }) {
         const d = getOpDisplay(op, nameOf);
         const isTransfer = op.isTransfer;
         return (
-          <div key={op.id} className="op-row">
+          <div key={op.id} className="op-row" data-locate={`iop-${op.id}`}>
             <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
             <div className="op-main">
               <span className="op-label">{d.label}</span>

@@ -613,8 +613,11 @@ const Adapter = {
     const snap = await this._savingsCol(uidStr).orderBy('createdAt', 'asc').get();
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
-  async createSavings(uidStr, payload) {
-    const ref = this._savingsCol(uidStr).doc();
+  // Un identifiant Firestore tiré SUR L'APPAREIL, sans aucun échange réseau : l'écran peut allumer la ligne avant l'accusé
+  // du serveur, hors ligne compris (allumage, 23/11/2026). `collection` : 'savings', 'portfolios', 'physical'.
+  nouvelId(uidStr, collection) { return this._userDoc(uidStr).collection(collection).doc().id; },
+  async createSavings(uidStr, payload, id = null) {
+    const ref = id ? this._savingsCol(uidStr).doc(id) : this._savingsCol(uidStr).doc();
     await ref.set({
       ...payload,
       createdAt: FS.FieldValue.serverTimestamp(),
@@ -685,8 +688,8 @@ const Adapter = {
     const snap = await this._portfoliosCol(uidStr).orderBy('createdAt', 'asc').get();
     return snap.docs.map(d => _normalizePortfolioDoc({ id: d.id, ...d.data() }));
   },
-  async createPortfolio(uidStr, name, data = null) {
-    const ref = this._portfoliosCol(uidStr).doc();
+  async createPortfolio(uidStr, name, data = null, id = null) {
+    const ref = id ? this._portfoliosCol(uidStr).doc(id) : this._portfoliosCol(uidStr).doc();
     await ref.set({
       name,
       createdAt: FS.FieldValue.serverTimestamp(),
@@ -711,8 +714,8 @@ const Adapter = {
     const snap = await this._physicalCol(uidStr).orderBy('createdAt', 'asc').get();
     return snap.docs.map(d => migratePhysicalShape({ id: d.id, ...d.data() }));
   },
-  async createPhysical(uidStr, payload) {
-    const ref = this._physicalCol(uidStr).doc();
+  async createPhysical(uidStr, payload, id = null) {
+    const ref = id ? this._physicalCol(uidStr).doc(id) : this._physicalCol(uidStr).doc();
     await ref.set({
       ...payload,
       createdAt: FS.FieldValue.serverTimestamp(),
