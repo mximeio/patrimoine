@@ -24,17 +24,17 @@ const LISERE_PATRIMOINE = (() => {
 // démontage et disparaît au rechargement, exactement la durée d'une session.
 // ⚠️ Pas de `localStorage` : c'est un réglage de LECTURE, pas un endroit où l'on travaille. À la relance, 12M.
 // (La bascule anneau / évolution et son champ `vue` ont disparu avec l'anneau, le 14/11/2026 : modernisation C'.)
-const SESSION_ACCUEIL = { periode: '12', dejaAffiche: false };
+const SESSION_ACCUEIL = { periode: '12' };
 
 // L'ANIMATION DU GRAPHIQUE D'ÉVOLUTION. Recharts anime l'entrée en 1,5 s par défaut, et la rejouait à chaque bascule et à chaque retour sur l'onglet : ce n'était pas un calcul.
-// Règle : entrée en 300 ms au PREMIER affichage de la session, puis plus aucune entrée animée (elle n'apprend rien et
-// retarde la lecture) ; un changement de données affiché garde sa transition courte, qui montre ce qui a bougé ; rien
-// du tout avec « Réduire les animations », que le bloc `prefers-reduced-motion` de styles.css n'atteint pas —
-// l'animation est en JavaScript.
+// Règle : AUCUNE entrée animée, même au premier affichage de la session (décision de l'utilisateur du 23/11/2026, sur la
+// question du 22/10 « l'animation est là juste pour faire joli ? » ; jusque-là, 300 ms la première fois) — elle n'apprend rien
+// et retarde la lecture ; un changement de données affiché garde sa transition courte, qui montre ce qui a bougé ; rien du
+// tout avec « Réduire les animations », que le bloc `prefers-reduced-motion` de styles.css n'atteint pas — l'animation est en
+// JavaScript.
 const DUREE_ANIMATION_GRAPHIQUE = 300;
-function dureeAnimationGraphique(reduit, entree, dejaAffiche) {
-  if (reduit) return 0;
-  if (entree && dejaAffiche) return 0;
+function dureeAnimationGraphique(reduit, entree) {
+  if (reduit || entree) return 0;
   return DUREE_ANIMATION_GRAPHIQUE;
 }
 
@@ -50,10 +50,9 @@ function dureeAnimationGraphique(reduit, entree, dejaAffiche) {
 //  le minutage ; `entree` passe à faux dans son effet, après.
 function useDureeAnimationGraphique() {
   const entree = useRef(true);
-  const dejaAffiche = useRef(SESSION_ACCUEIL.dejaAffiche);
-  useEffect(() => { entree.current = false; SESSION_ACCUEIL.dejaAffiche = true; }, []);
+  useEffect(() => { entree.current = false; }, []);
   const reduit = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  return dureeAnimationGraphique(reduit, entree.current, dejaAffiche.current);
+  return dureeAnimationGraphique(reduit, entree.current);
 }
 
 // La courbe du bas de la carte de tête : le total, mois par mois, en SVG simple (pas de Recharts : 44 px, ni axe ni
@@ -244,7 +243,6 @@ function ConsolidatedView({ ctx, onNavigate }) {
           </div>
         </div>
         <div className="card evo-carte">
-          {avecPlusValue && <div className="evo-sous">dont <b className="num">{signe(totalGain)}</b> de plus-value</div>}
           <PatrimoineEvolutionChart data={evolution} enabled={enabled} profile={profile} />
         </div>
       </section>
@@ -259,28 +257,220 @@ function PatrimoineEvolutionChart({ data, enabled, profile }) {
   // Si on n'a qu'un seul point, l'AreaChart n'a rien à tracer.
   if (data.length < 2) {
     return (
-      <div style={{ padding: '32px 16px', textAlign: 'center', color: COLORS.muted, fontSize: 13 }}>
-        Pas encore assez d'historique pour tracer une évolution.<br />
-        <span style={{ fontSize: 12 }}>Les premières données apparaîtront au fil des mois.</span>
-      </div>
+      <>
+        <div style={{ padding: '32px 16px', textAlign: 'center', color: COLORS.muted, fontSize: 13 }}>
+          Pas encore assez d'historique pour tracer une évolution.<br />
+          <span style={{ fontSize: 12 }}>Les premières données apparaîtront au fil des mois.</span>
+        </div>
+      </>
     );
   }
-  // Les rubriques ne se dessinent plus (une seule courbe, le total — modernisation C', 14/11/2026), mais la bulle les
-  // détaille toujours, dans l'ORDRE FIXE de l'app — celui de la barre des onglets et des cartes (15/11/2026, décision de
-  // l'utilisateur : l'ordre par montant, utile quand les aires s'empilaient, changeait avec la période).
+  // Les rubriques ne se dessinent plus (une seule courbe, le total — modernisation C', 14/11/2026), mais la lecture d'un mois
+  // les détaille toujours, dans l'ORDRE FIXE de l'app — celui de la barre des onglets et des cartes (15/11/2026, décision de
+  // l'utilisateur).
   const categories = [
     enabled.checking !== false && { key: 'checking', label: checkingModuleLabel(profile), color: MODULE_COLORS.checking },
     enabled.savings && { key: 'savings', label: 'Épargne', color: MODULE_COLORS.savings },
     enabled.investments && { key: 'investments', label: 'Investissements', color: MODULE_COLORS.investments },
     enabled.physical && { key: 'physical', label: 'Actifs physiques', color: MODULE_COLORS.physical },
   ].filter(Boolean);
-  return (
-    <RedessinARotation>
-    <ResponsiveContainer width="100%" height={200}>
-      <EvolutionAiresChart data={data} categories={categories} />
-    </ResponsiveContainer>
-    </RedessinARotation>
+  // LA LIGNE DU REPOS : la VARIATION DE LA PÉRIODE affichée (23/11/2026, décision de l'utilisateur). Elle remplace « dont … de
+  // plus-value », qui troublait à côté de la pastille de la carte de tête (« +4 810.12 € depuis juin 26 ») : deux mesures
+  // différentes — la plus-value compte depuis l'achat et ne suit pas la période — sous des boutons de période. Désormais, à 12M,
+  // le même chiffre que la pastille ; à 3M et « Tout », celui de la période. La plus-value reste en tête des pages
+  // Investissements et Actifs physiques (et sur la carte de tête tant qu'il n'y a pas de courbe).
+  const variation = r2(data[data.length - 1].total - data[0].total);
+  const ligneValeur = (
+    <div className="evo-sous">
+      <span className={`num evo-variation ${variation >= 0 ? 'evo-ecart--pos' : 'evo-ecart--neg'}`}>{variation >= 0 ? '+' : ''}{fmt(variation)} €</span> depuis {data[0].label}
+    </div>
   );
+  return <EvolutionLue data={data} categories={categories} ligneValeur={ligneValeur} />;
+}
+
+// LA LECTURE D'UN MOIS, À UN ENDROIT FIXE (rang 3 du backlog ; maquette Claude Design « Courbe d'évolution, lecture fixe »,
+// forme E3, validée par l'utilisateur le 23/11/2026). Plus de bulle : au doigt, elle couvrait la moitié du graphique, posée sur
+// les mois voisins — ceux avec lesquels on compare. Principe posé le 19/10/2026 : une valeur de graphique s'affiche à un
+// endroit FIXE, jamais sous le doigt. La ligne du haut de la carte devient la lecture :
+// - au repos : la variation de la période (« +4 810.12 € depuis juin 26 ») et l'invite « Touchez (Survolez) la courbe pour lire un mois » ;
+// - en lecture : le mois (13 px, 600), l'écart depuis le début de la période AVANT le total (règle des deltas, 13/08/2026 ;
+//   modèle `.total-fen`), le total (14 px, 600) ; dessous, les rubriques — la première à gauche, la dernière à droite sous le
+//   total, les autres réparties ; chaque montant a la largeur du plus long de la période, pour que RIEN NE BOUGE pendant la
+//   lecture ; on écrit LE PLUS COMPLET QUI TIENT (23/11/2026) : noms et centimes (ordinateur), noms seuls (768 px), centimes
+//   seuls (iPhone 17 Pro Max, 440 px), sinon les pastilles et les euros ronds (iPhone 15 Pro, 393 px) — `detailRubriques`.
+// La zone a une hauteur fixe ; la courbe rend ce qu'elle prend : la carte garde sa hauteur d'avant (258 px au téléphone).
+// LE GESTE (règle Apple des gestes ambigus) : le doigt qui part à l'HORIZONTALE (10 px) lit et suit le doigt, puis au lever on
+// revient au repos ; à la VERTICALE la page défile et rien ne s'affiche (règle « rien pendant un glissement » de la DEV v1291) ;
+// un TOUCHER FRANC affiche le mois au lever, jusqu'au toucher suivant ailleurs ou au défilement. À la souris : le survol.
+// Pas d'animation d'arrivée (décision du 23/11/2026) ; un changement de période garde sa transition courte.
+const HAUTEUR_COURBE = 172;
+function EvolutionLue({ data, categories, ligneValeur }) {
+  const [lu, setLu] = useState(null);       // l'indice du mois lu ; null = au repos
+  const surface = useRef(null);
+  const zone = useRef(null);
+  const geste = useRef(null);               // un toucher en cours : { x, y, etat: 'attente' | 'lecture' }
+  const fixe = useRef(false);               // la lecture vient d'un toucher franc : elle reste affichée
+  const [largeurZone, setLargeurZone] = useState(0);
+  const n = data.length;
+  // Une autre période remet au repos (la clé, et non le tableau, recréé à chaque rendu de la vue).
+  const cle = `${n}:${data[0].monthKey}`;
+  useEffect(() => { fixe.current = false; setLu(null); }, [cle]);
+  useEffect(() => {
+    const el = zone.current;
+    if (!el) return undefined;
+    const maj = () => setLargeurZone(el.clientWidth);
+    maj();
+    const ro = window.ResizeObserver ? new ResizeObserver(maj) : null;
+    if (ro) ro.observe(el);
+    return () => { if (ro) ro.disconnect(); };
+  }, []);
+  // La lecture d'un toucher franc se ferme au toucher suivant hors de la courbe et au défilement — comme les bulles d'aide.
+  useEffect(() => {
+    const ailleurs = (e) => {
+      if (fixe.current && surface.current && !surface.current.contains(e.target)) { fixe.current = false; setLu(null); }
+    };
+    const defile = () => { if (fixe.current) { fixe.current = false; setLu(null); } };
+    document.addEventListener('pointerdown', ailleurs, { capture: true, passive: true });
+    document.addEventListener('scroll', defile, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', ailleurs, { capture: true });
+      document.removeEventListener('scroll', defile, { capture: true });
+    };
+  }, []);
+
+  const indexDe = (clientX) => {
+    const r = surface.current.getBoundingClientRect();
+    return indexMoisLu(clientX - r.left, r.width, n);
+  };
+  const appui = (e) => {
+    if (e.pointerType === 'mouse') return;
+    fixe.current = false;
+    geste.current = { x: e.clientX, y: e.clientY, etat: 'attente' };
+  };
+  const deplacement = (e) => {
+    if (e.pointerType === 'mouse') { setLu(indexDe(e.clientX)); return; }
+    const g = geste.current;
+    if (!g) return;
+    if (g.etat === 'attente') {
+      const intention = intentionGeste(e.clientX - g.x, e.clientY - g.y);
+      if (intention === 'defilement') { geste.current = null; return; }
+      if (intention !== 'lecture') return;
+      g.etat = 'lecture';
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { /* le doigt est déjà sorti : la lecture suit quand même */ }
+    }
+    setLu(indexDe(e.clientX));
+  };
+  const lever = (e) => {
+    if (e.pointerType === 'mouse') return;
+    const g = geste.current;
+    geste.current = null;
+    if (!g) return;
+    if (g.etat === 'attente') { fixe.current = true; setLu(indexDe(e.clientX)); }   // toucher franc : le mois s'affiche et reste
+    else setLu(null);                                                              // fin d'une lecture : retour au repos
+  };
+  const annuler = () => { geste.current = null; if (!fixe.current) setLu(null); };
+  const sortie = (e) => { if (e.pointerType === 'mouse') setLu(null); };
+
+  // Les largeurs fixes des montants (le plus long de la période, chiffres comptés comme des « 0 » : le canvas ignore
+  // `tabular-nums`), en euros ronds et avec les centimes, et celles des noms : de quoi décider ce qui tient.
+  const largeursDe = (centimes) => categories.map((c) =>
+    Math.ceil(Math.max(...data.map((d) => mesurerTexte(montantRubrique(d[c.key], centimes).replace(/\d/g, '0'), 500, 12)))) + 1);
+  const largeurs = { true: largeursDe(true), false: largeursDe(false) };
+  const largeursNoms = categories.map((c) => Math.ceil(mesurerTexte(c.label, 400, 12)));
+  const besoin = (noms, centimes) => categories.reduce((s, c, k) => s + 8 + 6 + (noms ? largeursNoms[k] + 6 : 0) + largeurs[centimes][k], 0)
+    + 16 * (categories.length - 1);
+  const ecrit = detailRubriques(largeurZone, besoin);
+  const indice = (window.matchMedia && window.matchMedia('(hover: hover)').matches)
+    ? 'Survolez la courbe pour lire un mois.' : 'Touchez la courbe pour lire un mois.';
+
+  const iLu = lu == null ? null : Math.min(lu, n - 1);
+  const d = iLu == null ? null : data[iLu];
+  const ecart = d ? r2(d.total - data[0].total) : 0;
+  return (
+    <>
+      <div className="evo-lecture" ref={zone}>
+        {d ? (
+          <>
+            <div className="evo-l1">
+              <span className="evo-mois">{d.labelFull}</span>
+              <span className="evo-droite">
+                {iLu === 0
+                  ? <span className="evo-ecart evo-ecart--debut">début de la période</span>
+                  : <span className={`evo-ecart num ${ecart >= 0 ? 'evo-ecart--pos' : 'evo-ecart--neg'}`}>{ecart >= 0 ? '+' : ''}{fmt(ecart)} €</span>}
+                <span className="evo-total num">{fmt(d.total)} €</span>
+              </span>
+            </div>
+            <div className="evo-rub">
+              {categories.map((c, k) => (
+                <span key={c.key} className="evo-r">
+                  <span className="evo-r-pt" style={{ background: c.color }} />
+                  {ecrit.noms && <span className="evo-r-nom">{c.label}</span>}
+                  <span className="evo-r-mt num" style={{ minWidth: largeurs[ecrit.centimes][k], textAlign: k === categories.length - 1 ? 'right' : 'left' }}>
+                    {montantRubrique(d[c.key], ecrit.centimes)}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {ligneValeur}
+            <div className="evo-indice">{indice}</div>
+          </>
+        )}
+      </div>
+      <div className="evo-cadre">
+        <RedessinARotation>
+          <ResponsiveContainer width="100%" height={HAUTEUR_COURBE}>
+            <EvolutionAiresChart data={data} lu={iLu} />
+          </ResponsiveContainer>
+        </RedessinARotation>
+        {/* La surface qui lit le geste, posée SUR la courbe : `touch-action: pan-y` laisse la page défiler à la verticale et
+            garde l'horizontale pour la lecture. */}
+        <div ref={surface} className="evo-surface" role="img"
+          aria-label={`Courbe du patrimoine total, de ${data[0].labelFull.toLowerCase()} à ${data[n - 1].labelFull.toLowerCase()}`}
+          onPointerDown={appui} onPointerMove={deplacement} onPointerUp={lever} onPointerCancel={annuler} onPointerLeave={sortie} />
+      </div>
+    </>
+  );
+}
+
+// Ce qu'on écrit pour chaque rubrique : le plus complet qui TIENT, dans cet ordre — noms et centimes, noms seuls, centimes
+// seuls, puis euros ronds (23/11/2026, décision de l'utilisateur : le nom de la rubrique passe avant le centime). `place` = la
+// largeur utile, `besoin(noms, centimes)` = celle de la ligne. Pure, testée.
+function detailRubriques(place, besoin) {
+  const ordre = [[true, true], [true, false], [false, true]];
+  for (const [noms, centimes] of ordre) if (place > 0 && besoin(noms, centimes) <= place) return { noms, centimes };
+  return { noms: false, centimes: false };
+}
+// Le montant d'une rubrique, avec ou sans centimes.
+function montantRubrique(valeur, centimes) {
+  return `${centimes ? fmt(valeur) : fmtNoDec(valeur)} €`;
+}
+// L'intention d'un toucher posé sur la courbe, d'après son déplacement depuis l'appui (pure, testée) : rien tant qu'il reste
+// sous le seuil ; « lecture » s'il part plutôt à l'horizontale, « defilement » plutôt à la verticale.
+function intentionGeste(dx, dy, seuil = 10) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax < seuil && ay < seuil) return null;
+  return ax >= ay ? 'lecture' : 'defilement';
+}
+// Le mois sous un point de la courbe (pure, testée) : les mois sont espacés régulièrement du bord gauche (le premier) au bord
+// droit (le dernier) — échelle « point » de Recharts, marges latérales nulles.
+function indexMoisLu(x, largeur, n) {
+  if (n < 2 || !(largeur > 0)) return 0;
+  const f = Math.min(1, Math.max(0, x / largeur));
+  return Math.round(f * (n - 1));
+}
+// La largeur d'un texte, mesurée au canvas dans la police de l'app.
+let CANVAS_TEXTE = null;
+let POLICE_TEXTE = null;
+function mesurerTexte(texte, graisse, taille) {
+  if (!CANVAS_TEXTE) {
+    CANVAS_TEXTE = document.createElement('canvas').getContext('2d');
+    POLICE_TEXTE = getComputedStyle(document.body).fontFamily;
+  }
+  CANVAS_TEXTE.font = `${graisse} ${taille}px ${POLICE_TEXTE}`;
+  return CANVAS_TEXTE.measureText(texte).width;
 }
 
 // La courbe du total, rendue PAR `ResponsiveContainer` : la durée s'y décide, et le nom finit par `Chart` pour
@@ -309,61 +499,8 @@ function TickAxeMois({ x, y, payload, parLibelle }) {
     </g>
   );
 }
-function EvolutionAiresChart({ data, categories, width, height, style }) {
+function EvolutionAiresChart({ data, lu, width, height, style }) {
   const duree = useDureeAnimationGraphique();
-  // LA BULLE AU TOUCHER (relevés de l'utilisateur sur iPhone, 18/11/2026) : Recharts ouvre la bulle dès que le doigt se pose
-  // et ne la ferme qu'à la sortie de la SOURIS. Faire défiler la page le doigt posé sur le graphique l'affichait (bulle et point),
-  // puis la laissait ouverte. Désormais : elle ne s'ouvre qu'au LEVER d'un TOUCHER FRANC sur le graphique (doigt resté à moins de
-  // 10 px de son point de départ) ; pendant un glissement, rien ne s'affiche. Elle se ferme au toucher suivant, hors du graphique
-  // comme dedans tant que le doigt n'est pas levé, et au défilement — comme les bulles d'aide (`InfoTip`). À la souris, le survol
-  // la montre (`onMouseMove`). `active={false}` force la fermeture (curseur compris) ; `undefined` rend la main à Recharts.
-  const [bulle, setBulle] = useState(true);
-  const bulleRef = useRef(true);
-  const montrerBulle = (v) => { if (bulleRef.current !== v) { bulleRef.current = v; setBulle(v); } };
-  // ⚠️ Recharts appelle AUSSI `onMouseMove` à chaque `touchmove` (`triggeredAfterMouseMove`, Recharts 2.12.7) : branché tel quel,
-  // il rouvrait la bulle pendant un glissement (DEV v1292, relevé de l'utilisateur sur iPhone ; reproduit : elle clignotait). On
-  // l'ignore pendant un geste au doigt et dans la seconde qui suit — le survol qu'iOS simule après un toucher compris.
-  const derniereToucheRef = useRef(0);
-  const auSurvol = () => { if (Date.now() - derniereToucheRef.current > 1000) montrerBulle(true); };
-  useEffect(() => {
-    let geste = null;   // { x, y, bouge } : un toucher commencé sur le graphique
-    // Un toucher qui COMMENCE sur le graphique ne ferme rien (DEV v1294, relevé de l'utilisateur : toucher un autre mois faisait
-    // disparaître puis réapparaître la bulle — elle doit se DÉPLACER) ; elle se ferme seulement s'il devient un glissement.
-    // Un toucher hors du graphique la ferme aussitôt.
-    const auToucher = (e) => {
-      derniereToucheRef.current = Date.now();
-      const t = e.touches && e.touches[0];
-      const surGraphe = !!(e.target && e.target.closest && e.target.closest('.evo-graphe'));
-      geste = (surGraphe && t && e.touches.length === 1) ? { x: t.clientX, y: t.clientY, bouge: false, cible: e.target } : null;
-      if (!geste) montrerBulle(false);
-    };
-    const auDeplacement = (e) => {
-      derniereToucheRef.current = Date.now();
-      const t = e.touches && e.touches[0];
-      if (geste && !geste.bouge && t && Math.hypot(t.clientX - geste.x, t.clientY - geste.y) > 10) { geste.bouge = true; montrerBulle(false); }
-    };
-    // Au lever d'un toucher franc, Recharts n'a pas recalé le mois : son `touchstart` n'est qu'un appui, seuls `touchmove` et
-    // `mousemove` déplacent la bulle (lu dans Recharts 2.12.7). On lui envoie donc un `mousemove` au point touché, puis on montre.
-    const auLever = () => {
-      derniereToucheRef.current = Date.now();
-      if (geste && !geste.bouge) {
-        geste.cible.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: geste.x, clientY: geste.y }));
-        montrerBulle(true);
-      }
-      geste = null;
-    };
-    const auDefilement = () => { if (geste) geste.bouge = true; montrerBulle(false); };
-    document.addEventListener('touchstart', auToucher, { capture: true, passive: true });
-    document.addEventListener('touchmove', auDeplacement, { capture: true, passive: true });
-    document.addEventListener('touchend', auLever, { capture: true, passive: true });
-    document.addEventListener('scroll', auDefilement, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener('touchstart', auToucher, { capture: true });
-      document.removeEventListener('touchmove', auDeplacement, { capture: true });
-      document.removeEventListener('touchend', auLever, { capture: true });
-      document.removeEventListener('scroll', auDefilement, { capture: true });
-    };
-  }, []);
   // L'axe des mois : l'échelle de `etiquettesAxeMois` (utils.js), recalculée à chaque largeur et à chaque période.
   const axe = useMemo(() => {
     if (!width || !data || data.length < 2) return null;
@@ -373,9 +510,11 @@ function EvolutionAiresChart({ data, categories, width, height, style }) {
     const parLibelle = new Map(r.etiquettes.map(e => [data[e.i].label, e]));
     return { ticks: r.etiquettes.map(e => data[e.i].label), parLibelle, avecAn: r.etiquettes.some(e => e.an) };
   }, [data, width]);
+  // Le mois lu (`EvolutionLue`) : une ligne PLEINE de 1 px en `--text-subtle` — 3:1, la couleur des signes ; le pointillé, dans
+  // l'app, veut dire « vide, à faire » — et le point sur la courbe. Recharts ne suit plus rien lui-même (plus de `Tooltip`).
+  const point = lu == null ? null : data[lu];
   return (
-    <AreaChart width={width} height={height} style={style} className="evo-graphe" data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}
-      onMouseMove={auSurvol}>
+    <AreaChart width={width} height={height} style={style} data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
       <defs>
         <linearGradient id="evo-fond" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor={COURBE_TOTAL} stopOpacity={0.18} />
@@ -386,43 +525,10 @@ function EvolutionAiresChart({ data, categories, width, height, style }) {
         ? <XAxis dataKey="label" ticks={axe.ticks} interval={0} tick={<TickAxeMois parLibelle={axe.parLibelle} />} tickLine={false} axisLine={false} height={axe.avecAn ? 34 : 22} />
         : <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />}
       <YAxis hide domain={['dataMin', 'dataMax']} />
-      <Tooltip active={bulle ? undefined : false} content={<EvolutionTooltip categories={categories} />} cursor={{ stroke: COLORS.muted, strokeWidth: 1, strokeDasharray: '3 3' }} />
-      {/* Le point de la courbe suit la bulle (DEV v1295) : Recharts le dessine d'après SON état (`isTooltipActive`), sans lire
-          `Tooltip active` — il restait affiché pendant un glissement, bulle et ligne pointillée cachées (relevé de l'utilisateur). */}
-      <Area type="monotone" dataKey="total" stroke={COURBE_TOTAL} strokeWidth={2.5} fill="url(#evo-fond)" activeDot={bulle}
+      <Area type="monotone" dataKey="total" stroke={COURBE_TOTAL} strokeWidth={2.5} fill="url(#evo-fond)" activeDot={false}
         animationBegin={0} animationDuration={duree} />
+      {point && <ReferenceLine x={point.label} stroke={COLORS.subtle} strokeWidth={1} />}
+      {point && <ReferenceDot x={point.label} y={point.total} r={5} fill={COURBE_TOTAL} stroke="#ffffff" strokeWidth={2} ifOverflow="visible" />}
     </AreaChart>
-  );
-}
-
-// Tooltip du graphique d'évolution — fond BLANC (surface, liseré, ombre) : c'était le
-// seul habillage sombre de l'app hors hero cards (héritage v1), l'ombre et
-// le liseré suffisent à le détacher des aires colorées.
-function EvolutionTooltip({ active, payload, categories }) {
-  if (!active || !payload || !payload.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div style={{
-      background: COLORS.surface, color: COLORS.text,
-      border: `1px solid ${COLORS.border}`,
-      padding: '10px 14px', borderRadius: 'var(--r-touche)',
-      fontSize: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
-      minWidth: 200,
-    }}>
-      <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${COLORS.border}` }}>
-        {d.labelFull}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${COLORS.border}`, fontWeight: 600 }}>
-        <span>Total</span>
-        <span className="num">{fmt(d.total)} €</span>
-      </div>
-      {categories.map(c => (
-        <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginTop: 4, color: COLORS.text }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: c.color, flexShrink: 0 }} />
-          <span style={{ flex: 1, color: COLORS.muted }}>{c.label}</span>
-          <span className="num" style={{ fontWeight: 600 }}>{fmt(d[c.key])} €</span>
-        </div>
-      ))}
-    </div>
   );
 }

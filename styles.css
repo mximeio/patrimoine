@@ -1676,6 +1676,31 @@ input[type="month"] {
 .evo-carte .recharts-surface { overflow: visible; }
 .evo-sous { color: var(--text-muted); font-size: 13px; font-weight: 400; margin: 0 0 4px; }
 .evo-sous b { color: var(--text); font-weight: 600; }
+/* LA LECTURE D'UN MOIS à un endroit fixe (rang 3, maquette E3 validée le 23/11/2026 ; détail dans `EvolutionLue`,
+   consolidated.js). Hauteur FIXE : au repos comme en lecture, la carte ne bouge pas ; la courbe (`HAUTEUR_COURBE`) rend les
+   28 px que prend la deuxième ligne. Valeurs prises dans l'échelle typographique : mois 13 / 600, écart 13 / 600 en nuance 600
+   avant le total (modèle `.total-fen`), total 14 / 600, montants des rubriques 12 / 500 (listes), noms 12 / 400 gris. */
+.evo-lecture { height: 44px; display: flex; flex-direction: column; justify-content: center; gap: 6px; margin: 0 0 4px; }
+.evo-lecture .evo-sous { margin: 0; }
+.evo-variation { font-weight: 600; } /* au repos, la variation de la période : couleur de l'écart (`.evo-ecart--pos`, `--neg`) */
+.evo-indice { color: var(--text-muted); font-size: 12px; }
+.evo-l1 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; line-height: 18px; }
+.evo-mois { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.evo-droite { display: flex; align-items: baseline; white-space: nowrap; }
+.evo-ecart { font-size: 13px; font-weight: 600; margin-right: 8px; }
+.evo-ecart--pos { color: var(--success-fonce); }
+.evo-ecart--neg { color: var(--danger-fonce); }
+.evo-ecart--debut { color: var(--text-muted); font-weight: 400; }
+.evo-total { font-size: 14px; font-weight: 600; }
+/* Les rubriques : la première à gauche, la dernière à droite (sous le total), les autres réparties ; 16 px au moins entre deux. */
+.evo-rub { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 12px; line-height: 16px; white-space: nowrap; }
+.evo-r { display: flex; align-items: center; gap: 6px; }
+.evo-r-pt { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.evo-r-nom { color: var(--text-muted); }
+.evo-r-mt { display: inline-block; font-weight: 500; }
+/* La surface qui lit le geste, sur la courbe : la verticale reste au défilement de la page, l'horizontale à la lecture. */
+.evo-cadre { position: relative; }
+.evo-surface { position: absolute; inset: 0; z-index: 1; touch-action: pan-y; cursor: crosshair; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 @media (min-width: 900px) {
   .pile-rub { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 16px; }
   .carte-rub-pc { display: none; } .carte-rub-pc-bas { display: inline; }

@@ -6,7 +6,7 @@ const { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } = R
 const {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend, AreaChart, Area, ComposedChart
+  Legend, AreaChart, Area, ComposedChart, ReferenceLine, ReferenceDot
 } = Recharts;
 
 function Spinner() { return <div className="spinner"></div>; }
