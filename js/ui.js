@@ -1253,6 +1253,34 @@ function EmptyState({ icon, title, hint }) {
   );
 }
 
+// La fenêtre « ⋯ › Réglages » d'une liste (harmonisation des rubriques, 26/11/2026) : une ligne par compte, livret, enveloppe ou
+// actif — pastille d'initiales, nom, une ligne de détail, crayon — puis le bouton d'ajout. UNE recette pour les quatre rubriques
+// (compte courant en multi, épargne, investissements, actifs physiques) : la fenêtre des actifs physiques (v1316) en est le modèle.
+// `elements` = [{ id, nom, sous, locate }] (`locate` : la clé d'allumage) ; le crayon appelle `onModifier(id)`.
+// ⚠️ Le bouton d'ajout se pose SUR LA MARGE de la fenêtre, sans pied de liste (`.section-footer`, celui des pages) : la v1316 le
+// mettait à 14 px de plus à gauche et 12 en bas, relevé par l'utilisateur le 26/11/2026.
+function ListeReglages({ module, elements, onModifier, libelleAjout, onAjouter, vide }) {
+  const couleur = MODULE_COLORS[module] || COLORS.accent;
+  return (
+    <>
+      <div>
+        {elements.map((e) => (
+          <div key={e.id} className="support-row" data-locate={e.locate}>
+            <span className="support-icon" style={{ background: fondPastille(couleur), color: couleurIcone(couleur) }}>{initiales(e.nom)}</span>
+            <div className="support-main">
+              <div className="support-name">{e.nom}</div>
+              <div className="support-sub">{e.sous}</div>
+            </div>
+            <button type="button" className="tx-edit" onClick={() => onModifier(e.id)} title="Modifier" aria-label={`Modifier ${e.nom}`}><Icon name="pencil" size={13} /></button>
+          </div>
+        ))}
+        {elements.length === 0 && vide}
+      </div>
+      <button type="button" className="btn-add" style={{ marginTop: 10 }} onClick={onAjouter}>{libelleAjout}</button>
+    </>
+  );
+}
+
 // ============================================================
 //  AmountInput — saisie de montant décimale compatible iOS Safari
 //  - type="text" + inputMode="decimal" → clavier numérique mobile

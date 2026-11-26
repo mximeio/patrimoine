@@ -833,7 +833,8 @@ function App() {
   // DEV v1299 (demande de l'utilisateur) : le « + » veut TOUJOURS dire « nouvelle opération ». Sur une liste (livrets,
   // enveloppes, comptes courants en multi) ou les actifs, il aurait créé un compte, geste rare — et le même bouton aurait changé
   // de sens d'une page à l'autre (on y aurait cherché un versement). La capsule s'y replie en rond « ⋯ », comme sur l'accueil ;
-  // la création passe par le « + Nouveau » d'en-tête, gardé au téléphone (`liste-nouveau`).
+  // la création passe par « ⋯ › Réglages » de la carte de tête depuis le 26/11/2026 (le « + Nouveau » d'en-tête des v1298-v1299
+  // est retiré), comme les actifs physiques.
   // Restent : le compte courant (un seul compte), et toute sous-page ouverte (compte en multi, livret, enveloppe).
   // DEV v1316 : la rubrique Actifs physiques a un journal d'opérations, donc un « + » (comme une enveloppe).
   const avecPlus = !!sousPage || (safeModule === 'checking' && !modulesEnabled.multiCheckingAccounts) || safeModule === 'physical';

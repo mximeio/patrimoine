@@ -10,7 +10,8 @@ function SavingsView({ ctx }) {
   const { user, savings, showToast } = ctx;
   const [activeId, setActiveId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  // Pas de `useNouvelle` sur la LISTE des livrets : le « + » de la barre est réservé aux opérations (DEV v1299) : une liste n'en a pas, la création passe par « + Nouveau » en tête.
+  // Pas de `useNouvelle` sur la LISTE des livrets : le « + » de la barre est réservé aux opérations (DEV v1299) : une liste n'en a
+  // pas. La création passe par « ⋯ › Réglages » de la carte de tête, comme les actifs physiques (harmonisation du 26/11/2026).
 
   // Si le livret actif disparaît (suppression / sync), retour à la liste.
   useEffect(() => {
@@ -31,14 +32,16 @@ function SavingsView({ ctx }) {
     return () => window.removeEventListener('patrimoine:open', onOpen);
   }, [savings]);
 
-  const handleCreate = async (name, balance) => {
+  // `prefixe` : la clé d'allumage — la ligne de la page (`saving-`), ou celle de la fenêtre « Réglages » quand la création part
+  // d'elle (`sav-reg-`), qui reste ouverte.
+  const handleCreate = async (name, balance, prefixe = 'saving-') => {
     try {
       // L'identifiant est tiré sur l'appareil, AVANT l'envoi, pour allumer la ligne même hors ligne (allumage, 23/11/2026).
       const id = Adapter.nouvelId(user.uid, 'savings');
       const envoi = Adapter.createSavings(user.uid, {
         name, balance, balanceUpdatedAt: todayIso(), operations: [],
       }, id);
-      allumerLigne(`saving-${id}`);
+      allumerLigne(`${prefixe}${id}`);
       await envoi;
       setShowCreate(false);
       showToast("Compte d'épargne créé", 'success');
@@ -98,8 +101,14 @@ function SavingsView({ ctx }) {
 // ============================================================
 function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCreate }) {
   const { savings, showToast } = ctx;
+  // « ⋯ › Réglages » (harmonisation du 26/11/2026, sur le modèle des actifs physiques) : la fenêtre des livrets, et par-dessus,
+  // celle d'un livret ouverte par son crayon — la MÊME que dans la page du livret (`FenetreReglagesLivret`).
+  const [reglages, setReglages] = useState(false);
+  const [editId, setEditId] = useState(null);
   const totalBalance = savings.reduce((s, a) => s + computeSavingsBalance(a), 0);
   const totalInterest = savings.reduce((s, a) => s + computeSavingsStats(a).interets, 0);
+  const tries = sortByNumber(savings, s => computeSavingsBalance(s));
+  const enEdition = editId ? savings.find(s => s.id === editId) : null;
 
   return (
     <div className="vue-rub">
@@ -107,6 +116,12 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
       <div className="colle">
       <CarteDeTete
         module="savings" libelle="Solde total" montant={totalBalance}
+        droite={<Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
+              <button className="dropdown-item" onClick={() => setReglages(true)}>
+                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="settings" size={14} /></span>
+                Réglages
+              </button>
+            </Dropdown>}
         pied={[
           { label: 'Nombre de comptes', value: savings.length },
           { label: 'Intérêts perçus', value: `+${fmt(totalInterest)} €` },
@@ -121,14 +136,12 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
             <span className="section-icon savings"><Icon name="piggy" size={14} /></span>
             Mes comptes d'épargne
           </div>
-          {/* DEV v1298 (demande de l'utilisateur) : le bouton d'ajout passe EN TÊTE de la liste, à la place du nombre d'éléments, comme
-              « Opérations … + Nouvelle » — dans `.ops-outils`, qui le fait déborder sans agrandir l'en-tête (32 px, la géométrie commune des
-              rubriques). DEV v1299 : il reste au téléphone (`liste-nouveau`) — créer un compte ou un actif est rare, le « + » de la barre est
-              réservé aux opérations, qui sont de tous les jours. */}
-          <div className="ops-outils"><button type="button" className="btn btn-accent ops-nouvelle liste-nouveau" onClick={() => setShowCreate(true)}><Icon name="plus" size={15} /> Nouveau</button></div>
+          {/* Le nombre de livrets, comme « Actifs détenus » : le « + Nouveau » des v1298-v1299 est parti dans « ⋯ › Réglages »
+              (harmonisation du 26/11/2026), au téléphone comme à l'ordinateur. */}
+          <span className="section-aide">{savings.length}</span>
         </div>
         <div>
-          {sortByNumber(savings, s => computeSavingsBalance(s)).map(s => {
+          {tries.map(s => {
             const colorIndex = savings.findIndex(x => x.id === s.id);
             return (
               <SavingsListRow
@@ -142,9 +155,33 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
         </div>
       </div>
 
+      {reglages && (
+        <Modal liste title="Réglages" icon="settings" subtitle="Épargne" onClose={() => setReglages(false)}>
+          <ListeReglages
+            module="savings"
+            elements={tries.map(s => {
+              const n = (s.operations || []).length;
+              return { id: s.id, nom: s.name, locate: `sav-reg-${s.id}`,
+                sous: `${fmt(computeSavingsBalance(s))} € · ${n} opération${n > 1 ? 's' : ''}` };
+            })}
+            onModifier={setEditId}
+            libelleAjout="Ajouter un compte d'épargne"
+            onAjouter={() => setShowCreate(true)}
+          />
+        </Modal>
+      )}
+      {enEdition && (
+        <FenetreReglagesLivret
+          ctx={ctx}
+          saving={enEdition}
+          onClose={() => setEditId(null)}
+          onEnregistre={() => { setEditId(null); allumerLigne(`sav-reg-${enEdition.id}`); }}
+          onSupprime={() => setEditId(null)}
+        />
+      )}
       {showCreate && (
         <Modal title="Nouveau compte d'épargne" icon="piggy" subtitle="Épargne" onClose={() => setShowCreate(false)}>
-          <NewSavingsForm showToast={showToast} onSubmit={onCreate} />
+          <NewSavingsForm showToast={showToast} onSubmit={(name, balance) => onCreate(name, balance, reglages ? 'sav-reg-' : 'saving-')} />
         </Modal>
       )}
     </div>
@@ -239,53 +276,17 @@ function SavingsDetailView({ ctx, saving, onBack }) {
   const [editingOpId, setEditingOpId] = useState(null);
   // Le « + » de la barre (DEV v1296) : nouvelle opération sur ce livret.
   useNouvelle(true, () => setModal('add'));
-  // Garde-fou « modifications non enregistrées » de la modale Réglages.
-  const [reglagesDirty, setReglagesDirty] = useState(false);
-  const closeReglages = () => {
-    // Confirmation « modifications non enregistrées » désormais gérée de façon
-    // générique par le composant Modal (ui.js) → on ne re-demande plus ici.
-    setReglagesDirty(false);
-    setModal(null);
-  };
 
   const balance = computeSavingsBalance(saving);
   const stats = computeSavingsStats(saving);
-  const initialBalance = saving.initialBalance ?? saving.balance ?? 0;
 
   const sortedOps = useMemo(() => {
     const ops = saving.operations || [];
     return [...ops].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [saving.operations]);
 
-  const handleRename = async (newName) => {
-    if (!newName || newName === saving.name) return;
-    try {
-      await Adapter.updateSavings(user.uid, saving.id, { name: newName });
-      showToast("Compte d'épargne renommé");
-    } catch (e) { console.error(e); showToast('Erreur de renommage', 'error'); }
-  };
-
-  const handleUpdateInitial = async (newInitial) => {
-    if (newInitial === undefined || newInitial === initialBalance) return;
-    try {
-      await Adapter.updateSavings(user.uid, saving.id, { balance: newInitial });
-      showToast('Solde initial mis à jour');
-    } catch (e) { console.error(e); showToast('Erreur de sauvegarde', 'error'); }
-  };
-
-  // 🔴 RENVOIE UN BOOLÉEN — même défaut et même correctif que l'enveloppe
-  // (investments.js, 10/08/2026) : l'appelant fermait les Réglages AVANT le
-  // `confirm()`, donc « Annuler » emportait la fenêtre sans rien supprimer.
-  const handleDelete = async () => {
-    if (!confirm(`Supprimer le compte d'épargne « ${saving.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return false;
-    if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return false;
-    try {
-      await Adapter.deleteSavings(user.uid, saving.id);
-      showToast("Compte d'épargne supprimé");
-      onBack();
-      return true;
-    } catch (e) { console.error(e); showToast('Erreur de suppression', 'error'); return false; }
-  };
+  // Renommer, solde initial et suppression : dans `FenetreReglagesLivret` (plus bas) depuis le 26/11/2026, partagée avec la
+  // fenêtre « Réglages » de la liste.
 
   // 🔴 MOTIF DU COMPTE COURANT (01/09/2026) — on rend la main SANS attendre
   // l'accusé du serveur, exactement comme `updateCheckingAccount` (app.js).
@@ -429,25 +430,68 @@ function SavingsDetailView({ ctx, saving, onBack }) {
         </Modal>
       )}
       {modal === 'configure' && (
-        <Modal title="Réglages" icon="settings" subtitle={saving.name} onClose={closeReglages}>
-          <SavingsConfigureForm
-            showToast={showToast}
-            saving={saving}
-            onUpdateName={handleRename}
-            onUpdateInitial={handleUpdateInitial}
-            onDirtyChange={setReglagesDirty}
-            onDelete={async () => { if (await handleDelete()) { setReglagesDirty(false); setModal(null); } }}
-          />
-        </Modal>
+        <FenetreReglagesLivret
+          ctx={ctx}
+          saving={saving}
+          onClose={() => setModal(null)}
+          onEnregistre={() => setModal(null)}
+          onSupprime={onBack}
+        />
       )}
     </div>
   );
 }
 
-// Nom du livret éditable in-place dans la hero card.
+// ============================================================
+//  RÉGLAGES D'UN LIVRET — la fenêtre et ses écritures, partagées par la page du livret et la fenêtre « Réglages » de la liste
+//  (harmonisation du 26/11/2026). Une seule fenêtre : une retouche vaut pour les deux chemins.
+// ============================================================
+// 🔴 `supprimerLivret` RENVOIE UN BOOLÉEN — même défaut et même correctif que l'enveloppe (investments.js, 10/08/2026) :
+// l'appelant fermait les Réglages AVANT le `confirm()`, donc « Annuler » emportait la fenêtre sans rien supprimer. Elle ne
+// navigue plus : c'est l'appelant qui décide où aller (la page revient à la liste, la fenêtre « Réglages » reste ouverte).
+const renommerLivret = async (ctx, saving, newName) => {
+  if (!newName || newName === saving.name) return;
+  try {
+    await Adapter.updateSavings(ctx.user.uid, saving.id, { name: newName });
+    ctx.showToast("Compte d'épargne renommé");
+  } catch (e) { console.error(e); ctx.showToast('Erreur de renommage', 'error'); }
+};
+const majSoldeInitialLivret = async (ctx, saving, newInitial) => {
+  if (newInitial === undefined || newInitial === (saving.initialBalance ?? saving.balance ?? 0)) return;
+  try {
+    await Adapter.updateSavings(ctx.user.uid, saving.id, { balance: newInitial });
+    ctx.showToast('Solde initial mis à jour');
+  } catch (e) { console.error(e); ctx.showToast('Erreur de sauvegarde', 'error'); }
+};
+const supprimerLivret = async (ctx, saving) => {
+  if (!confirm(`Supprimer le compte d'épargne « ${saving.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return false;
+  if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return false;
+  try {
+    await Adapter.deleteSavings(ctx.user.uid, saving.id);
+    ctx.showToast("Compte d'épargne supprimé");
+    return true;
+  } catch (e) { console.error(e); ctx.showToast('Erreur de suppression', 'error'); return false; }
+};
 
-// Formulaire Réglages d'un livret : nom + solde initial + zone supprimer.
-function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyChange, onDelete, showToast }) {
+// `onEnregistre` : après « Enregistrer » (la fenêtre se ferme — elle restait ouverte avant le 26/11/2026, seule de son espèce) ;
+// `onSupprime` : après une suppression confirmée.
+function FenetreReglagesLivret({ ctx, saving, onClose, onEnregistre, onSupprime }) {
+  return (
+    <Modal title="Réglages" icon="settings" subtitle={saving.name} onClose={onClose}>
+      <SavingsConfigureForm
+        showToast={ctx.showToast}
+        saving={saving}
+        onUpdateName={(n) => renommerLivret(ctx, saving, n)}
+        onUpdateInitial={(v) => majSoldeInitialLivret(ctx, saving, v)}
+        onEnregistre={onEnregistre}
+        onDelete={async () => { if (await supprimerLivret(ctx, saving)) onSupprime(); }}
+      />
+    </Modal>
+  );
+}
+
+// Formulaire Réglages d'un livret : nom + solde initial ; « Enregistrer » et la corbeille.
+function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyChange, onEnregistre, onDelete, showToast }) {
   const [name, setName] = useState(saving.name || '');
   const initial = saving.initialBalance ?? saving.balance ?? 0;
   const [initialBalance, setInitialBalance] = useState(initial);
@@ -480,6 +524,7 @@ function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyCh
     const parsed = parseFloat(initialBalance) || 0;
     if (parsed !== initial) onUpdateInitial(r2(parsed));
     if (onDirtyChange) onDirtyChange(false);
+    if (onEnregistre) onEnregistre();
   };
 
   return (
@@ -492,15 +537,13 @@ function SavingsConfigureForm({ saving, onUpdateName, onUpdateInitial, onDirtyCh
         <label className="label">Solde initial<AideChamp>Point de départ pour le calcul du solde affiché. Toutes les opérations enregistrées s'y ajoutent.</AideChamp></label>
         <div className="unite-eur"><AmountInput value={initialBalance} onChange={(n) => setInitialBalance(n)} className="input" /></div>
       </div>
-      <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
-
-      {/* Zone de suppression au style C', comme celle d'une enveloppe (15/11/2026). */}
-      <div className="zone-danger">
-        <b>Supprimer ce compte d'épargne</b>
-        <small>Toutes les opérations seront perdues à jamais. Action irréversible.</small>
-        <button type="button" className="btn btn-danger" onClick={onDelete}>
-          <Icon name="trash" size={14} /> Supprimer
-        </button>
+      {/* La corbeille à droite d'« Enregistrer », comme un actif physique (26/11/2026, décision de l'utilisateur) : l'encadré rouge
+          (« Supprimer ce compte d'épargne », v1185) prenait ~120 px ; l'avertissement reste dans les deux confirmations. */}
+      <div className="form-actions">
+        <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+        {onDelete && (
+          <button type="button" className="btn-delete-line" onClick={onDelete}><Icon name="trash" size={14} /> Supprimer</button>
+        )}
       </div>
     </form>
   );

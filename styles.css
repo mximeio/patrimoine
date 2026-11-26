@@ -1555,12 +1555,9 @@ input[type="month"] {
 .search-group .search-group-title { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text-light); }
 .search-group-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 
-/* ── FENÊTRES DANS LE DÉTAIL (15/11/2026, maquette cartes2.html) : zone de suppression d'une enveloppe, totaux des
-   valeurs, étiquette « Composite » des récurrents. ── */
-.zone-danger { display: grid; gap: 4px; justify-items: start; margin-top: 8px; padding: 12px 12.5px; border: 1.5px solid #f5c2c0; /* 12,5 + 1,5 de bordure = 14 : texte aligné sur les rangées de réglage */ border-radius: var(--r-touche); }
-.zone-danger b { font-size: 14px; font-weight: 600; color: var(--danger-fonce); }
-.zone-danger small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
-.zone-danger .btn { margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; }
+/* ── FENÊTRES DANS LE DÉTAIL (15/11/2026, maquette cartes2.html) : totaux des valeurs, étiquette « Composite » des
+   récurrents. La zone de suppression (l'encadré rouge de la v1185) est RETIRÉE le 26/11/2026 : toute suppression d'une
+   fenêtre passe par la corbeille à droite d'« Enregistrer » (`.form-actions > .btn-delete-line`). ── */
 .modal .maj-total b { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
 /* « Mettre à jour les valeurs » façon maquette C' (fenValeurs, 15/11/2026) : enveloppe en groupe gris sans bordure, lignes de
    support à deux étages (nom, libellé dessous) séparées d'un filet, sous-total en tête. */
@@ -2517,9 +2514,6 @@ button.stat-card {
 .support-total span { font-weight: 600; }
 .support-total.ok span { color: var(--success-fonce); }
 .support-total.warn span { color: var(--warning-fonce); }
-/* Le bouton de suppression d'une zone de danger : rouge DOUX, comme la maquette (le rouge plein reste aux confirmations). */
-.zone-danger .btn.btn-danger { background: var(--danger-light); color: var(--danger-fonce); border-color: transparent; }
-@media (hover: hover) { .zone-danger .btn.btn-danger:hover { background: var(--danger-light); filter: brightness(0.96); } }
 
 /* Contrôle souple « Total des cibles » sous la liste */
 .target-sum {
@@ -4320,8 +4314,7 @@ button.stat-card {
   .tabbar-wrap { display: flex; }
   /* Le « + Nouvelle » des en-têtes (compte, livret, enveloppe) laisse la place au « + » de la barre (DEV v1296) : un seul
      geste de création par écran. À l'ordinateur, sans barre du bas, il reste. */
-  .btn.ops-nouvelle { display: none; }
-  .btn.ops-nouvelle.liste-nouveau { display: inline-flex; } /* en tête des listes, il reste : le « + » de la barre est réservé aux opérations (DEV v1299) */
+  .btn.ops-nouvelle { display: none; } /* (l'exception des têtes de liste, v1299, est retirée le 26/11/2026 : elles n'ont plus de bouton) */
   /* Modale plein écran : règles déplacées dans le bloc
      @media (max-width:640px) and (orientation: portrait) plus bas.
      ATTENTION : en PAYSAGE la modale n'est PAS plein écran (marge + coins
@@ -4586,7 +4579,6 @@ button.stat-card {
   .tabbar-wrap .tabbar-actions { flex-basis: 80px; height: 44px; padding: 2px; --bord-capsule: 3px; } /* capsule « + | ⋯ » compacte : 2 + 37 + 2 + 37 + 2 */
   .tabbar-wrap .tabbar-actions.sans-plus { flex-basis: 44px; } /* accueil : le rond « ⋯ » compact (DEV v1297) */
   .btn.ops-nouvelle { display: none; } /* le « + » de la barre le remplace (DEV v1296) */
-  .btn.ops-nouvelle.liste-nouveau { display: inline-flex; } /* sauf en tête des listes (DEV v1299) */
   /* Le toggle .mini (scroll) ne doit pas écraser les insets safe-area
      du paysage (spécificité supérieure de .tabbar-wrap.mini) */
   .tabbar-wrap.mini {

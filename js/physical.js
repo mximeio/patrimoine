@@ -249,26 +249,20 @@ function PhysicalView({ ctx }) {
       )}
       {modal === 'reglages' && (
         <Modal liste title="Réglages" icon="settings" subtitle="Actifs physiques" onClose={() => setModal(null)}>
-          <div>
-            {actifs.map((a) => {
-              const d = deriverActifPhysique(a);
+          {/* La recette commune des quatre fenêtres « Réglages » (`ListeReglages`, ui.js — 26/11/2026) : le bouton d'ajout passe
+              sur la marge de la fenêtre (il gardait le pied d'une liste de page : 14 px de plus à gauche, 12 en bas). */}
+          <ListeReglages
+            module="physical"
+            elements={actifs.map((a) => {
               const n = (a.operations || []).length;
-              return (
-                <div key={a.id} className="support-row" data-locate={`phys-reg-${a.id}`}>
-                  <span className="support-icon" style={{ background: fondPastille(MODULE_COLORS.physical), color: couleurIcone(MODULE_COLORS.physical) }}>{initiales(a.name)}</span>
-                  <div className="support-main">
-                    <div className="support-name">{a.name}</div>
-                    <div className="support-sub">{piecesTxt(d.qty)} · {n} opération{n > 1 ? 's' : ''}</div>
-                  </div>
-                  <button type="button" className="tx-edit" onClick={() => setEditAsset(a.id)} title="Modifier" aria-label={`Modifier ${a.name}`}><Icon name="pencil" size={13} /></button>
-                </div>
-              );
+              return { id: a.id, nom: a.name, locate: `phys-reg-${a.id}`,
+                sous: `${piecesTxt(deriverActifPhysique(a).qty)} · ${n} opération${n > 1 ? 's' : ''}` };
             })}
-            {actifs.length === 0 && <EmptyState icon="coin" title="Aucun actif" hint="Pièces d'or, métaux précieux, …" />}
-          </div>
-          <div className="section-footer">
-            <button className="btn-add" onClick={() => setEditAsset('new')}>Ajouter un actif</button>
-          </div>
+            onModifier={setEditAsset}
+            libelleAjout="Ajouter un actif"
+            onAjouter={() => setEditAsset('new')}
+            vide={<EmptyState icon="coin" title="Aucun actif" hint="Pièces d'or, métaux précieux, …" />}
+          />
         </Modal>
       )}
       {editAsset && (

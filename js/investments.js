@@ -6,7 +6,8 @@ function InvestmentsView({ ctx }) {
   const { user, portfolios, showToast } = ctx;
   const [activeId, setActiveId] = useState(null); // null = vue liste, sinon id du portefeuille
   const [showCreate, setShowCreate] = useState(false);
-  // Pas de `useNouvelle` sur la LISTE des enveloppes : le « + » de la barre est réservé aux opérations (DEV v1299) : une liste n'en a pas, la création passe par « + Nouveau » en tête.
+  // Pas de `useNouvelle` sur la LISTE des enveloppes : le « + » de la barre est réservé aux opérations (DEV v1299) : une liste n'en
+  // a pas. La création passe par « ⋯ › Réglages » de la carte de tête, comme les actifs physiques (harmonisation du 26/11/2026).
 
   // Si le portefeuille actif disparaît (suppression / import), retour à la liste.
   useEffect(() => {
@@ -38,11 +39,13 @@ function InvestmentsView({ ctx }) {
   // rend l'échange acceptable. Là où la saisie est lourde — `handleUpdateData`
   // et la mise à jour groupée des valorisations — l'attente est CONSERVÉE, et
   // leurs commentaires disent pourquoi.
-  const handleCreate = (name) => {
+  // `prefixe` : la clé d'allumage — la ligne de la page (`pf-`), ou celle de la fenêtre « Réglages » quand la création part
+  // d'elle (`env-reg-`), qui reste ouverte.
+  const handleCreate = (name, prefixe = 'pf-') => {
     const id = Adapter.nouvelId(user.uid, 'portfolios'); // tiré sur l'appareil : la ligne s'allume même hors ligne
     Adapter.createPortfolio(user.uid, name, null, id)
       .catch((e) => { console.error(e); showToast('Erreur de création', 'error'); });
-    allumerLigne(`pf-${id}`);
+    allumerLigne(`${prefixe}${id}`);
     setShowCreate(false);
     showToast('Enveloppe créée', 'success');
   };
@@ -104,6 +107,11 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
   // tête : ce composant n'a aucun retour anticipé, et le §8 exige que tout hook
   // précède le premier (erreur React #310 déposée le 31/07/2026).
   const [majGroupee, setMajGroupee] = useState(false);
+  // « ⋯ › Réglages » (harmonisation du 26/11/2026, sur le modèle des actifs physiques) : la fenêtre des enveloppes, et
+  // par-dessus, les réglages d'une enveloppe ouverts par son crayon — les MÊMES que dans sa page (`FenetreReglagesEnveloppe`).
+  const [reglages, setReglages] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const enEdition = editId ? portfolios.find(p => p.id === editId) : null;
   const consolidated = computeInvestmentsConsolidated(portfolios);
 
   // Carte « À rafraîchir » (v480, maquette Mockup-Card-Arafraichir) : on
@@ -140,6 +148,8 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
   const staleWarn = !allSameDate && staleDays > 30;
 
   const positive = consolidated.totalGain >= 0;
+  // L'ordre de la liste, repris par la fenêtre « Réglages ».
+  const portfoliosParValeur = sortByNumber(portfolios, p => computePortfolioStats(p.data).totalValue);
 
   return (
     <div className="vue-rub">
@@ -170,6 +180,11 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
               <button className="dropdown-item" onClick={() => setMajGroupee(true)}>
                 <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="refresh" size={14} /></span>
                 Mettre à jour les valeurs
+              </button>
+              <div className="dropdown-separator" />
+              <button className="dropdown-item" onClick={() => setReglages(true)}>
+                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="settings" size={14} /></span>
+                Réglages
               </button>
             </Dropdown></>}
         pied={[
@@ -202,14 +217,12 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
             <span className="section-icon invest"><Icon name="layers" size={14} /></span>
             Mes enveloppes
           </div>
-          {/* DEV v1298 (demande de l'utilisateur) : le bouton d'ajout passe EN TÊTE de la liste, à la place du nombre d'éléments, comme
-              « Opérations … + Nouvelle » — dans `.ops-outils`, qui le fait déborder sans agrandir l'en-tête (32 px, la géométrie commune des
-              rubriques). DEV v1299 : il reste au téléphone (`liste-nouveau`) — créer un compte ou un actif est rare, le « + » de la barre est
-              réservé aux opérations, qui sont de tous les jours. */}
-          <div className="ops-outils"><button type="button" className="btn btn-accent ops-nouvelle liste-nouveau" onClick={() => setShowCreate(true)}><Icon name="plus" size={15} /> Nouvelle</button></div>
+          {/* Le nombre d'enveloppes, comme « Actifs détenus » : le « + Nouvelle » des v1298-v1299 est parti dans « ⋯ › Réglages »
+              (harmonisation du 26/11/2026), au téléphone comme à l'ordinateur. */}
+          <span className="section-aide">{portfolios.length}</span>
         </div>
         <div>
-          {sortByNumber(portfolios, p => computePortfolioStats(p.data).totalValue).map((p, i) => (
+          {portfoliosParValeur.map((p, i) => (
             <PortfolioListRow
               key={p.id}
               portfolio={p}
@@ -221,9 +234,34 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
         </div>
       </div>
 
+      {reglages && (
+        <Modal liste title="Réglages" icon="settings" subtitle="Investissements" onClose={() => setReglages(false)}>
+          <ListeReglages
+            module="investments"
+            elements={portfoliosParValeur.map(p => {
+              const d = p.data || {};
+              const ns = (d.etfs || []).length, no = (d.operations || []).length;
+              return { id: p.id, nom: p.name, locate: `env-reg-${p.id}`,
+                sous: `${fmt(computePortfolioStats(d).totalValue)} € · ${ns} support${ns > 1 ? 's' : ''} · ${no} opération${no > 1 ? 's' : ''}` };
+            })}
+            onModifier={setEditId}
+            libelleAjout="Ajouter une enveloppe"
+            onAjouter={() => setShowCreate(true)}
+          />
+        </Modal>
+      )}
+      {enEdition && (
+        <FenetreReglagesEnveloppe
+          ctx={ctx}
+          portfolio={enEdition}
+          onClose={() => setEditId(null)}
+          onEnregistre={() => { setEditId(null); allumerLigne(`env-reg-${enEdition.id}`); }}
+          onSupprime={() => setEditId(null)}
+        />
+      )}
       {showCreate && (
         <Modal title="Nouvelle enveloppe" icon="chart" subtitle="Investissements" onClose={() => setShowCreate(false)}>
-          <NewPortfolioForm showToast={showToast} onSubmit={onCreate} />
+          <NewPortfolioForm showToast={showToast} onSubmit={(name) => onCreate(name, reglages ? 'env-reg-' : 'pf-')} />
         </Modal>
       )}
 
@@ -329,20 +367,11 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   // une modale "Modifier l'opération" qui réutilise AddOperationForm
   // avec initial pré-rempli.
   const [editingOpId, setEditingOpId] = useState(null);
-  // Garde-fou « modifications non enregistrées » de la modale Réglages.
-  const [configureDirty, setConfigureDirty] = useState(false);
-  // Idem pour « Mettre à jour les valeurs » (09/08/2026) : garde CONTRÔLÉE, qui
-  // retombe si l'on retape la valeur d'origine. Hook déclaré ici, avec les
-  // autres — ce composant n'a aucun retour anticipé, et le §8 exige que tout
-  // hook précède le premier.
+  // Garde-fou « modifications non enregistrées » de « Mettre à jour les valeurs » (09/08/2026) : garde CONTRÔLÉE, qui
+  // retombe si l'on retape la valeur d'origine. Hook déclaré ici, avec les autres — ce composant n'a aucun retour anticipé,
+  // et le §8 exige que tout hook précède le premier. (Celle des Réglages vit dans `FenetreReglagesEnveloppe` depuis le
+  // 26/11/2026.)
   const [valuesDirty, setValuesDirty] = useState(false);
-  const closeConfigure = () => {
-    // Confirmation « modifications non enregistrées » portée par Modal via la
-    // prop dirty={configureDirty} (v535) : calcul exact du formulaire, fiable
-    // aussi pour les contrôles à clic (cf. Réglages du compte courant).
-    setConfigureDirty(false);
-    setModal(null);
-  };
 
   const data = portfolio.data || { etfs: [], operations: [], currentValues: {} };
   const stats = computePortfolioStats(data);
@@ -381,8 +410,7 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
   // fermer et poser leur toast. Il vaut désormais « c'est parti », plus « le
   // serveur a confirmé ».
   const handleUpdateData = (newData) => {
-    Adapter.updatePortfolioData(user.uid, portfolio.id, newData)
-      .catch((e) => { console.error(e); showToast('Erreur de sauvegarde', 'error'); });
+    ecrireEnveloppe(ctx, portfolio, newData);
     // L'ALLUMAGE (23/11/2026) : tout ce qui écrit l'enveloppe passe par ici — nouvelle opération, modification, versement et
     // ses achats, mise à jour des valeurs. On allume les opérations nouvelles ou modifiées ; à défaut, les supports dont la
     // valeur a changé. Une suppression n'allume rien.
@@ -396,28 +424,8 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
     return true;
   };
 
-  const handleRename = (newName) => {
-    if (!newName || newName === portfolio.name) return;
-    Adapter.renamePortfolio(user.uid, portfolio.id, newName)
-      .catch((e) => { console.error(e); showToast('Erreur de renommage', 'error'); });
-    showToast('Enveloppe renommée');
-  };
-
-  // 🔴 RENVOIE UN BOOLÉEN, et ce n'est pas cosmétique : l'appelant ne doit fermer la
-  // modale des Réglages QUE si la suppression a réellement eu lieu. Avant le
-  // 10/08/2026 il faisait `setModal(null); handleDelete();` — donc la fenêtre se
-  // fermait AVANT que le `confirm()` ne soit posé, et « Annuler » laissait
-  // l'utilisateur devant un écran vidé de sa fenêtre sans que rien n'ait été
-  // supprimé. Relevé par l'utilisateur sur iPhone. Idiome repris de `physical.js`.
-  const handleDelete = async () => {
-    if (!confirm(`Supprimer l'enveloppe « ${portfolio.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return false;
-    if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return false;
-    Adapter.deletePortfolio(user.uid, portfolio.id)
-      .catch((e) => { console.error(e); showToast('Erreur de suppression', 'error'); });
-    showToast('Enveloppe supprimée');
-    onBack();
-    return true;
-  };
+  // Renommer et supprimer : dans `FenetreReglagesEnveloppe` (plus bas) depuis le 26/11/2026, partagée avec la fenêtre
+  // « Réglages » de la liste.
 
   return (
     <div className="vue-rub">
@@ -624,25 +632,75 @@ function PortfolioDetailView({ ctx, portfolio, onBack }) {
         );
       })()}
       {modal === 'configure' && (
-        <Modal liste title="Réglages" icon="settings" subtitle={portfolio.name} dirty={configureDirty} onClose={closeConfigure} size="lg">
-          <PortfolioConfigureForm
-            showToast={showToast}
-            data={data}
-            portfolioName={portfolio.name}
-            onDirtyChange={setConfigureDirty}
-            onPersistData={handleUpdateData}
-            onSubmit={async (draftData, draftName) => {
-              if (!(await handleUpdateData(draftData))) return;
-              if (draftName && draftName !== portfolio.name) handleRename(draftName);
-              setConfigureDirty(false);
-              setModal(null);
-              showToast('Réglages enregistrés');
-            }}
-            onDelete={async () => { if (await handleDelete()) { setConfigureDirty(false); setModal(null); } }}
-          />
-        </Modal>
+        <FenetreReglagesEnveloppe
+          ctx={ctx}
+          portfolio={portfolio}
+          ecrire={handleUpdateData}
+          onClose={() => setModal(null)}
+          onEnregistre={() => setModal(null)}
+          onSupprime={onBack}
+        />
       )}
     </div>
+  );
+}
+
+// ============================================================
+//  RÉGLAGES D'UNE ENVELOPPE — la fenêtre et ses écritures, partagées par la page de l'enveloppe et la fenêtre « Réglages » de
+//  la liste (harmonisation du 26/11/2026). Une seule fenêtre : une retouche vaut pour les deux chemins.
+// ============================================================
+// L'écriture des données rend la main sans attendre l'accusé serveur (motif du compte courant, 01/09/2026 — cf. le long
+// commentaire de `handleUpdateData` dans `PortfolioDetailView`) ; le booléen vaut « c'est parti ».
+const ecrireEnveloppe = (ctx, portfolio, newData) => {
+  Adapter.updatePortfolioData(ctx.user.uid, portfolio.id, newData)
+    .catch((e) => { console.error(e); ctx.showToast('Erreur de sauvegarde', 'error'); });
+  return true;
+};
+const renommerEnveloppe = (ctx, portfolio, newName) => {
+  if (!newName || newName === portfolio.name) return;
+  Adapter.renamePortfolio(ctx.user.uid, portfolio.id, newName)
+    .catch((e) => { console.error(e); ctx.showToast('Erreur de renommage', 'error'); });
+  ctx.showToast('Enveloppe renommée');
+};
+// 🔴 RENVOIE UN BOOLÉEN, et ce n'est pas cosmétique : l'appelant ne doit fermer la fenêtre des Réglages QUE si la suppression
+// a réellement eu lieu. Avant le 10/08/2026 il faisait `setModal(null); handleDelete();` — donc la fenêtre se fermait AVANT
+// que le `confirm()` ne soit posé, et « Annuler » laissait l'utilisateur devant un écran vidé de sa fenêtre sans que rien
+// n'ait été supprimé. Relevé par l'utilisateur sur iPhone. Elle ne navigue plus (26/11/2026) : la page revient à la liste,
+// la fenêtre « Réglages » reste ouverte.
+const supprimerEnveloppe = (ctx, portfolio) => {
+  if (!confirm(`Supprimer l'enveloppe « ${portfolio.name} » et toutes ses opérations ?\n\nCette action est irréversible.`)) return false;
+  if (!confirm('Vraiment sûr ? Toutes les opérations seront perdues à jamais.')) return false;
+  Adapter.deletePortfolio(ctx.user.uid, portfolio.id)
+    .catch((e) => { console.error(e); ctx.showToast('Erreur de suppression', 'error'); });
+  ctx.showToast('Enveloppe supprimée');
+  return true;
+};
+
+// `ecrire` : l'écriture des données — la page passe la sienne (`handleUpdateData`, qui allume les lignes touchées) ; la liste
+// prend `ecrireEnveloppe`. Garde « modifications non enregistrées » CONTRÔLÉE (prop `dirty`, v535) : calcul exact du
+// formulaire, fiable aussi pour les contrôles à clic.
+function FenetreReglagesEnveloppe({ ctx, portfolio, ecrire, onClose, onEnregistre, onSupprime }) {
+  const [dirty, setDirty] = useState(false);
+  const ecrireDonnees = ecrire || ((d) => ecrireEnveloppe(ctx, portfolio, d));
+  const data = portfolio.data || { etfs: [], operations: [], currentValues: {} };
+  return (
+    <Modal liste title="Réglages" icon="settings" subtitle={portfolio.name} dirty={dirty} onClose={() => { setDirty(false); onClose(); }} size="lg">
+      <PortfolioConfigureForm
+        showToast={ctx.showToast}
+        data={data}
+        portfolioName={portfolio.name}
+        onDirtyChange={setDirty}
+        onPersistData={ecrireDonnees}
+        onSubmit={async (draftData, draftName) => {
+          if (!(await ecrireDonnees(draftData))) return;
+          if (draftName && draftName !== portfolio.name) renommerEnveloppe(ctx, portfolio, draftName);
+          setDirty(false);
+          onEnregistre();
+          ctx.showToast('Réglages enregistrés');
+        }}
+        onDelete={() => { if (supprimerEnveloppe(ctx, portfolio)) { setDirty(false); onSupprime(); } }}
+      />
+    </Modal>
   );
 }
 
@@ -720,21 +778,18 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
         </div>
       </div>
 
-      <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
       {/* 🔴 PHRASE INDISPENSABLE ICI, et pas la même qu'ailleurs. Sur cet écran le
           bouton ne sauve QUE le nom : depuis la v590 les supports persistent au
           fil de la saisie (onPersistData). Griser sans expliquer ferait croire
           qu'une modification de support n'a pas été prise, alors qu'elle est
           déjà en base. La phrase transforme le piège en information. */}
-
-      {/* Zone de danger : suppression du portefeuille */}
-      {/* Zone de suppression C' (maquette, 15/11/2026) : cadre au liseré rouge, titre, avertissement, bouton en dessous. */}
-      <div className="zone-danger">
-        <b>Supprimer cette enveloppe</b>
-        <small>Toutes les opérations seront perdues à jamais. Action irréversible.</small>
-        <button type="button" className="btn btn-danger" onClick={onDelete}>
-          <Icon name="trash" size={14} /> Supprimer
-        </button>
+      {/* La corbeille à droite d'« Enregistrer », comme un actif physique (26/11/2026, décision de l'utilisateur) : l'encadré
+          rouge « Supprimer cette enveloppe » (v1185) prenait ~120 px ; l'avertissement reste dans les deux confirmations. */}
+      <div className="form-actions">
+        <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+        {onDelete && (
+          <button type="button" className="btn-delete-line" onClick={onDelete}><Icon name="trash" size={14} /> Supprimer</button>
+        )}
       </div>
     </form>
   );

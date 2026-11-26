@@ -453,16 +453,15 @@ function ScenarioForm({ nom, estReference, peutSupprimer, onClose, onSubmit, onD
             onChange={(v) => { if (!v && estReference) { refuserReference(); return; } setReference(v); }}
           />
         </div>
-        {peutSupprimer && (
-          <div className="zone-danger">
-            <b>Supprimer ce scénario</b>
-            <small>Ses charges et ses revenus seront supprimés.</small>
-            <button type="button" className="btn btn-danger" onClick={onDelete}>
-              <Icon name="trash" size={14} /> Supprimer
-            </button>
-          </div>
-        )}
-        <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+        {/* La corbeille à droite d'« Enregistrer », comme une charge ou un actif physique (26/11/2026, décision de
+            l'utilisateur) : l'encadré rouge « Supprimer ce scénario » est retiré. Sa phrase (« Ses charges et ses revenus seront
+            supprimés ») vit dans la confirmation. */}
+        <div className="form-actions">
+          <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+          {peutSupprimer && (
+            <button type="button" className="btn-delete-line" onClick={onDelete}><Icon name="trash" size={14} /> Supprimer</button>
+          )}
+        </div>
       </form>
     </Modal>
   );
@@ -595,7 +594,8 @@ function ChargesModal({ ctx, onClose }) {
   const renameScenario = (name) => patchActive({ name });
   const deleteScenario = () => {
     if (data.scenarios.length <= 1) return;
-    if (!confirm(`Supprimer le scénario "${active.name}" ?`)) return;
+    // La phrase de l'ancien encadré rouge passe dans la confirmation (26/11/2026) : la fenêtre n'a plus que la corbeille.
+    if (!confirm(`Supprimer le scénario "${active.name}" ?\n\nSes charges et ses revenus seront supprimés.`)) return;
     const fallback = data.scenarios.find(s => s.id !== active.id);
     setData(d => {
       const scenarios = d.scenarios.filter(s => s.id !== active.id);

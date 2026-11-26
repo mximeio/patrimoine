@@ -40,7 +40,12 @@ function CheckingModule({ ctx }) {
 function CheckingConsolidatedView({ ctx, onOpenAccount }) {
   const { checkingAccounts, createCheckingAccount, showToast } = ctx;
   const [showCreate, setShowCreate] = useState(false);
-  // Pas de `useNouvelle` sur la liste des comptes (plusieurs comptes courants) : le « + » de la barre est réservé aux opérations (DEV v1299) : une liste n'en a pas, la création passe par « + Nouveau » en tête.
+  // Pas de `useNouvelle` sur la liste des comptes (plusieurs comptes courants) : le « + » de la barre est réservé aux opérations
+  // (DEV v1299) : une liste n'en a pas. Création, réglages et suppression passent par « ⋯ › Réglages » de la carte de tête, comme
+  // les actifs physiques (harmonisation du 26/11/2026) ; le crayon ouvre la MÊME fenêtre que la page du compte.
+  const [reglages, setReglages] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const enEdition = editId ? checkingAccounts.find(a => a.id === editId) : null;
 
   // Calcul des soldes par compte (mois de référence = plus récent ≤ aujourd'hui)
   const cur = currentMonthKey();
@@ -55,8 +60,10 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
   const total = accountsWithBalance.reduce((s, a) => s + a._balance, 0);
 
   const handleCreate = async ({ name, initialBalance, initialBalanceMonth }) => {
-    await createCheckingAccount(name, { initialBalance, initialBalanceMonth });
+    const id = await createCheckingAccount(name, { initialBalance, initialBalanceMonth });
     setShowCreate(false);
+    // Créé depuis « Réglages », qui reste ouverte : sa ligne s'allume.
+    if (id && reglages) allumerLigne(`cc-reg-${id}`);
     showToast(`Compte "${name}" créé`, 'success');
   };
 
@@ -66,6 +73,12 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
       <div className="colle">
       <CarteDeTete
         module="checking" libelle="Solde pointé" montant={total}
+        droite={<Dropdown trigger={<button className="btn-icon hero-kebab" aria-label="Actions">⋯</button>}>
+              <button className="dropdown-item" onClick={() => setReglages(true)}>
+                <span style={{ color: COLORS.accent, display: 'inline-flex' }}><Icon name="settings" size={14} /></span>
+                Réglages
+              </button>
+            </Dropdown>}
         pied={[{ label: 'Nombre de comptes', value: accountsWithBalance.length }]}
       />
       </div>
@@ -77,11 +90,9 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
             <span className="section-icon checking"><Icon name="creditCard" size={14} /></span>
             Mes comptes courants
           </div>
-          {/* DEV v1298 (demande de l'utilisateur) : le bouton d'ajout passe EN TÊTE de la liste, à la place du nombre d'éléments, comme
-              « Opérations … + Nouvelle » — dans `.ops-outils`, qui le fait déborder sans agrandir l'en-tête (32 px, la géométrie commune des
-              rubriques). DEV v1299 : il reste au téléphone (`liste-nouveau`) — créer un compte ou un actif est rare, le « + » de la barre est
-              réservé aux opérations, qui sont de tous les jours. */}
-          <div className="ops-outils"><button type="button" className="btn btn-accent ops-nouvelle liste-nouveau" onClick={() => setShowCreate(true)}><Icon name="plus" size={15} /> Nouveau</button></div>
+          {/* Le nombre de comptes, comme « Actifs détenus » : le « + Nouveau » des v1298-v1299 est parti dans « ⋯ › Réglages »
+              (harmonisation du 26/11/2026), au téléphone comme à l'ordinateur. */}
+          <span className="section-aide">{accountsWithBalance.length}</span>
         </div>
         <div>
           {accountsWithBalance.map((acc, i) => {
@@ -126,6 +137,29 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
         </div>
       </div>
 
+      {reglages && (
+        <Modal liste title="Réglages" icon="settings" subtitle="Comptes courants" onClose={() => setReglages(false)}>
+          <ListeReglages
+            module="checking"
+            elements={accountsWithBalance.map(acc => {
+              const n = Object.keys(acc.months || {}).length;
+              return { id: acc.id, nom: acc.name || '(sans nom)', locate: `cc-reg-${acc.id}`, sous: `${fmt(acc._balance)} € · ${n} mois` };
+            })}
+            onModifier={setEditId}
+            libelleAjout="Ajouter un compte courant"
+            onAjouter={() => setShowCreate(true)}
+          />
+        </Modal>
+      )}
+      {enEdition && (
+        <FenetreReglagesCompte
+          ctx={ctx}
+          compte={enEdition}
+          onClose={() => setEditId(null)}
+          onEnregistre={() => { setEditId(null); allumerLigne(`cc-reg-${enEdition.id}`); }}
+          onSupprime={() => setEditId(null)}
+        />
+      )}
       {showCreate && (
         <Modal title="Nouveau compte courant" icon="creditCard" onClose={() => setShowCreate(false)}>
           <NewCheckingAccountForm
@@ -281,7 +315,7 @@ function CheckingView({ ctx, onBack }) {
   const [showReglages, setShowReglages] = useState(false);
   const [showCharges, setShowCharges] = useState(false);
   const [showTrManage, setShowTrManage] = useState(false); // v574 : popup de gestion des TR (remplace la liste toujours affichée)
-  const [reglagesDirty, setReglagesDirty] = useState(false);
+  // (La garde « modifications non enregistrées » des Réglages vit dans `FenetreReglagesCompte` depuis le 26/11/2026.)
   // Signal d'ouverture de la modale OperationForm depuis le kebab.
   // Incrémenté à chaque clic ; OpsSection écoute le changement via
   // useEffect et ouvre sa modale interne. Évite de remonter showForm+editing.
@@ -291,15 +325,6 @@ function CheckingView({ ctx, onBack }) {
   // Le mois affiché est-il figé ? Lu par l'intention « nouvelle » (plus bas), dont l'écouteur est posé avant que `frozen`
   // existe (retour anticipé tant que les mois ne sont pas chargés).
   const moisFigeRef = useRef(false);
-  const closeReglages = () => {
-    // La confirmation « modifications non enregistrées » est portée par le
-    // composant Modal via la prop dirty={reglagesDirty} (v535) : le calcul
-    // EXACT champ par champ de ReglagesForm — l'heuristique générique des
-    // événements input/change était aveugle au picker de mois (contrôle à
-    // clic, aucun événement émis → fermeture sans confirmation, constaté).
-    setShowReglages(false);
-    setReglagesDirty(false);
-  };
 
   const sortedKeys = useMemo(() => Object.keys(checking.months).sort(), [checking.months]);
   const hasMonths = sortedKeys.length > 0;
@@ -839,36 +864,57 @@ function CheckingView({ ctx, onBack }) {
       )}
 
       {showReglages && (
-        <Modal title="Réglages" icon="settings" subtitle={currentAccount.name || 'Compte courant'} dirty={reglagesDirty} onClose={closeReglages}>
-          <ReglagesForm
-            showToast={showToast}
-            checking={checking}
-            isMultiMode={isMultiMode}
-            otherAccountNames={checkingAccounts.filter(a => a.id !== checking.id).map(a => a.name)}
-            renameAccount={renameCheckingAccount}
-            onDirtyChange={setReglagesDirty}
-            onSubmit={(newChecking) => {
-              updateCheckingData(newChecking);
-              setShowReglages(false);
-              setReglagesDirty(false);
-              showToast('Réglages enregistrés');
-            }}
-            onDelete={() => {
-              if (!confirm(`Supprimer définitivement le compte "${currentAccount.name}" ?\n\nTous ses mois, entrées/sorties et TR seront effacés. Cette action est irréversible.`)) return;
-              setShowReglages(false);
-              setReglagesDirty(false);
-              deleteCheckingAccount(currentAccount.id);
-              if (onBack) onBack();
-              showToast(`Compte "${currentAccount.name}" supprimé`);
-            }}
-          />
-        </Modal>
+        <FenetreReglagesCompte
+          ctx={ctx}
+          compte={checking}
+          onClose={() => setShowReglages(false)}
+          onEnregistre={() => setShowReglages(false)}
+          onSupprime={() => { setShowReglages(false); if (onBack) onBack(); }}
+        />
       )}
 
       {showCharges && ctx.chargesMember && (
         <ChargesModal ctx={ctx} onClose={() => setShowCharges(false)} />
       )}
     </div>
+  );
+}
+
+// ============================================================
+//  RÉGLAGES D'UN COMPTE COURANT — la fenêtre, partagée par la page du compte et la fenêtre « Réglages » de la liste des
+//  comptes (multi-comptes ; harmonisation du 26/11/2026). Une seule fenêtre : une retouche vaut pour les deux chemins.
+//  Garde « modifications non enregistrées » CONTRÔLÉE (prop `dirty`, v535) : le calcul EXACT champ par champ de ReglagesForm
+//  — l'heuristique générique des événements input/change était aveugle au picker de mois (contrôle à clic, aucun événement
+//  émis → fermeture sans confirmation, constaté).
+// ============================================================
+function FenetreReglagesCompte({ ctx, compte, onClose, onEnregistre, onSupprime }) {
+  const { checkingAccounts, updateCheckingAccount, renameCheckingAccount, deleteCheckingAccount, profile, showToast } = ctx;
+  const [dirty, setDirty] = useState(false);
+  const nom = compte.name || 'Compte courant';
+  return (
+    <Modal title="Réglages" icon="settings" subtitle={nom} dirty={dirty} onClose={() => { setDirty(false); onClose(); }}>
+      <ReglagesForm
+        showToast={showToast}
+        checking={compte}
+        isMultiMode={!!profile.modulesEnabled?.multiCheckingAccounts}
+        otherAccountNames={checkingAccounts.filter(a => a.id !== compte.id).map(a => a.name)}
+        renameAccount={renameCheckingAccount}
+        onDirtyChange={setDirty}
+        onSubmit={(newChecking) => {
+          updateCheckingAccount(newChecking);
+          setDirty(false);
+          onEnregistre();
+          showToast('Réglages enregistrés');
+        }}
+        onDelete={() => {
+          if (!confirm(`Supprimer définitivement le compte "${compte.name}" ?\n\nTous ses mois, entrées/sorties et TR seront effacés. Cette action est irréversible.`)) return;
+          setDirty(false);
+          onSupprime();
+          deleteCheckingAccount(compte.id);
+          showToast(`Compte "${compte.name}" supprimé`);
+        }}
+      />
+    </Modal>
   );
 }
 
@@ -1106,19 +1152,15 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
         )}
       </div>
 
-      <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
-
-      {/* Zone de danger : suppression du compte (mode multi uniquement) — même zone que l'épargne et les enveloppes
-          (15/11/2026 : plus de filet au-dessus, bouton rouge doux). */}
-      {isMultiMode && onDelete && (
-        <div className="zone-danger">
-          <b>Supprimer ce compte</b>
-          <small>Tous ses mois, entrées/sorties et TR seront effacés. Action irréversible.</small>
-          <button type="button" className="btn btn-danger" onClick={onDelete}>
-            <Icon name="trash" size={14} /> Supprimer
-          </button>
-        </div>
-      )}
+      {/* Suppression du compte (mode multi uniquement) : la corbeille à droite d'« Enregistrer », comme un actif physique
+          (26/11/2026, décision de l'utilisateur) ; l'encadré rouge de la v1185 est retiré, l'avertissement reste dans la
+          confirmation. */}
+      <div className="form-actions">
+        <button type="submit" className="btn btn-accent btn-lg">Enregistrer</button>
+        {isMultiMode && onDelete && (
+          <button type="button" className="btn-delete-line" onClick={onDelete}><Icon name="trash" size={14} /> Supprimer</button>
+        )}
+      </div>
     </form>
   );
 }
