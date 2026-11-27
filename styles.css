@@ -1,4 +1,9 @@
 :root {
+  /* HAUTEUR DES LIGNES, une par palier (26/11/2026, décision de l'utilisateur : « même hauteur toujours » dans un palier) — pastille
+     + 11 px au-dessus et au-dessous. Réduire l'air autour des pastilles, c'est changer ces trois chiffres. */
+  --ligne-grand: 64px; /* pastille de 42 : listes des PAGES */
+  --ligne-moyen: 56px; /* pastille de 34 : listes des FENÊTRES */
+  --ligne-petit: 46px; /* icône ou case de 20 : OPÉRATIONS */
   --bg: #ffffff; /* fond blanc : modernisation du design, 14/11/2026 (« ça me bloque » sinon) */
   --surface: #ffffff;
   --surface-alt: #f8fafc;
@@ -264,6 +269,11 @@ input[type="month"] {
   [data-rubrique="physical"] .btn-accent:hover { background: #e8a521; box-shadow: none; }
   .btn-accent.btn-tr:hover { background: #e8a521; box-shadow: none; }
 }
+/* Fenêtres GÉNÉRALES (`Modal tone="neutre"` : Paramètres, mot de passe, restauration, import) : elles n'appartiennent à aucune
+   rubrique — leur bouton principal garde l'indigo de l'app, quelle que soit la page ouverte derrière (26/11/2026, relevé de
+   l'utilisateur : « Restaurer » sortait vert depuis Investissements). */
+.modal-overlay--neutre .btn.btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (hover: hover) { .modal-overlay--neutre .btn.btn-accent:hover:not(:disabled) { /* `:not(:disabled)` (27/11/2026) : un bouton grisé ne réagit pas au survol */ background: var(--accent-hover); box-shadow: 0 4px 12px rgba(79,70,229,0.25); } }
 /* Un bouton d'action pleine largeur au pied d'une liste dans une fenêtre (« Nouveau paiement TR »). */
 .btn.btn-fen { width: 100%; min-height: 52px; border-radius: var(--r-touche); font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 /* Le bandeau d'indicateurs des fenêtres (BandeauIndicateurs, ui.js). */
@@ -367,7 +377,12 @@ input[type="month"] {
 /* PISTE A (15/11/2026, choisie par l'utilisateur sur _maquettes/Mockup-Entete-Fenetres) : la pastille est PLEINE, de la
    couleur de la rubrique (celle des cartes de tête), icône en blanc ; plus de trait sous l'en-tête. La fenêtre s'ouvre et se
    ferme sur la même couleur : la pastille en haut, le bouton principal en bas. */
-.modal-ico { width: 38px; height: 38px; border-radius: var(--r-touche); display: grid; place-items: center; flex: none; background: #4f46e5; color: #fff; }
+/* TROIS PALIERS (26/11/2026, décision de l'utilisateur, canevas « Réglages des listes », planche « Paliers ») : une pastille et sa
+   ligne vont ensemble, 11 px au-dessus et au-dessous. GRAND 42 / 64 sur les PAGES (livrets, enveloppes, comptes, supports et actifs
+   détenus) ; MOYEN 34 / 56 dans les FENÊTRES (icône du titre — 38 au téléphone avant —, listes « Réglages », supports des réglages
+   d'une enveloppe, Paramètres, revenus des charges, recherche) et sur les titres de carte de l'accueil ; PETIT 20 / 46 pour les
+   OPÉRATIONS, partout. Une ligne ne grandit que si son texte l'exige. */
+.modal-ico { width: 34px; height: 34px; border-radius: var(--r-touche); display: grid; place-items: center; flex: none; background: #4f46e5; color: #fff; }
 [data-rubrique="savings"] .modal-ico { background: #0e7490; }
 [data-rubrique="investments"] .modal-ico { background: #047857; }
 [data-rubrique="physical"] .modal-ico { background: #f2b33d; color: #2b1d00; }
@@ -562,13 +577,24 @@ input[type="month"] {
 .seg-solo.on { background: var(--text); color: white; }
 @media (hover: hover) { .seg-solo.on:hover { color: white; } }
 
-/* Mise en évidence d'un résultat de recherche localisé (requestLocate) :
-   flash violet + liseré accent qui s'estompent, puis retour à la normale. */
-@keyframes rowFlash {
-  0%, 55% { background-color: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
-  100% { background-color: transparent; box-shadow: inset 3px 0 0 transparent; }
+/* L'ALLUMAGE d'une ligne (`.row-flash`, 2,4 s) : résultat de recherche (requestLocate), ligne créée ou modifiée, valeurs
+   ou prix mis à jour (allumerLignes) — une seule forme dans toute l'app.
+   Piste B (27/11/2026, décision de l'utilisateur, planche « À essayer » et trois relectures impeccable / apple-design) : plus
+   de liseré de 3 px (il tombait sur la première lettre depuis la mise sur la marge) ; le fond sort de 10 px dans la marge de
+   chaque côté, 2 px d'air en haut et en bas, coins arrondis. Le contenu ne bouge pas. Écartés : A (fond à la largeur de la
+   ligne : le contenu collait à son bord) et D (bande jusqu'au bord de l'écran : à l'ordinateur, elle s'arrêtait dans le blanc).
+   Arrondi CONCENTRIQUE : 10 px sur les lignes de texte, celui de la pastille + 10 sinon (20 px r6 → 16 ; 34 ou 42 px r12 → 22).
+   Le fond est un ::before derrière le contenu (`isolation`), pas sur la ligne : elle ne peut pas déborder d'elle-même.
+   ⚠️ `:not(.drag-over-top)` : le ::before d'une ligne sert aussi de repère au glisser-déposer. */
+@keyframes rowFlash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+.row-flash { position: relative; isolation: isolate; }
+.row-flash:not(.drag-over-top)::before {
+  content: ""; position: absolute; top: 2px; bottom: 2px; left: -10px; right: -10px; z-index: -1; pointer-events: none;
+  background: var(--accent-light); border-radius: var(--flash-r, 10px);
+  animation: rowFlash 2.4s ease forwards;
 }
-.row-flash { animation: rowFlash 2.4s ease forwards; }
+.op-row.row-flash { --flash-r: 16px; }
+.portfolio-list-row.row-flash, .support-row.row-flash, .ch-ligne--revenu.row-flash { --flash-r: 22px; }
 
 /* Liste des charges : lignes dans le style des opérations du compte courant */
 .charge-list { display: flex; flex-direction: column; }
@@ -755,9 +781,9 @@ input[type="month"] {
 .seg-kebab { padding: 9px 12px; font-size: 16px; line-height: 1; }
 .seg-solo + .seg-kebab { margin-left: 0; }
 .ch-liste { border-top: 1px solid var(--border); }
-.ch-ligne { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 22px; align-items: center; gap: 8px; min-height: 40px; padding: 4px 6px 4px 3px; border-bottom: 1px solid var(--border); } /* 16/11/2026 (Mockup-Listes-Fenetres) : poignée à 3 px du trait, comme le compte courant ; crayon à 11 (0 et 5 avant) */
-.ch-ligne--revenu { grid-template-columns: 34px minmax(0, 1fr) auto 22px; gap: 8px; min-height: 52px; padding-left: 11px; } /* pastille à 11 px du trait (0 avant) */
-.ch-ligne--revenu .ch-av { margin-right: 4px; } /* 12 px entre l'avatar et le nom, mais 8 avant le crayon : le « € » tombe sur celui des charges */
+.ch-ligne { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 32px; align-items: center; gap: 8px; height: var(--ligne-petit); padding: 4px 0 4px 3px; border-bottom: 1px solid var(--border); } /* 16/11/2026 (Mockup-Listes-Fenetres) : poignée à 3 px du trait, comme le compte courant ; crayon à 11 (0 et 5 avant) */
+.ch-ligne--revenu { grid-template-columns: 34px minmax(0, 1fr) auto 32px; gap: 12px; height: var(--ligne-moyen); padding-left: 0; } /* palier MOYEN : 11 px autour de la pastille (52 avant le 26/11/2026) ; pastille SUR LA MARGE comme les listes des autres fenêtres (11 px du trait avant, 26/11/2026) */ /* pastille à 11 px du trait (0 avant) */
+.ch-ligne.ch-ligne.ch-ligne--revenu > .ch-montant { margin-right: -7px; } /* écart de 12 (le nom part comme le titre de la fenêtre), 5 avant le rond : le « € » tombe sur celui des charges (26/11/2026 ; la marge de 4 sur la pastille, sans effet dans sa colonne, est retirée) */
 .ch-grip { display: grid; place-items: center; height: 100%; color: var(--text-subtle); cursor: grab; touch-action: none; }
 .ch-nom { min-width: 0; display: grid; gap: 1px; }
 .ch-nom b { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1279,6 +1305,42 @@ input[type="month"] {
 .rang-reglage-txt { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .rang-reglage-txt b { font-size: 14px; font-weight: 500; color: var(--text); }
 .rang-reglage-txt small { font-size: 12px; font-weight: 400; color: var(--text-muted); line-height: 1.35; }
+/* ── PARAMÈTRES EN B (26/11/2026, décision de l'utilisateur, planches « Paramètres » et « Paramètres complets » du canevas) ──
+   Dans une FENÊTRE, une rangée de réglage est une ligne de LISTE comme les autres : sur la marge, entre des traits, plus de cadre
+   gris ; hauteur FIXE du palier moyen (56), nom 14 / aide 12 sur UNE ligne (coupée par « … » si elle ne tient pas — 393 px
+   d'iPhone : toutes tiennent), interrupteur au bord. Une option d'un module part sous son nom (34 + 12). Les sauvegardes et
+   l'export perdent aussi leur cadre : leur titre devient un titre de groupe, la liste des sauvegardes une liste de la marge. */
+.modal .settings-groupe { background: transparent; border-radius: 0; overflow: visible; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.modal .rang-reglage { height: var(--ligne-moyen); box-sizing: border-box; padding: 0; }
+.modal form .settings-groupe { margin-bottom: 0; } /* dans un formulaire, l'écart du formulaire suffit (pas 16 + 14) */
+.modal .rang-reglage.rang-reglage--sous { padding-left: 46px; }
+.modal .rang-reglage.rang-reglage--sous::before { left: 46px; }
+.modal .rang-reglage-txt b, .modal .rang-reglage-txt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modal .rang-reglage-txt small { line-height: normal; }
+.modal .rang-reglage-txt { gap: 2px; } /* 2 px entre le nom et l'aide, comme les autres listes */
+.modal .rang-reglage:has(> .tx-edit) > .rang-reglage-txt { margin-right: -7px; } /* 5 px avant le rond, comme partout */
+.modal .settings-card { background: transparent; padding: 0; border-radius: 0; margin-bottom: 0; }
+.modal .settings-card h2 { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 24px 0 10px; }
+.modal .settings-card .backup-status { margin: -2px 0 10px; }
+.modal .backup-list { gap: 0; margin-top: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.modal .backup-row, .modal .backup-row.latest { height: var(--ligne-moyen); box-sizing: border-box; padding: 0; gap: 12px; border: 0; border-radius: 0; background: transparent; }
+.modal .backup-row + .backup-row { border-top: 1px solid var(--border); }
+.modal .backup-row .ic { display: inline-flex; width: 34px; height: 34px; }
+.modal .backup-row .d { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modal .backup-row .figs { margin-top: 2px; }
+/* PISTE CHEVRON (26/11/2026) : la ligne est un bouton qui ouvre la fenêtre de restauration ; le chevron rond de 32 en témoin,
+   comme les listes de livrets et d'enveloppes ; la suppression est dans la fenêtre. */
+.modal .backup-row { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.modal .backup-chevron { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; margin-left: -7px; color: var(--text-muted); transition: background 0.12s, color 0.12s; }
+@media (hover: hover) { .modal .backup-row:hover > .backup-chevron { background: var(--surface-hover); color: var(--text-light); } }
+.modal .backup-row:active > .backup-chevron { background: var(--border); color: var(--text); transform: scale(0.94); transition: none; }
+.modal .backup-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.modal .backup-actions .backup-save { margin: 0; }
+.modal .backup-actions .backup-showall { margin: 0; font-size: 13px; }
+.modal .rang-reglage > .tx-edit { position: relative; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: transparent; color: var(--text-muted); flex: none; transition: background 0.12s, color 0.12s; }
+.modal .rang-reglage > .tx-edit::after { content: ""; position: absolute; inset: -6px; }
+@media (hover: hover) { .modal .rang-reglage:hover > .tx-edit { background: var(--surface-hover); color: var(--text-light); } .modal .rang-reglage > .tx-edit:hover { background: var(--border); color: var(--text); } }
+.modal .rang-reglage > .tx-edit:active { background: var(--border); color: var(--text); transform: scale(0.94); transition: none; }
 .settings-card.settings-ligne { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
 /* « Modifier › » au bout d'une rangée de réglage (mot de passe, 15/11/2026) : un lien-bouton discret, comme une rangée des
    réglages de l'iPhone. */
@@ -1356,11 +1418,11 @@ input[type="month"] {
 .section-block.ops-c .tx-row.with-edit,
 .section-block.ops-c .tx-row.composite-row.with-edit,
 .frozen-month .section-block.ops-c .tx-row.with-edit,
-.frozen-month .section-block.ops-c .tx-row.composite-row.with-edit { grid-template-columns: var(--grip-col, 14px) 30px minmax(0, 1fr) var(--amt-w, 112px); gap: 5px; padding: 3px 4px 3px 0; min-height: 46px; } /* 46 px : resserré à la demande de l'utilisateur (56 sur la maquette, ~45 avant) */
+.frozen-month .section-block.ops-c .tx-row.composite-row.with-edit { grid-template-columns: var(--grip-col, 14px) var(--case-col, 30px) minmax(0, 1fr) var(--amt-w, 112px); gap: 5px; padding: 3px 4px 3px 0; min-height: var(--ligne-petit); } /* 46 px : resserré à la demande de l'utilisateur (56 sur la maquette, ~45 avant) */
 /* Le crayon REVIENT (15/11/2026, demande de l'utilisateur) : comme les autres listes d'opérations. Le libellé reste
    touchable. Sur un mois figé, il reste masqué (règle d'origine), d'où la colonne sans crayon juste au-dessus. */
 .section-block.ops-c .tx-row.with-edit,
-.section-block.ops-c .tx-row.composite-row.with-edit { grid-template-columns: var(--grip-col, 14px) 30px minmax(0, 1fr) var(--amt-w, 112px) 22px; }
+.section-block.ops-c .tx-row.composite-row.with-edit { grid-template-columns: var(--grip-col, 14px) var(--case-col, 30px) minmax(0, 1fr) var(--amt-w, 112px) 32px; padding-right: 0; } /* crayon ROND de 32 au bord (piste A minimale, 26/11/2026) — 22 et 4 px de marge avant */
 .section-block.ops-c .tx-check-hit { margin: -3px 0 -3px 0; }
 /* Case CENTRÉE dans sa colonne de 30 px (15/11/2026, demande de l'utilisateur) : depuis qu'elle fait 20 px, calée à gauche elle
    laissait 15 px d'air avant le libellé et touchait presque la poignée ; centrée, ~11 px de chaque côté. ⚠️ Le retour à gauche
@@ -1387,14 +1449,14 @@ input[type="month"] {
    écart 5 px), crayon au même endroit (même décalage que .ops-c), libellé là où commence la case dans le compte (24 px) — il n'y a
    pas de case ici. Classe doublée : passe devant les grilles téléphone / ordinateur de .recurring-row déclarées plus bas. */
 .liste-rec .recurring-row.recurring-row { grid-template-columns: var(--grip-col, 14px) minmax(0, 1fr) var(--amt-w, 112px); column-gap: 5px; padding: 3px 4px 3px 0; }
-.liste-rec .recurring-row.recurring-row.with-edit { grid-template-columns: var(--grip-col, 14px) minmax(0, 1fr) var(--amt-w, 112px) 22px; }
+.liste-rec .recurring-row.recurring-row.with-edit { grid-template-columns: var(--grip-col, 14px) minmax(0, 1fr) var(--amt-w, 112px) 32px; padding-right: 0; }
 .liste-rec .recurring-row.recurring-row > .op-main { padding-left: 5px; }
 .liste-rec .recurring-row.recurring-row > .tx-edit { transform: none; margin-left: -3px; }
 @media (max-width: 768px) { .liste-rec .recurring-row.recurring-row > .tx-edit { margin-left: -2px; } }
 /* Tickets resto payés : même géométrie que les récurrents (15/11/2026) — poignée au bord, libellé à 24 px, montant et crayon
    aux places du compte. Classes doublées : passe devant les grilles .tx-row.tr-row (ordinateur, téléphone, mois figé). */
 .modal .tx-row.tr-row.tr-row { grid-template-columns: var(--grip-col, 14px) minmax(0, 1fr) var(--amt-w, 112px); column-gap: 5px; padding: 3px 4px 3px 0; }
-.modal .tx-row.tr-row.tr-row.with-edit { grid-template-columns: var(--grip-col, 14px) minmax(0, 1fr) var(--amt-w, 112px) 22px; }
+.modal .tx-row.tr-row.tr-row.with-edit { grid-template-columns: var(--grip-col, 14px) minmax(0, 1fr) var(--amt-w, 112px) 32px; padding-right: 0; }
 .modal .frozen-month .tx-row.tr-row.tr-row.with-edit { grid-template-columns: var(--grip-col, 14px) minmax(0, 1fr) var(--amt-w, 112px); }
 .modal .tx-row.tr-row.tr-row > .op-main { padding-left: 5px; }
 .modal .tx-row.tr-row.tr-row > .tx-edit { transform: none; margin-left: -3px; }
@@ -1407,7 +1469,55 @@ input[type="month"] {
 .op-row.op-row > .op-main { padding-left: 5px; }
 .op-row.op-row > .tx-edit { transform: none; margin-left: -3px; }
 @media (max-width: 768px) { .op-row.op-row > .tx-edit { margin-left: -2px; } }
-.modal-scroll-list .op-row.op-row { padding-left: 11px; padding-right: 4px; } /* 16/11/2026 : contenu à 11 px des traits, revenus sur la marge (Mockup-Listes-Fenetres) */
+.modal-scroll-list .op-row.op-row { padding-left: 11px; padding-right: 4px; } /* 16/11/2026 : contenu à 11 px des traits, revenus sur la marge (Mockup-Listes-Fenetres) — REMPLACÉ dans les fenêtres par la piste A3 juste en dessous */
+/* ── LISTES : PISTE A3 (26/11/2026, décision de l'utilisateur, canevas « Réglages des listes », planches « Boutons » et
+   « Téléphone A3 ») — téléphone ET ordinateur, dans les FENÊTRES (DEV v1325) puis sur les PAGES (2ᵉ temps d'A3). Le contenu des lignes
+   part de la MARGE (celle de la fenêtre, 16 / 24 px, ou le bord de la colonne de la page), comme l'en-tête, les titres et les champs :
+   le retrait de 11 px des v1247-v1250 est retiré, sa raison (le fond gris du SURVOL, qui démarrait pile sur le texte) disparaissant
+   avec lui — une ligne ne se grise plus. Le signe de fin de ligne devient un ROND de 32 px (règle : un bouton d'icône seule est rond,
+   comme le « ✕ ») : discret au repos ; au survol de la ligne (souris), le rond gris pâle apparaît ; au survol du bouton, il fonce ; à
+   l'appui, il fonce et rétrécit (fin de fichier). Deux sens, deux signes : le CRAYON est un bouton, seul cliquable (il modifie) ; le
+   CHEVRON dit que toute la ligne ouvre une page (livrets, enveloppes, comptes) — il n'est qu'un témoin. Zone de toucher du crayon :
+   44 px (`::after`). Compte courant, récurrents, tickets resto et répartition des charges : seul leur crayon devient rond (piste A
+   minimale, 26/11/2026, bloc juste en dessous), poignée et case intactes. Retour arrière : étiquettes git `avant-a3-fenetres` (v1324),
+   `avant-a3-pages` (v1325) et `avant-paliers` (v1327, trois paliers et piste A minimale), dépôt DEV. ── */
+.support-row.support-row, .op-row.op-row, .modal-scroll-list .op-row.op-row, .section-block .portfolio-list-row.portfolio-list-row { padding-left: 0; padding-right: 0; }
+.modal .support-row.support-row { grid-template-columns: 34px minmax(0, 1fr) 32px; gap: 12px; height: var(--ligne-moyen); } /* palier MOYEN (34 / 56) dans les fenêtres, 26/11/2026 — 42 / 64 avant ; écart 12 au téléphone aussi (8 avant), pour partir comme le titre */
+.modal .support-row .support-icon { width: 34px; height: 34px; font-size: 12px; }
+.op-row.op-row { grid-template-columns: 20px minmax(0, 1fr) auto 32px; }
+.op-row.op-row > .tx-edit { margin-left: 0; transform: none; }
+.portfolio-list-row.portfolio-list-row { grid-template-columns: 26px minmax(0, 1fr) auto 32px; }
+.portfolio-list-row.portfolio-list-row:has(> .portfolio-list-av) { grid-template-columns: 42px minmax(0, 1fr) auto 32px; height: var(--ligne-grand); } /* palier GRAND (42 / 64) : 11 px autour, comme les supports détenus — la règle de 64 plus haut perdait contre celle de 60 plus bas (62 mesurés), 26/11/2026 */
+.supports-groupe .support-edit-row.support-edit-row { grid-template-columns: 34px minmax(0, 1fr) auto 32px; padding-left: 0; padding-right: 0; height: var(--ligne-moyen); column-gap: 12px; cursor: default; } /* palier MOYEN (fenêtre), 26/11/2026 — 42 / 62 avant */
+.supports-groupe .support-icon { width: 34px; height: 34px; border-radius: var(--r-touche); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.supports-groupe .support-total { padding: 12px 37px 12px 0; } /* le total tombe sur la colonne des cibles : bouton de 32 + écart de 5 */
+/* ÉCART AVANT LE ROND : 5 px PARTOUT (26/11/2026, demande de l'utilisateur : « j'aime bien comme le crayon », qui laisse plus de place
+   au reste). C'était l'écart du crayon des opérations (`column-gap: 5px`) ; les autres lignes avaient 12 px (8 au téléphone), 10 pour
+   les supports. On ne touche pas l'écart de la ligne (pastille, nom) : c'est la cellule AVANT le rond qui déborde dans l'écart par une
+   marge négative — sa colonne rétrécit d'autant, le libellé y gagne la place. */
+.portfolio-list-row > .portfolio-list-right { margin-right: -7px; }
+.modal .support-row > .support-main { margin-right: -7px; }
+.supports-groupe .support-edit-row > .support-edit-cible { margin-right: -7px; } /* écart de 12 depuis les trois paliers (10 avant) : le nom part comme le titre */
+.modal .support-row > .tx-edit, .op-row > .tx-edit, .supports-groupe .support-edit-row > .tx-edit, .portfolio-list-row > .portfolio-list-arrow,
+.section-block.ops-c .tx-row > .tx-edit, .liste-rec .recurring-row > .tx-edit, .liste-rec .composite-comp-row > .tx-edit, .modal .tx-row.tr-row > .tx-edit, .ch-ligne > .tx-edit {
+  position: relative; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: transparent; color: var(--text-muted); transition: background 0.12s, color 0.12s;
+}
+.modal .support-row > .tx-edit::after, .op-row > .tx-edit::after, .supports-groupe .support-edit-row > .tx-edit::after,
+.section-block.ops-c .tx-row > .tx-edit::after, .liste-rec .recurring-row > .tx-edit::after, .liste-rec .composite-comp-row > .tx-edit::after, .modal .tx-row.tr-row > .tx-edit::after, .ch-ligne > .tx-edit::after { content: ""; position: absolute; inset: -6px; }
+/* PISTE A MINIMALE (26/11/2026, décision de l'utilisateur, planche « Paliers ») : compte courant, récurrents, tickets resto et charges
+   prennent le crayon ROND des autres listes — poignée, case et colonnes de gauche INTACTES. Écart de 5 px avant le rond (la grille en
+   a déjà 5 ; 8 pour les charges, d'où −3). Classes doublées : passent devant les décalages des v1243-v1250, plus bas. */
+.section-block.ops-c .tx-row.tx-row > .tx-edit, .liste-rec .recurring-row.recurring-row > .tx-edit, .liste-rec .composite-comp-row.composite-comp-row > .tx-edit, .modal .tx-row.tr-row.tr-row > .tx-edit { margin-left: 0; transform: none; }
+.ch-ligne.ch-ligne > .ch-montant { margin-right: -3px; } /* charges : 8 d'écart → 5 avant le rond, c'est le montant qui déborde (comme A3) */
+@media (hover: hover) {
+  .support-row.support-row:hover, .op-row.op-row:hover, .supports-groupe .support-edit-row.support-edit-row:hover, .portfolio-list-row.portfolio-list-row:hover,
+  .tx-row.tx-row:hover:not(.drag-over-nest), .recurring-row.recurring-row:hover:not(.drag-over-nest) { background: transparent; } /* `:not(.drag-over-nest)` (27/11/2026) : le glisser-déposer suit le pointeur, la ligne visée est donc survolée — sans cette exception, elle perdait son fond violet de rangement */ /* compte courant, récurrents, tickets resto : depuis le crayon rond (26/11/2026, relevé de l'utilisateur) */ /* classes doublées : les anciennes règles de survol sont plus bas dans le fichier */
+  .modal .support-row:hover > .tx-edit, .op-row:hover > .tx-edit, .supports-groupe .support-edit-row:hover > .tx-edit, .portfolio-list-row:hover > .portfolio-list-arrow,
+  .section-block.ops-c .tx-row:hover > .tx-edit, .liste-rec .recurring-row:hover > .tx-edit, .liste-rec .composite-comp-row:hover > .tx-edit, .modal .tx-row.tr-row:hover > .tx-edit, .ch-ligne:hover > .tx-edit { background: var(--surface-hover); color: var(--text-light); }
+  .modal .support-row > .tx-edit:hover, .op-row > .tx-edit:hover, .supports-groupe .support-edit-row > .tx-edit:hover,
+  .section-block.ops-c .tx-row > .tx-edit:hover, .liste-rec .recurring-row > .tx-edit:hover, .liste-rec .composite-comp-row > .tx-edit:hover, .modal .tx-row.tr-row > .tx-edit:hover, .ch-ligne > .tx-edit:hover { background: var(--border); color: var(--text); }
+}
 /* ZONES DE TOUCHER élargies sans rien déplacer (15/11/2026, simulation Mockup-Zones-Toucher validée par l'utilisateur) :
    - la poignée couvre toute la hauteur de la ligne et 19 px de large (sa colonne de 14 + l'écart de 5), jusqu'à la case sans la
      chevaucher — un déplacement ne s'arme qu'après l'appui long de 300 ms (dnd.js), faire défiler n'en déclenche pas ;
@@ -1428,41 +1538,39 @@ input[type="month"] {
    large, pour ne pas décaler le placement des cellules de la grille. */
 .mode-dates { --grip-col: 0px; }
 .mode-dates .tx-row > .tx-grip.tx-grip { width: 0; overflow: hidden; }
-/* La case dessinée se place à 11 px du bord gauche de la liste, l'écart du crayon au bord droit (mesuré : 11 px sur téléphone
-   et ordinateur ; demande de l'utilisateur, 14/11/2026). Sa zone de toucher reprend les 5 px de l'écart vide et part du bord.
-   Le libellé garde sa place dans la grille (40 px) ; les composantes suivent (trait sous sa 1re lettre, piste A). Tickets resto, sans case :
-   le libellé prend lui aussi les 11 px (calé sur le bord, il paraissait collé au fond de la ligne — remarque de l'utilisateur). */
-.mode-dates .tx-row > .tx-check-hit.tx-check-hit { margin-left: -5px; padding-left: 11px; }
-.ops-c.mode-dates .composite-comps { margin-left: 40px; }
-.modal .mode-dates .tx-row.tr-row.tr-row > .op-main { margin-left: -5px; padding-left: 11px; }
+/* SUR LA MARGE, mode dates ET mois figé (27/11/2026, relevé de l'utilisateur : « tout a été fait sauf la liste des opérations
+   sur les mois figés ») : la case part du TRAIT, comme la poignée d'un mois ouvert, et sa colonne passe de 30 à 20 px (la case
+   en fait 20) pour garder 10 px avant le libellé, l'écart d'un mois ouvert. Sa zone de toucher reprend les 5 px de l'écart vide.
+   Le libellé des tickets resto et des récurrents part du trait ; les composantes suivent (trait sous la 1re lettre du parent).
+   Remplace les 11 px du 14/11 et du 16/11/2026, posés avant la piste A3 quand le crayon était lui-même à 11 px du bord. */
+.mode-dates, .frozen-month { --case-col: 20px; }
+.mode-dates .tx-row > .tx-check-hit.tx-check-hit.tx-check-hit,
+.frozen-month .tx-row > .tx-check-hit.tx-check-hit.tx-check-hit { margin-left: -5px; padding-left: 0; width: 30px; }
+.ops-c.mode-dates .composite-comps.composite-comps,
+.frozen-month .ops-c .composite-comps.composite-comps { margin-left: 30px; }
+.modal .mode-dates .tx-row.tr-row.tr-row.tr-row > .op-main,
+.modal .frozen-month .tx-row.tr-row.tr-row.tr-row > .op-main,
+.liste-rec.mode-dates .recurring-row.recurring-row.recurring-row > .op-main { margin-left: -5px; padding-left: 0; }
+.liste-rec.mode-dates .recurring-row.composite-row + .composite-comps.composite-comps { margin-left: 0; }
+/* … et à droite : sans crayon, le « € » finit sur le trait (il était à 9 px). */
+.frozen-month .section-block.ops-c .tx-row.tx-row.tx-row.tx-row,
+.modal .frozen-month .tx-row.tr-row.tr-row.tr-row.tr-row,
+.frozen-month .section-block.ops-c .tx-row.composite-row + .composite-comps.composite-comps.composite-comps { padding-right: 0; }
 /* MOIS FIGÉ (16/11/2026, demande de l'utilisateur) : on n'y glisse rien non plus — même règle que le mode dates : la poignée
-   sort avec sa colonne, la case revient à 11 px du bord, le libellé gagne 19 px (ordinateur et téléphone), composantes et
-   lignes de tickets resto suivent. L'ancienne raison de la garder (« rien ne bouge d'un mois à l'autre ») ne tenait plus :
-   la colonne du crayon disparaît déjà sur un mois figé. */
+   sort avec sa colonne (la case et le « € » sur le trait : bloc « SUR LA MARGE », plus haut). */
 .frozen-month { --grip-col: 0px; }
 .frozen-month .tx-row > .tx-grip.tx-grip { width: 0; overflow: hidden; }
-.frozen-month .tx-row > .tx-check-hit.tx-check-hit { margin-left: -5px; padding-left: 11px; }
-.frozen-month .ops-c .composite-comps { margin-left: 40px; }
-/* … et à DROITE (16/11/2026, relevé de l'utilisateur sur iPhone) : sans crayon, le « € » finissait à 6 px du bord ; 5 px de plus
-   le posent à 11 px, comme la case à gauche et le crayon d'un mois ouvert. Sélecteurs renforcés : passent devant les grilles. */
-.frozen-month .section-block.ops-c .tx-row.tx-row.tx-row,
-.modal .frozen-month .tx-row.tr-row.tr-row.tr-row { padding-right: 9px; }
-/* Les composantes dépliées suivent : leur « € » sous celui du parent. */
-.frozen-month .section-block.ops-c .tx-row.composite-row + .composite-comps.composite-comps { padding-right: 9px; } /* 4 → 9 : passe devant la règle des composantes d'.ops-c, plus bas */
-.modal .frozen-month .tx-row.tr-row.tr-row > .op-main { margin-left: -5px; padding-left: 11px; }
 /* La poignée des tickets resto a sa largeur propre (19 px, règle plus spécifique) : à 0 aussi, sinon, invisible, elle déborde
    de sa colonne vide sur le libellé (même chose en mode dates, relevé au passage). */
 .modal .frozen-month .tx-row.tr-row.tr-row > .tx-grip, .modal .mode-dates .tx-row.tr-row.tr-row > .tx-grip { width: 0; overflow: hidden; }
 /* Récurrents (Paramètres) : triés par jour du mois en mode dates, ils ne se glissent pas non plus — même règle que les tickets
-   resto : la colonne sort, le libellé à 11 px du bord ; les composantes suivent (trait sous la 1re lettre du parent, piste A). */
+   resto : la colonne sort, le libellé sur le trait (bloc « SUR LA MARGE », plus haut). */
 .liste-rec.mode-dates .recurring-row.recurring-row > .tx-grip { width: 0; overflow: hidden; }
-.liste-rec.mode-dates .recurring-row.recurring-row > .op-main { margin-left: -5px; padding-left: 11px; }
-.liste-rec.mode-dates .recurring-row.composite-row + .composite-comps { margin-left: 11px; }
-.liste-rec .recurring-row.composite-row + .composite-comps { margin: -5px 0 6px 24px; padding: 0 4px 0 12px; border-top: 0; border-left: 2px solid #e1e4ec; background: transparent; }
+.liste-rec .recurring-row.composite-row + .composite-comps { margin: -5px 0 6px 24px; padding: 0 0 0 12px; border-top: 0; border-left: 2px solid #e1e4ec; background: transparent; }
 /* Composantes des récurrents = celles du compte (15/11/2026) : trait sous la 1re lettre du libellé du parent, texte 14 px après (piste A, 14/11/2026),
    montants sur la même colonne que le parent ; la poignée invisible sort de la grille (comme .ops-c). */
 .liste-rec .recurring-row.composite-row + .composite-comps .composite-comp-row.composite-comp-row,
-.liste-rec .recurring-row.composite-row + .composite-comps .composite-comp-row.composite-comp-row.with-edit { grid-template-columns: minmax(0, 1fr) var(--amt-w, 112px) 22px; gap: 5px; position: relative; padding-left: 0; }
+.liste-rec .recurring-row.composite-row + .composite-comps .composite-comp-row.composite-comp-row.with-edit { grid-template-columns: minmax(0, 1fr) var(--amt-w, 112px) 32px; gap: 5px; position: relative; padding-left: 0; }
 .liste-rec .recurring-row.composite-row + .composite-comps .composite-comp-row > .tx-icon { position: absolute; left: -13px; top: 50%; transform: translateY(-50%); width: 12px; height: 24px; }
 .liste-rec .composite-comp-row { border-bottom: 0; }
 /* Les libellés des composantes sont des champs en lecture seule : sur ordinateur, un clic y posait un curseur. */
@@ -1496,13 +1604,13 @@ input[type="month"] {
 /* Une 3e colonne VIDE, de la largeur du crayon des lignes (22 px) : montants et « € » des composantes s'alignent sur ceux
    des lignes (relevé de l'utilisateur, 15/11/2026). Sur un mois figé, les lignes n'ont pas de crayon : deux colonnes. */
 .section-block.ops-c .tx-row.composite-row + .composite-comps .composite-comp-row,
-.section-block.ops-c .tx-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: minmax(0, 1fr) var(--amt-w, 112px) 22px; gap: 5px; }
+.section-block.ops-c .tx-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: minmax(0, 1fr) var(--amt-w, 112px) 32px; gap: 5px; }
 .frozen-month .section-block.ops-c .tx-row.composite-row + .composite-comps .composite-comp-row,
 .frozen-month .section-block.ops-c .tx-row.composite-row + .composite-comps .composite-comp-row.with-edit,
 .frozen-month .tx-row.composite-row + .composite-comps .composite-comp-row.with-edit { grid-template-columns: minmax(0, 1fr) var(--amt-w, 112px); }
 /* Montants des composantes alignés sur ceux des lignes (même marge droite de 4 px que .tx-row). */
 .section-block.ops-c .composite-comps,
-.section-block.ops-c .tx-row.composite-row + .composite-comps { padding-left: 12px; padding-right: 4px; } /* le bloc téléphone pose 35 px à gauche */
+.section-block.ops-c .tx-row.composite-row + .composite-comps { padding-left: 12px; padding-right: 0; } /* 0 : comme sa ligne mère, au crayon rond (4 avant le 26/11/2026) */ /* le bloc téléphone pose 35 px à gauche */
 .ops-c .tx-check.checked::after { font-size: 11px; }
 .ops-c .composite-comps { margin: -5px 0 6px 54px; /* piste A (14/11/2026) : le trait sous la 1re lettre du libellé parent (54 px), le texte 14 px après */ /* −5 px : composite → 1re composante = 36 px, l'écart entre deux composantes (41 avant) */ padding: 0 0 0 12px; border-top: 0; border-left: 2px solid #e1e4ec; background: transparent; }
 /* Le trait ne longe que les composantes (14/11/2026, remarque de l'utilisateur) : la bordure, qui suivait tout le bloc, entrait
@@ -1518,7 +1626,7 @@ input[type="month"] {
    marge haute et basse — opérations d'un livret et d'une enveloppe (récentes et « Toutes »), opérations récurrentes,
    paiements de tickets resto ; leurs composantes à 41 px comme celles du compte. Pas les listes d'ENTITÉS (comptes,
    livrets, enveloppes, supports, actifs). Classe doublée : les règles du téléphone posent 8 px. ── */
-.op-row.op-row, .recurring-row.recurring-row, .tx-row.tr-row.tr-row { min-height: 46px; padding-top: 3px; padding-bottom: 3px; align-items: center; }
+.op-row.op-row, .recurring-row.recurring-row, .tx-row.tr-row.tr-row { min-height: var(--ligne-petit); padding-top: 3px; padding-bottom: 3px; align-items: center; }
 .recurring-row.composite-row + .composite-comps .composite-comp-row.composite-comp-row { min-height: 36px; padding-top: 3px; padding-bottom: 3px; }
 
 /* ── LES RUBRIQUES SUR ORDINATEUR (15/11/2026, maquette « rubrique-ord ») : la carte de tête et ses pastilles (ou l'alerte),
@@ -1548,7 +1656,7 @@ input[type="month"] {
 @media (hover: hover) and (pointer: fine) { html { scrollbar-gutter: stable; } }
 
 /* Supports d'une enveloppe : avatar à deux lettres de 42 px, comme les autres listes d'entités (maquette C', 15/11/2026). */
-.support-row.support-row { grid-template-columns: 42px minmax(0, 1fr) auto; padding-left: 11px; padding-right: 11px; min-height: 64px; } /* 11 px des traits des deux côtés (4 avant, 16/11/2026, Mockup-Marges-Listes) */
+.support-row.support-row { grid-template-columns: 42px minmax(0, 1fr) auto; padding-left: 0; padding-right: 0; height: var(--ligne-grand); } /* SUR LA MARGE depuis la piste A3 (26/11/2026) ; 11 px des traits du 16/11/2026 au 26/11/2026 (Mockup-Marges-Listes), 4 avant */
 .support-row .support-icon { width: 42px; height: 42px; border-radius: var(--r-touche); font-size: 13px; font-weight: 700; }
 
 /* Recherche : titre de groupe en gras, sans capitales, précédé du point de la rubrique (maquette C', 15/11/2026). */
@@ -1741,7 +1849,8 @@ input[type="month"] {
 }
 .pastille-cc-ico { color: var(--text-muted); display: inline-flex; flex: none; }
 .pastille-cc-lib { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (min-width: 641px) { .pastilles-cc { grid-template-columns: repeat(2, 260px); } }
+/* Plus de largeur fixe de 260 px dès 641 px (27/11/2026, relevé de l'utilisateur) : entre 641 et 1099 px, les deux pastilles
+   laissaient un vide à droite. Elles se partagent la largeur, comme au téléphone et dans la colonne de 1100 px et plus. */
 .pcc-court { display: none; }
 /* 460 px (420 avant le 15/11/2026) : sur iPhone 440 px, « Reste mois préc. » se coupait dès un montant à quatre chiffres. */
 @media (max-width: 460px) { .pcc-long { display: none; } .pcc-court { display: inline; } }
@@ -2267,6 +2376,9 @@ button.stat-card {
   border: 1px dashed var(--border-strong); color: var(--text-muted);
   font-size: 13px; font-weight: 500;
 }
+/* L'ajout qui termine une fenêtre « Réglages » (`ListeReglages`) : le bouton PLEIN « + Nouveau … » (btn-accent btn-lg btn-fen),
+   comme les récurrents et les tickets resto (26/11/2026) ; ses marges au téléphone viennent de la règle des boutons du bas. */
+.modal .btn.ajout-bas { margin-top: 16px; box-sizing: border-box; width: calc(100% - 2 * (var(--marge-boutons, 16px) - 16px)); } /* `btn-fen` prend 100 % : moins les marges des feuilles, sinon il déborde de 20 px sur iPhone (mesuré) */
 
 /* Composite row */
 .tx-composite-wrap {
@@ -2508,7 +2620,7 @@ button.stat-card {
 .supports-groupe .support-edit-lbl { font-size: 13px; font-weight: 500; }
 .support-edit-complet { font-size: 12px; font-weight: 500; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .supports-groupe .support-edit-cible { font-size: 14px; font-weight: 500; color: var(--text); }
-.support-edit-chev { color: var(--text-muted); font-size: 18px; line-height: 1; text-align: right; } /* calé à droite (centré avant : 6 px de retrait, 16/11/2026) */
+/* (`.support-edit-chev` retiré le 26/11/2026, 2ᵉ temps d'A3 : le chevron des supports est devenu un crayon, `.tx-edit`.) */
 .support-total { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 35px 12px 11px; font-size: 14px; } /* 35 px à droite : le total tombe sur la colonne des cibles, qui s'arrête avant le chevron des lignes (11 + 14 + 10) ; 11 à gauche, comme les lignes (16/11/2026) */
 .support-total b { font-weight: 600; }
 .support-total span { font-weight: 600; }
@@ -3442,9 +3554,9 @@ button.stat-card {
 }
 .search-result {
   display: grid;
-  grid-template-columns: 32px 1fr auto;
-  align-items: center; gap: 12px;
-  padding: 8px 20px;
+  grid-template-columns: 20px 1fr auto; /* palier PETIT, comme les opérations : plus de résultats à l'écran (32 / ~50 avant le 26/11/2026) */
+  align-items: center; gap: 10px;
+  height: var(--ligne-petit); padding: 0 20px;
   cursor: pointer;
   transition: background 0.1s;
   border: none; background: transparent;
@@ -3463,11 +3575,12 @@ button.stat-card {
 }
 }
 .search-result-icon {
-  width: 32px; height: 32px;
-  border-radius: 8px;
+  width: 20px; height: 20px;
+  border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+.search-result-icon svg { width: 12px; height: 12px; } /* l'icône des opérations (12 dans 20) */
 .search-result-icon.checking { background: var(--accent-light); color: var(--accent); }
 .search-result-icon.savings { background: var(--info-light); color: var(--info-fonce); }
 .search-result-icon.investments { background: var(--success-light); color: var(--success-fonce); }
@@ -3694,17 +3807,6 @@ button.stat-card {
 .backup-tag.latest-tag { background: var(--accent-light); color: var(--accent); }
 /* « avant restauration » : teinte ardoise neutre, casse normale (libellé long). */
 .backup-tag.pre { background: #e7ecf3; color: #475569; text-transform: none; letter-spacing: 0; font-weight: 700; }
-.backup-restore {
-  border: 1px solid var(--border); background: var(--surface); color: var(--accent);
-  border-radius: 9px; padding: 7px 11px; font-family: inherit; font-size: 12px; font-weight: 600;
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0;
-}
-@media (hover: hover) { .backup-restore:hover { background: var(--accent-light); } }
-.backup-del {
-  border: 1px solid var(--border); background: var(--surface); color: var(--text-subtle);
-  border-radius: 9px; padding: 7px 9px; display: inline-flex; align-items: center; cursor: pointer; flex-shrink: 0;
-}
-@media (hover: hover) { .backup-del:hover { color: var(--danger-fonce); border-color: #fecaca; background: var(--danger-light); } }
 .backup-showall {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
   font-family: inherit; font-size: 12px; font-weight: 600; color: var(--accent);
@@ -3731,8 +3833,6 @@ button.stat-card {
   .backup-row .d-long { display: none; }
   .backup-row .d-court { display: inline; }
   .backup-row .figs .sub-tag { display: inline-block; }
-  .backup-restore { padding: 7px 9px; gap: 0; }
-  .backup-restore svg { display: none; }
 }
 
 /* --- Confirmation de restauration --- */
@@ -4799,7 +4899,11 @@ button.stat-card {
    mais deviennent inertes (clics interceptés par le wrapper + toast).
    Le cadenas est partout INFORMATIF, jamais bloquant.
    ============================================================ */
-.frozen-month .tx-edit,
+/* Classe quadruplée (27/11/2026) : le crayon rond de la piste A minimale
+   (`.section-block.ops-c .tx-row > .tx-edit`, `.modal .tx-row.tr-row > .tx-edit`…,
+   4 classes, display: grid) passait devant ce masquage — sur tout mois figé,
+   le crayon revenait et tombait sous la ligne. */
+.frozen-month .tx-edit.tx-edit.tx-edit.tx-edit,
 .frozen-month .btn-add { display: none; }
 /* Le crayon masqué ne doit pas laisser sa COLONNE vide : en mois figé,
    les grilles .with-edit reprennent le gabarit sans crayon — le libellé
@@ -5313,7 +5417,6 @@ button.cp-seg-item { cursor: pointer; }
    doigt pendant un défilement. Si c'est le cas, retarder l'effet (~80 ms).
    ============================================================ */
 .btn:not(:disabled):active { transform: scale(0.97); filter: brightness(0.94); transition: none; }
-.portfolio-list-row:active,
 .stat-card-clickable:active,
 .dropdown-item:not(:disabled):active,
 .maj-env-head:active,
@@ -5324,6 +5427,13 @@ button.cp-seg-item { cursor: pointer; }
 .btn-add:active { background: var(--surface-hover); transition: none; }
 .month-cell:active { background: var(--bg); border-style: solid; border-color: var(--text-light); transition: none; }
 .tx-edit:active { background: var(--accent-light); color: var(--accent); transition: none; }
+/* Piste A3 (26/11/2026) : le rond de fin de ligne fonce et rétrécit DÈS L'APPUI — au doigt comme à la souris. Crayon : c'est lui
+   qu'on touche. Chevron d'une liste de page : c'est toute la ligne qu'on touche (son fond ne change plus, depuis le 2ᵉ temps d'A3), et
+   son chevron qui répond. */
+.modal .support-row > .tx-edit:active, .op-row > .tx-edit:active, .supports-groupe .support-edit-row > .tx-edit:active, .portfolio-list-row:active > .portfolio-list-arrow,
+.section-block.ops-c .tx-row > .tx-edit:active, .liste-rec .recurring-row > .tx-edit:active, .liste-rec .composite-comp-row > .tx-edit:active, .modal .tx-row.tr-row > .tx-edit:active, .ch-ligne > .tx-edit:active {
+  background: var(--border); color: var(--text); transform: scale(0.94); transition: none;
+}
 .tx-delete:active,
 .btn-delete-line:active,
 .btn-icon.btn-icon-danger:active { background: var(--danger-light); color: var(--danger-fonce); transition: none; }

@@ -146,7 +146,7 @@ function CheckingConsolidatedView({ ctx, onOpenAccount }) {
               return { id: acc.id, nom: acc.name || '(sans nom)', locate: `cc-reg-${acc.id}`, sous: `${fmt(acc._balance)} € · ${n} mois` };
             })}
             onModifier={setEditId}
-            libelleAjout="Ajouter un compte courant"
+            libelleAjout="Nouveau compte courant"
             onAjouter={() => setShowCreate(true)}
           />
         </Modal>
@@ -838,6 +838,7 @@ function CheckingView({ ctx, onBack }) {
               mKey={curKey}
               datesMode={checkingDatesEnabled(profile)}
               noDrag={frozen}
+              frozen={frozen}
               onAddOperation={(it) => updateMonth({ ...m, operations: [...(m.operations || []), it] })}
               onMoveToOps={(id, it) => updateMonth({ ...m, tr: (m.tr || []).filter(t => t.id !== id), operations: [...(m.operations || []), it] })}
             />
@@ -1114,17 +1115,9 @@ function ReglagesForm({ checking, onSubmit, onDirtyChange, isMultiMode, onDelete
       {/* Section : Tickets resto */}
       <div>
         <h3 className="settings-group-title">Tickets resto</h3>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 'var(--r-touche)' }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>Module activé</div>
-            <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-              {enabled ? 'Calcul automatique du remboursement.' : 'Désactivé.'}
-            </div>
-          </div>
-          <label className="toggle">
-            <input type="checkbox" checked={enabled} onChange={(e) => toggleEnabled(e.target.checked)} />
-            <span className="toggle-slider"></span>
-          </label>
+        {/* Le gabarit commun des interrupteurs de fenêtre (26/11/2026, planche « Paramètres complets ») : nom 14, aide 12, sur la marge. */}
+        <div className="settings-groupe">
+          <ModuleToggleRow label="Module activé" hint={enabled ? 'Calcul automatique du remboursement.' : 'Désactivé.'} enabled={enabled} onChange={toggleEnabled} />
         </div>
         {enabled && (
           <div className="field-grid" style={{ marginTop: 12 }}>
@@ -2186,17 +2179,8 @@ function OperationForm({ initial, onSubmit, onDelete, trEnabled, hasGlobalTRRefu
 
       {/* Toggle composite — masqué en mode Paiement TR (composite sans objet). */}
       {!isTr ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 'var(--r-touche)' }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>Ligne composite</div>
-            <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-              Décompose la ligne en plusieurs composantes.
-            </div>
-          </div>
-          <label className="toggle">
-            <input type="checkbox" checked={isComposite} onChange={(e) => setIsComposite(e.target.checked)} disabled={isTRAuto} />
-            <span className="toggle-slider"></span>
-          </label>
+        <div className="settings-groupe">
+          <ModuleToggleRow label="Ligne composite" hint="Décompose la ligne en plusieurs composantes." enabled={isComposite} onChange={setIsComposite} disabled={isTRAuto} />
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--warning-fonce)', background: 'var(--warning-light)', border: '1px solid #fcd9a3', borderRadius: 'var(--r-touche)', padding: '9px 12px' }}>
@@ -2368,7 +2352,7 @@ function SimpleTxRow({ item, variant, scope, list, index, onUpdate, onRemove, on
         </span>
         {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
         {datesMode && item.date && (
-          <span className="op-date">{fmtDateNumeric(item.date)}</span>
+          <span className="op-date">{fmtDate(item.date)}</span>
         )}
       </div>
       <div className="tx-amount-wrap">
@@ -2424,7 +2408,7 @@ function CompositeTxRow({ item, variant, scope, list, index, expanded, onToggle,
           {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
           <span className="composite-tag" title="Ligne composite">Composite</span>
           {datesMode && item.date && (
-            <span className="op-date">{fmtDateNumeric(item.date)}</span>
+            <span className="op-date">{fmtDate(item.date)}</span>
           )}
         </div>
         <div className="tx-amount-wrap">
@@ -2501,7 +2485,7 @@ function CompositeComponentRow({ c, parent, variant, scope, list, index, onDrop,
   );
 }
 
-function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal = 0, onAddOperation, onMoveToOps, noDrag = false, showToast }) {
+function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal = 0, onAddOperation, onMoveToOps, noDrag = false, frozen = false, showToast }) {
   const scope = `tr-${mKey}`;
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -2585,9 +2569,14 @@ function TrSection({ items, trStats, onChange, mKey, datesMode, openCreateSignal
         })}
         {items.length === 0 && <EmptyState icon="utensils" title="Aucun paiement de tickets resto ce mois" />}
       </div>
-      <div className="section-footer">
-        <button className="btn btn-accent btn-lg btn-tr btn-fen" onClick={openCreate}><Icon name="plus" size={16} /> Nouveau paiement TR</button>
-      </div>
+      {/* Mois figé : pas d'ajout. Le bouton était caché par `.frozen-month .btn-add`
+          jusqu'au lot 4 (14/11/2026), où il est devenu `btn-fen` sans cette classe —
+          il réapparaissait, et la saisie n'était refusée qu'à l'enregistrement. */}
+      {!frozen && (
+        <div className="section-footer">
+          <button className="btn btn-accent btn-lg btn-tr btn-fen" onClick={openCreate}><Icon name="plus" size={16} /> Nouveau paiement TR</button>
+        </div>
+      )}
 
       {showForm && (
         <Modal title={editing ? 'Modifier un paiement TR' : 'Nouveau paiement TR'} icon="utensils" tone="tr" subtitle={`Tickets resto · ${monthLabel(mKey)}`} onClose={() => { setShowForm(false); setEditing(null); }}>
@@ -2642,7 +2631,7 @@ function TrItemRow({ item, scope, list, index, onRemove, onEdit, onDrop, datesMo
         </span>
         {item.note && <InfoTip iconName="comment" size={13} label={item.note} className="op-note" popClassName="infotip-pop--wrap" />}
         {datesMode && item.date && (
-          <span className="op-date">{fmtDateNumeric(item.date)}</span>
+          <span className="op-date">{fmtDate(item.date)}</span>
         )}
       </div>
       <div className="tx-amount-wrap">

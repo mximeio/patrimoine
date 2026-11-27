@@ -1248,14 +1248,16 @@ function BackupsCard({ ctx }) {
   };
 
   const doDelete = async (b) => {
-    if (!confirm(`Supprimer la sauvegarde du ${backupDateLabel(b.at)} ?\n\nCette sauvegarde sera définitivement retirée. Tes données ne sont pas touchées.`)) return;
+    if (!confirm(`Supprimer la sauvegarde du ${backupDateLabel(b.at)} ?\n\nCette sauvegarde sera définitivement retirée. Tes données ne sont pas touchées.`)) return false;
     try {
       await Adapter.deleteBackup(user.uid, b.id);
       await reload();
       showToast('Sauvegarde supprimée', 'success');
+      return true; // la fenêtre de restauration se ferme alors (corbeille de sa rangée du bas)
     } catch (e) {
       console.error(e);
       showToast('Suppression impossible', 'error');
+      return false;
     }
   };
 
@@ -1263,7 +1265,7 @@ function BackupsCard({ ctx }) {
 
   return (
     <div className="settings-card">
-      <h2>Sauvegardes<AideChamp>Instantané de tes données personnelles, restaurable. Une sauvegarde automatique est posée chaque semaine à l'ouverture ; les {BACKUP_KEEP} dernières sont conservées.</AideChamp></h2>
+      <h2>Sauvegarde<AideChamp>Instantané de tes données personnelles, restaurable. Une sauvegarde automatique est posée chaque semaine à l'ouverture ; les {BACKUP_KEEP} dernières sont conservées.</AideChamp></h2>
 
       {/* 🔴 « À JOUR » N'EST PLUS INCONDITIONNEL — corrigé le 03/09/2026.
           Cette étiquette affichait « À jour » dès qu'UNE sauvegarde existait,
@@ -1298,9 +1300,6 @@ function BackupsCard({ ctx }) {
         );
       })()}
 
-      <button className="btn btn-secondary backup-save" onClick={doManualBackup} disabled={busy}>
-        <Icon name="cloudUp" size={15} /> {busy ? 'Sauvegarde…' : 'Sauvegarder maintenant'}
-      </button>
 
       {backups === null && <p className="muted" style={{ marginTop: 12 }}>Chargement…</p>}
 
@@ -1310,7 +1309,10 @@ function BackupsCard({ ctx }) {
               le bouton ci-dessous déplie les autres si besoin. */}
           <div className="backup-list">
             {(showAll ? backups : backups.slice(0, 1)).map((b, i) => (
-              <div key={b.id} className={`backup-row${i === 0 ? ' latest' : ''}`}>
+              /* PISTE CHEVRON (26/11/2026, décision de l'utilisateur, planche « Restauration ») : toute la ligne ouvre la fenêtre de
+                 restauration, le chevron le dit ; la suppression passe dans cette fenêtre, corbeille à droite de « Restaurer »
+                 (règle 10 ter). Plus de bouton d'action dans la ligne. */
+              <button type="button" key={b.id} className={`backup-row${i === 0 ? ' latest' : ''}`} onClick={() => setRestoring(b)} aria-label={`Ouvrir la sauvegarde du ${backupDateLabel(b.at)}`}>
                 {/* v559 : pictogramme masqué en portrait mobile (voir CSS). */}
                 <span className="ic"><Icon name="layers" size={15} /></span>
                 <div className="meta">
@@ -1329,30 +1331,32 @@ function BackupsCard({ ctx }) {
                     {backupRelativeAge(b.at)}
                   </div>
                 </div>
-                <button className="backup-restore" title="Restaurer" onClick={() => setRestoring(b)}>
-                  <Icon name="cloudDown" size={14} /> <span className="lbl">Restaurer</span>
-                </button>
-                <button className="backup-del" title="Supprimer cette sauvegarde" onClick={() => doDelete(b)}>
-                  <Icon name="trash" size={15} />
-                </button>
-              </div>
+                <span className="backup-chevron" aria-hidden="true"><Icon name="chevronRight" size={15} /></span>
+              </button>
             ))}
           </div>
-          {backups.length > 1 && (
-            <button className="backup-showall" onClick={() => setShowAll(v => !v)}>
-              <span className={`backup-chev${showAll ? ' up' : ''}`}><Icon name="chevronDown" size={13} /></span>
-              {showAll
-                ? 'Masquer les autres sauvegardes'
-                : `Afficher les ${backups.length - 1} autre${backups.length - 1 > 1 ? 's' : ''} sauvegarde${backups.length - 1 > 1 ? 's' : ''}`}
-            </button>
-          )}
         </>
       )}
+
+      {/* Sous la liste (26/11/2026, Paramètres en B) : « Sauvegarder maintenant » à gauche, « Afficher les autres » à droite. */}
+      <div className="backup-actions">
+        <button className="btn btn-secondary backup-save" onClick={doManualBackup} disabled={busy}>
+          <Icon name="cloudUp" size={15} /> {busy ? 'Sauvegarde…' : 'Sauvegarder maintenant'}
+        </button>
+        {backups && backups.length > 1 && (
+          <button className="backup-showall" onClick={() => setShowAll(v => !v)} aria-label={showAll ? 'Masquer les autres sauvegardes' : `Afficher les ${backups.length - 1} autres sauvegardes`}>
+            {/* Libellé court : il partage la rangée avec « Sauvegarder maintenant » (26/11/2026). */}
+            {showAll ? 'Masquer' : `${backups.length - 1} autre${backups.length - 1 > 1 ? 's' : ''}`}
+            <span className={`backup-chev${showAll ? ' up' : ''}`}><Icon name="chevronDown" size={13} /></span>
+          </button>
+        )}
+      </div>
 
       {restoring && (
         <ReplaceConfirmModal
           ctx={ctx}
           backup={restoring}
+          onDelete={async () => { if (await doDelete(restoring)) setRestoring(null); }}
           onClose={() => setRestoring(null)}
         />
       )}
@@ -1386,7 +1390,7 @@ function BackupsCard({ ctx }) {
 //  `sessionStorage` n'est pas touchée, et l'écriture part immédiatement
 //  après le geste. Ne pas rendre `io.confirm` asynchrone pour ça.
 // ============================================================
-function ReplaceConfirmModal({ ctx, backup, payload: payloadImport, label, mode = 'restore', onConfirm, onClose }) {
+function ReplaceConfirmModal({ ctx, backup, payload: payloadImport, label, mode = 'restore', onConfirm, onDelete = null, onClose }) {
   const { user, showToast } = ctx;
   const [showDetail, setShowDetail] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -1642,6 +1646,11 @@ function ReplaceConfirmModal({ ctx, backup, payload: payloadImport, label, mode 
                       : (aPerte ? 'Restaurer quand même' : 'Restaurer'))}
               </button>
             : <button className="btn btn-secondary btn-lg" onClick={onClose}>Fermer</button>}
+          {/* La corbeille à droite du bouton principal (26/11/2026, piste chevron) : supprimer une sauvegarde se fait ici, plus
+              dans la liste. Restauration seulement — un import n'a rien à supprimer. */}
+          {!estImport && onDelete && (
+            <button type="button" className="btn-delete-line" onClick={onDelete} disabled={busy}><Icon name="trash" size={14} /> Supprimer</button>
+          )}
         </div>
       </div>
     </Modal>

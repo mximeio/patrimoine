@@ -165,7 +165,7 @@ function SavingsConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, onCre
                 sous: `${fmt(computeSavingsBalance(s))} € · ${n} opération${n > 1 ? 's' : ''}` };
             })}
             onModifier={setEditId}
-            libelleAjout="Ajouter un compte d'épargne"
+            libelleAjout="Nouveau compte d'épargne"
             onAjouter={() => setShowCreate(true)}
           />
         </Modal>
@@ -209,7 +209,7 @@ function SavingsListRow({ saving, colorIndex, onClick }) {
         <div className="portfolio-list-name">{saving.name}</div>
         <div className="portfolio-list-sub">
           {lastOp
-            ? `Dernière opération le ${fmtDateNumeric(lastOp.date)}`
+            ? `Dernière opération le ${fmtDate(lastOp.date)}`
             : 'Aucune opération'}
         </div>
       </div>
@@ -383,7 +383,7 @@ function SavingsDetailView({ ctx, saving, onBack }) {
                 <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
                 <div className="op-main">
                   <span className="op-label">{d.label}</span>
-                  <span className="op-date">{fmtDateNumeric(op.date)}</span>
+                  <span className="op-date">{fmtDate(op.date)}</span>
                 </div>
                 <div className="num op-amount" style={{ color: d.amountColor }}>
                   {d.sign}{fmt(d.amount)}<span className="currency-muted"> €</span>
@@ -602,7 +602,7 @@ function SavingsHistoryOpsTable({ ops, onEdit, onDelete }) {
             <span className="tx-icon" style={{ background: d.bg, color: d.color }}><Icon name={d.iconName} size={12} /></span>
             <div className="op-main">
               <span className="op-label">{d.label}</span>
-              <span className="op-date">{fmtDateNumeric(op.date)}</span>
+              <span className="op-date">{fmtDate(op.date)}</span>
             </div>
             <div className="num op-amount" style={{ color: d.amountColor }}>
               {d.sign}{fmt(d.amount)} €

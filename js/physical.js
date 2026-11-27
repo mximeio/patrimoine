@@ -259,7 +259,7 @@ function PhysicalView({ ctx }) {
                 sous: `${piecesTxt(deriverActifPhysique(a).qty)} · ${n} opération${n > 1 ? 's' : ''}` };
             })}
             onModifier={setEditAsset}
-            libelleAjout="Ajouter un actif"
+            libelleAjout="Nouvel actif"
             onAjouter={() => setEditAsset('new')}
             vide={<EmptyState icon="coin" title="Aucun actif" hint="Pièces d'or, métaux précieux, …" />}
           />
@@ -292,7 +292,7 @@ function PhysicalAssetRow({ asset, derive }) {
       <div className="support-main">
         <div className="support-name">{asset.name}</div>
         <div className="support-sub">
-          {fmtQte(derive.qty)} × {fmt(prix)} €{asset.priceUpdatedAt ? ` · ${fmtDateNumeric(asset.priceUpdatedAt)}` : ''}
+          {fmtQte(derive.qty)} × {fmt(prix)} €{asset.priceUpdatedAt ? ` · ${fmtDate(asset.priceUpdatedAt)}` : ''}
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>
@@ -465,7 +465,7 @@ function PhysicalPricesForm({ items, onSubmit, onDirtyChange, showToast }) {
               <span className="maj-sup-lbl">
                 <span className="maj-sup-t">
                   <b>{a.name}</b>
-                  <span>{piecesTxt(d.qty)}{a.priceUpdatedAt ? ` · ${fmt(Number(a.unitCurrentPrice) || 0)} € le ${fmtDateNumeric(a.priceUpdatedAt)}` : ''}</span>
+                  <span>{piecesTxt(d.qty)}{a.priceUpdatedAt ? ` · ${fmt(Number(a.unitCurrentPrice) || 0)} € le ${fmtDate(a.priceUpdatedAt)}` : ''}</span>
                 </span>
                 {c && <DeltaMontant valeur={r2(d.qty * (c.prix - c.avant))} />}
               </span>

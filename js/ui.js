@@ -453,7 +453,7 @@ function Modal({ title, onClose, children, size = 'md', noDirtyGuard = false, di
   // de <body>, la modale se positionne par rapport au vrai viewport.
   return ReactDOM.createPortal(
     <div
-      className={`modal-overlay ${pleine ? 'modal-overlay--pleine' : 'modal-overlay--feuille'}${grande ? ' modal-overlay--grande' : ''}`}
+      className={`modal-overlay ${pleine ? 'modal-overlay--pleine' : 'modal-overlay--feuille'}${grande ? ' modal-overlay--grande' : ''}${tone === 'neutre' ? ' modal-overlay--neutre' : ''}`}
       ref={overlayRef}
       onMouseDown={(e) => { downOnBackdropRef.current = e.target === e.currentTarget; }}
       onClick={(e) => {
@@ -1276,7 +1276,9 @@ function ListeReglages({ module, elements, onModifier, libelleAjout, onAjouter, 
         ))}
         {elements.length === 0 && vide}
       </div>
-      <button type="button" className="btn-add" style={{ marginTop: 10 }} onClick={onAjouter}>{libelleAjout}</button>
+      {/* L'ajout EST l'action principale de ces fenêtres (pas d'« Enregistrer ») : le bouton PLEIN « + Nouveau … » à la couleur de
+          la rubrique, pleine largeur, comme « Nouvelle opération récurrente » et « Nouveau paiement TR » (26/11/2026). */}
+      <button type="button" className="btn btn-accent btn-lg btn-fen ajout-bas" onClick={onAjouter}><Icon name="plus" size={16} /> {libelleAjout}</button>
     </>
   );
 }

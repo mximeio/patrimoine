@@ -210,7 +210,8 @@ const fmtDateLong = (iso) => {
   return `${parseInt(d)} ${FRENCH_MONTHS_SHORT[parseInt(m) - 1]} ${y}`;
 };
 
-// Format compact DD/MM/YYYY (utilisé dans les "MaJ" des listes)
+// Format DD/MM/YYYY : les cellules des CARTES DE TÊTE (« Màj », « Dernière opération »). Dans une LIGNE de liste, la date
+// est COURTE, `fmtDate` (jj/mm/aa) — une seule écriture dans les listes depuis le 26/11/2026 (planche « Textes coupés »).
 const fmtDateNumeric = (iso) => {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');

@@ -245,7 +245,7 @@ function PortfoliosConsolidatedView({ ctx, onOpen, showCreate, setShowCreate, on
                 sous: `${fmt(computePortfolioStats(d).totalValue)} € · ${ns} support${ns > 1 ? 's' : ''} · ${no} opération${no > 1 ? 's' : ''}` };
             })}
             onModifier={setEditId}
-            libelleAjout="Ajouter une enveloppe"
+            libelleAjout="Nouvelle enveloppe"
             onAjouter={() => setShowCreate(true)}
           />
         </Modal>
@@ -291,7 +291,7 @@ function PortfolioListRow({ portfolio, colorIndex, total, onClick }) {
         <div className="portfolio-list-name">{portfolio.name}</div>
         <div className="portfolio-list-sub">
           {etfCount} support{etfCount > 1 ? 's' : ''}
-          {lastDate ? ` · ${fmtDateNumeric(lastDate)}` : ''}
+          {lastDate ? ` · ${fmtDate(lastDate)}` : ''}
         </div>
       </div>
       <div className="portfolio-list-right">
@@ -767,7 +767,7 @@ function PortfolioConfigureForm({ data, portfolioName, onSubmit, onDirtyChange, 
         <div className="settings-groupe">
         <ModuleToggleRow
           label="Calculer mes versements"
-          hint="Ajoute au menu ⋯ un calcul du nombre de parts à acheter pour coller à tes cibles."
+          hint="Les parts à acheter, dans le menu ⋯" /* raccourcie le 26/11/2026 : une aide tient sur UNE ligne (Paramètres en B) */
           enabled={!!draft.contributionPlanner}
           onChange={(v) => {
             const neuf = { ...draft, contributionPlanner: v };
@@ -861,7 +861,7 @@ function SupportRow({ position, lastDate }) {
               Il n'y a plus AUCUN `toFixed(1)` dans le code. */}
           {fmtPct(position.weight, { signe: false })}
           {hasTarget && <>{' '}<InfoTip iconName="target" label={targetTip} /></>}
-          {lastDate ? ` · ${fmtDateNumeric(lastDate)}` : ''}
+          {lastDate ? ` · ${fmtDate(lastDate)}` : ''}
           {isDist && position.dividendsReceived > 0 && (
             <span style={{ color: 'var(--info-fonce)', marginLeft: 6 }}>· +{fmt(position.dividendsReceived)} € de div.</span>
           )}

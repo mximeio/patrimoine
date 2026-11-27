@@ -407,14 +407,10 @@ function ChargeForm({ initial, people, nets, onSubmit, onDelete, defaultPeriod =
       )}
 
 
-      <div className="charge-mensuel-row">
-        <span>{annual ? 'Provision mensuelle (livret)' : 'Virement mensuel (compte joint)'}</span>
-        <label className="toggle">
-          <input type="checkbox"
-            checked={annual ? provision : mensuel}
-            onChange={(e) => annual ? setProvision(e.target.checked) : setMensuel(e.target.checked)} />
-          <span className="toggle-slider"></span>
-        </label>
+      {/* Le gabarit commun des interrupteurs de fenêtre (26/11/2026, planche « Paramètres complets ») : nom 14, aide 12, sur la marge. */}
+      <div className="settings-groupe">
+        <ModuleToggleRow label={annual ? 'Provision mensuelle (livret)' : 'Virement mensuel (compte joint)'}
+          enabled={annual ? provision : mensuel} onChange={(v) => annual ? setProvision(v) : setMensuel(v)} />
       </div>
 
       <div className="form-actions">
